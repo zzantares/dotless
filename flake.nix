@@ -1,0 +1,109 @@
+{
+  description = "dotless - a composable Home Manager and NixOS distribution";
+
+  inputs = {
+    # nixos-unstable at 2026-05-08
+    nixpkgs.url = "github:NixOS/nixpkgs?rev=549bd84d6279f9852cae6225e372cc67fb91a4c1";
+
+    # master at 2026-05-08
+    home-manager.url = "github:nix-community/home-manager?rev=fdb2ccba9d5e1238d32e0c4a3ec1a277efa80c1d";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    nix-darwin.url = "github:nix-darwin/nix-darwin";
+    nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+
+    flake-utils.url = "github:numtide/flake-utils";
+
+    nixGL.url = "github:nix-community/nixGL";
+    nixGL.inputs.nixpkgs.follows = "nixpkgs";
+
+    rust-overlay.url = "github:oxalica/rust-overlay";
+
+    nur.url = "github:nix-community/NUR";
+
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    plasma-manager.url = "github:nix-community/plasma-manager";
+    plasma-manager.inputs.nixpkgs.follows = "nixpkgs";
+    plasma-manager.inputs.home-manager.follows = "home-manager";
+
+    # ZSH plugin to manipulate zsh history file (for failed cmd hook history removal)
+    zsh-hist.url = "github:marlonrichert/zsh-hist";
+    zsh-hist.flake = false;
+
+    t.url = "github:joshmedeski/t-smart-tmux-session-manager?rev=3726950525ac9966412ea3f2093bf2ffe06aa023";
+    t.flake = false;
+
+    zed-editor.url = "github:zed-industries/zed?ref=v0.226.5";
+
+    opencode.url = "github:anomalyco/opencode?ref=v1.14.48";
+  };
+
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      ...
+    }@inputs:
+    let
+      lib = nixpkgs.lib.extend (
+        final: prev: {
+          zz = import ./nix/lib { lib = prev; };
+        }
+      );
+    in
+    {
+      inherit lib;
+
+      overlays.default = import ./nix/overlays { inherit inputs; };
+
+      # Presets: batteries-included bundles suitable for most users.
+      # Import one of these as a starting point and override/extend as needed.
+      homeManagerModules = {
+        base = ./nix/presets/home-manager/base;
+        devstation = ./nix/presets/home-manager/devstation;
+        workstation = ./nix/presets/home-manager/workstation;
+
+        # Individual modules — opt in à la carte
+        git = ./nix/modules/home-manager/programs/git;
+        zsh = ./nix/modules/home-manager/programs/zsh;
+        tmux = ./nix/modules/home-manager/programs/tmux;
+        bat = ./nix/modules/home-manager/programs/bat;
+        alacritty = ./nix/modules/home-manager/programs/alacritty;
+        emacs = ./nix/modules/home-manager/programs/emacs;
+        fourmolu = ./nix/modules/home-manager/programs/fourmolu;
+        "claude-code" = ./nix/modules/home-manager/programs/claude-code;
+        ssh = ./nix/modules/home-manager/programs/ssh;
+        browser = ./nix/modules/home-manager/programs/browser;
+        firefox = ./nix/modules/home-manager/programs/firefox;
+        librewolf = ./nix/modules/home-manager/programs/librewolf;
+        jujutsu = ./nix/modules/home-manager/programs/jujutsu;
+        dotfiles = ./nix/modules/home-manager/dotfiles;
+        email = ./nix/modules/home-manager/email;
+        sops = ./nix/modules/home-manager/sops;
+        gnome = ./nix/modules/home-manager/gnome;
+        kde = ./nix/modules/home-manager/kde;
+        xmonad = ./nix/modules/home-manager/xmonad;
+        streaming = ./nix/modules/home-manager/streaming;
+        "generic-linux" = ./nix/modules/home-manager/generic-linux;
+      };
+
+      # NixOS-level modules — for system configuration (not home-manager)
+      nixosModules = {
+        nix = ./nix/modules/nix;
+        sops = ./nix/modules/nixos/sops;
+        gnome = ./nix/modules/nixos/gnome;
+        kde = ./nix/modules/nixos/kde;
+      };
+    }
+    // flake-utils.lib.eachSystem
+      [
+        "x86_64-linux"
+        "aarch64-darwin"
+      ]
+      (system: {
+        formatter = nixpkgs.legacyPackages.${system}.nixfmt;
+      });
+}

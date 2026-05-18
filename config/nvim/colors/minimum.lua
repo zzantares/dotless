@@ -1,0 +1,87 @@
+---
+-- @file colors/minimum.lua
+--
+-- @brief
+-- A minimum colorscheme
+--
+-- @author Tanuharja, R.A.
+-- @date 2024-12-20
+--
+
+local group_styles = {
+
+	["Normal"] = { fg = "#CCCCCC", bg = "None" },
+	["NormalFloat"] = { fg = "#CCCCCC", bg = "None" },
+
+	["String"] = { fg = "#D6DFD4" },
+	["Comment"] = { fg = "#777777" },
+
+	["Visual"] = { fg = "#000000", bg = "#888888" },
+
+	["Identifier"] = { fg = "#DDDDDD", bold = true },
+	["Statement"] = { fg = "#EEEEEE", bold = true },
+	["Special"] = { fg = "#87AFD7", bold = false },
+
+	["Function"] = { fg = "#87AFD7" },
+	["Constant"] = { fg = "#CCCCCC" },
+
+	["DiffAdd"] = { fg = "None", bg = "#597b60", sp = "None" },
+	["DiffDelete"] = { fg = "None", bg = "#7f605c" },
+	["DiffChange"] = { fg = "None", bg = "NvimLightYellow" },
+	["DiffText"] = { fg = "NvimLightYellow", bg = "None", sp = "None" },
+
+	["Added"] = { fg = "#597b60", bg = "None" },
+	["Changed"] = { fg = "NvimLightYellow", bg = "None" },
+	["Removed"] = { fg = "#7f605c", bg = "None" },
+
+	["Error"] = { fg = "#FFFFFF", bg = "None", bold = true },
+
+	["QuickFixLine"] = { fg = "#CCCCCC", bold = true },
+
+	["Pmenu"] = { fg = "#DDDDDD", bg = "#222222" },
+	["PmenuSel"] = { fg = "#CCCCCC", bg = "#444444" },
+
+	["Question"] = { fg = "#666666" },
+	["Directory"] = { fg = "#777777" },
+
+	["MsgSeparator"] = { fg = "#EEEEEE", bg = "#444444" },
+	["MoreMsg"] = { fg = "#EEEEEE", bg = "#444444" },
+
+	["StatusLine"] = { fg = "#EEEEEE", bg = "#333333" },
+
+	["Folded"] = { fg = "#444444" },
+	["MatchParen"] = { fg = "#FFFFFF", bold = true },
+	["WinSeparator"] = { fg = "#444444" },
+
+	["Search"] = { fg = "NvimLightYellow", bg = "None" },
+	["SnippetTabstop"] = { fg = "NvimLightYellow", bg = "None" },
+
+	["DiagnosticUnnecessary"] = { fg = "#888888" },
+
+	["Todo"] = { fg = "NvimLightYellow", bg = "None", bold = true },
+
+	["@variable"] = { fg = "#CCCCCC" },
+	["@string.documentation"] = { fg = "#777777" },
+	["@comment.warning"] = {
+		fg = "#000000",
+		bg = "NvimLightYellow",
+		bold = true,
+	},
+	["@comment.error"] = { fg = "#000000", bg = "NvimLightRed", bold = true },
+	["@comment.note"] = { fg = "#000000", bg = "#D3EDE7", bold = true },
+
+	["LspSignatureActiveParameter"] = { bg = "None" },
+	["LspReferenceTarget"] = { bg = "None" },
+
+	["NvimTreeGitDeletedIcon"] = { fg = "#87AFD7", bg = "None" },
+	["NvimTreeGitDirtyIcon"] = { fg = "#87AFD7", bg = "None" },
+	["NvimTreeGitIgnoredIcon"] = { fg = "#87AFD7", bg = "None" },
+	["NvimTreeGitMergeIcon"] = { fg = "#87AFD7", bg = "None" },
+	["NvimTreeGitNewIcon"] = { fg = "#87AFD7", bg = "None" },
+	["NvimTreeGitRenamedIcon"] = { fg = "#87AFD7", bg = "None" },
+	["NvimTreeGitStagedIcon"] = { fg = "#87AFD7", bg = "None" },
+}
+
+for group, style in pairs(group_styles) do
+	vim.api.nvim_set_hl(0, group, style)
+end

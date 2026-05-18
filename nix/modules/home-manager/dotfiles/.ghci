@@ -1,0 +1,48 @@
+-- Build a source map so that other commands like :locate work
+:set +c
+
+-- Turn off output for resource usage and types. This is to reduce verbosity when reloading this file.
+:unset +s +t
+
+-- Turn on multi-line input and remove the distracting verbosity.
+:set +m -v0
+
+-- Turn off all compiler warnings and turn on extension for interactive input.
+:seti -w -XOverloadedStrings
+
+-- A nice lambda at the prompt
+:set prompt "\ESC[34mλ> \ESC[m"
+
+-- Use emacsclient as the external editor and fallback to nvim
+:set editor emacsclient -ct -a nvim
+
+-- Use :rr to reload this .ghci file
+:def! rr \_ -> return ":script .ghci"
+
+-- To make sure that laziness  doesn't bite us due to printing results of statements
+:set -fno-print-bind-result
+
+-- Search hoogle and view docs given a symbol
+let ghciEscapeShellArg arg = "'" ++ concatMap (\c -> if c == '\'' then "'\"'\"'" else [c]) arg ++ "'"
+
+:def! search return . (":! hoogle --count=15 --color " ++) . ghciEscapeShellArg
+:def! docs return . (":! hoogle --count=15 --color --info " ++) . ghciEscapeShellArg
+
+-- TODO When the following is enabled I get this on ghcid: "<interactive>:1:1-2: error: Not in scope: ‘pp’"
+-- -- Colourise ghci output (use :nopretty to disable)
+-- :set -package process
+-- :{
+-- :def! pretty \_ -> return $ unlines [
+--   ":unset +t",
+--   "let pp x = putStr =<< catch' (rp \"HsColour\" []) =<< catch' (rp \"ppsh\" []) (show x) where { rp = System.Process.readProcess; catch' f x = Control.Exception.catch (f x) (h x); h :: String -> Control.Exception.SomeException -> IO String; h x _ = return x }",
+--   ":seti -interactive-print pp",
+--   ":set +t"
+--   ]
+-- :}
+-- :def! nopretty \_ -> return ":set -interactive-print System.IO.print"
+
+-- -- Enable pretty output (defined above)
+-- :pretty
+
+-- Show type of evaluated expressions (also enabled by :pretty)
+:set +t

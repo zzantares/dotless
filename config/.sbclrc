@@ -1,0 +1,19 @@
+;; -*- mode: lisp -*-
+;;
+;; On installing libraries requiring system level libraries:
+;; - https://discourse.nixos.org/t/tip-for-sbcl-quicklisp-and-library-dependencies-with-pkg-config/12065
+;; - https://discourse.nixos.org/t/how-to-use-quicklisp-with-sbcl/20539/2
+;;
+;; Basic quicklisp usage:
+;; - To load a system, use: (ql:quickload "system-name")
+;; - To find systems, use: (ql:system-apropos "term")
+;;
+;; TODO Make this file XDG compliant: https://hiphish.github.io/blog/2020/12/28/making-sbcl-xdg-compliant/
+
+
+;;; The following lines added by ql:add-to-init-file:
+#-quicklisp
+(let ((quicklisp-init (merge-pathnames "quicklisp/setup.lisp"
+                                       (user-homedir-pathname))))
+  (when (probe-file quicklisp-init)
+    (load quicklisp-init)))

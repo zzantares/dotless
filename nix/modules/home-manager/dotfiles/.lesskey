@@ -1,0 +1,10 @@
+#command
+k forw-line
+h back-line
+l forw-line
+j back-line
+
+#line-edit
+\e abort
+^p up
+^n down

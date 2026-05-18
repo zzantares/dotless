@@ -1,0 +1,5 @@
+
+
+# Keyboard speed
+defaults write -g InitialKeyRepeat -int 15  # Normal minimum is 15 (225 ms)
+defaults write -g KeyRepeat -int 1          # Normal minimum is 2 (30 ms)

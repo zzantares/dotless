@@ -1,0 +1,6 @@
+\set QUIET 1
+\pset null '(NUL)'
+\set HISTFILE ~/.psql_history/:DBNAME
+\set FETCH_COUNT 100
+\timing
+\set QUIET 0

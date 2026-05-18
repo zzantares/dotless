@@ -1,0 +1,18 @@
+unbindurl youtube\.com/watch\?v=.* f
+unbindurl youtube\.com/watch\?v=.* j
+unbindurl youtube\.com/watch\?v=.* l
+unbindurl youtube\.com/watch\?v=.* m
+unbindurl lichess.org f
+bind k scrollline 10
+bind h scrollline -10
+bind j scrollpx -50
+bind l scrollpx 50
+bind J tabprev
+bind L tabnext
+bind H forward
+bind K back
+
+bind --mode=visual j js document.getSelection().modify("extend","backward","character")
+bind --mode=visual h js document.getSelection().modify("extend","backward","line")
+bind --mode=visual k js document.getSelection().modify("extend","forward","line")
+bind --mode=visual l js document.getSelection().modify("extend","forward","character")
