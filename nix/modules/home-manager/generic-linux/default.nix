@@ -2,6 +2,7 @@
   inputs,
   lib,
   pkgs,
+  profile,
   ...
 }:
 
@@ -60,7 +61,7 @@
   programs.ssh = {
     matchBlocks = {
       "*.local" = {
-        user = "antares";
+        user = profile.login;
       };
     };
   };

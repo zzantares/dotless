@@ -54,7 +54,7 @@ in
       # Bigger font
       # "layout.css.devPixelsPerPx" = 1.1;
       "browser.zoom.full" = false;
-      "font.size.variable.x-western" = if profile.login == "antares" then 20 else 18;
+      "font.size.variable.x-western" = 18;
       "sidebar.revamp" = false;
       "sidebar.visibility" = "hide-sidebar";
       "sidebar.verticalTabs" = true;

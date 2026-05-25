@@ -195,6 +195,7 @@
        ;; NOTE The custom module for each profile should always be loaded last!
        ;; TODO I can't find a way to include the module conditionally so
        ;;      make it a "profile" module which uses flags to select the profile to load
-       (:cond ((string= (user-login-name) "antares") antares))
+       ;; Add your own private module here, e.g.:
+       ;; (:cond ((string= (user-login-name) "myuser") mymodule))
        ;;literate
        (default +bindings +smartparens))
