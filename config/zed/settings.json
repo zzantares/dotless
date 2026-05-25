@@ -7,29 +7,6 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
-  "ssh_connections": [
-    {
-      "host": "omnia.local",
-      "args": [],
-      "projects": [
-        {
-          "paths": [
-            "/home/jgutierrez/bitnomial/master"
-          ]
-        },
-        {
-          "paths": [
-            "/home/jgutierrez/bitnomial/spot-markets"
-          ]
-        },
-        {
-          "paths": [
-            "/home/jgutierrez/bitnomial/spot-writer"
-          ]
-        }
-      ]
-    }
-  ],
   "vim_mode": true,
   "ui_font_size": 16,
   "buffer_font_size": 16,

@@ -65,13 +65,13 @@
   };
 
   home.file.clang-format = {
-    enable = profile.user != "jgutierrez";
+    enable = true;
     source = ./.clang-format;
     target = ".clang-format";
   };
 
   home.file.clangd = {
-    enable = profile.user != "jgutierrez";
+    enable = true;
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/${profile.flakeRoot}/config/clangd";
     target = "${config.xdg.configHome}/clangd";
   };

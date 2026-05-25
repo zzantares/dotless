@@ -74,9 +74,7 @@
     OPENAI_MODEL = "qwen/qwen3-coder:free";
   };
 
-  home.shellAliases = {
-    isildur = "wol -- ac:1a:3d:d2:f9:61 > /dev/null";
-  };
+  home.shellAliases = { } // (profile.shellAliases or { });
 
   # A systemd service to update tldr cache
   systemd.user.services.tldr-cache-update = lib.mkIf pkgs.stdenv.isLinux {
