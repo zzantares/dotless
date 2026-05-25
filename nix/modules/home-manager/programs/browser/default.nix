@@ -117,7 +117,7 @@ in
       };
 
       # Graphics
-      # "media.ffmpeg.vaapi.enabled" = profile.login == "antares";
+      # "media.ffmpeg.vaapi.enabled" = true;
 
       # DRM
       "browser.eme.ui.enabled" = false; # Do not show UI elements to toggle DRM
