@@ -13,8 +13,6 @@ theInputs@{
 
     overlays = [
       inputs.self.overlays.default
-      inputs.rust-overlay.overlays.default
-      inputs.nur.overlays.default
     ];
   };
 

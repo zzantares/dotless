@@ -57,7 +57,11 @@
     {
       inherit lib;
 
-      overlays.default = import ./nix/overlays { inherit inputs; };
+      overlays.default = nixpkgs.lib.composeManyExtensions [
+        (import ./nix/overlays { inherit inputs; })
+        inputs.rust-overlay.overlays.default
+        inputs.nur.overlays.default
+      ];
 
       # Presets: batteries-included bundles suitable for most users.
       # Import one of these as a starting point and override/extend as needed.
@@ -98,12 +102,13 @@
         kde = ./nix/modules/nixos/kde;
       };
     }
-    // flake-utils.lib.eachSystem
-      [
-        "x86_64-linux"
-        "aarch64-darwin"
-      ]
-      (system: {
-        formatter = nixpkgs.legacyPackages.${system}.nixfmt;
-      });
+    //
+      flake-utils.lib.eachSystem
+        [
+          "x86_64-linux"
+          "aarch64-darwin"
+        ]
+        (system: {
+          formatter = nixpkgs.legacyPackages.${system}.nixfmt;
+        });
 }
