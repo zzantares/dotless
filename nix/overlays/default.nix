@@ -75,6 +75,8 @@ in
 
   fonts = final.callPackage ./../pkgs/fonts { };
 
+  wallpapers = final.callPackage ./../pkgs/wallpapers { };
+
   zed-editor = inputs.zed-editor.packages.${system}.default;
 
   toolchains = {

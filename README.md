@@ -24,6 +24,8 @@ inputs.nixpkgs.follows = "dotless/nixpkgs";
 inputs.home-manager.follows = "dotless/home-manager";
 inputs.zsh-hist.follows = "dotless/zsh-hist";
 inputs.t.follows = "dotless/t";
+inputs.sops-nix.follows = "dotless/sops-nix";       # required by sops modules
+inputs.nixGL.follows = "dotless/nixGL";              # required by generic-linux module
 ```
 
 Apply the overlay and import a preset in your home configuration:
@@ -71,6 +73,11 @@ specialArgs = {
     gnomeAccentColor = "blue";
     ohMyZshTheme     = "sorin";
     wallpaper        = null;
+
+    # User-provided resources (optional — used by the resources module)
+    fontsPath      = null;  # "${inputs.self}/resources/fonts"
+    wallpapersPath = null;  # "${inputs.self}/resources/wallpapers"
+    iconsPath      = null;  # "${inputs.self}/resources/icons"
   };
 };
 ```

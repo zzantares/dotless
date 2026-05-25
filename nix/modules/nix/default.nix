@@ -12,7 +12,9 @@ theInputs@{
     config.allowUnfree = true;
 
     overlays = [
-      inputs.self.overlays.default
+      # inputs.dotless refers to the dotless flake input — the README establishes
+      # "dotless" as the conventional name: `inputs.dotless.url = "..."`.
+      inputs.dotless.overlays.default
     ];
   };
 

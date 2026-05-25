@@ -16,7 +16,9 @@
     # whenever the configuration is activated remotely. For this reason we instead use a Nix path.
     # In that case Nix includes the encrypted secrets file in the derivation closure forcing it
     # to be in the Nix Store such that can be used for decryption when doing remote activations.
-    defaultSopsFile = ../../../../secrets/${profile.login}/secrets.yaml;
+    # inputs.self resolves to the user's own flake — secrets live in the user's
+    # private repo, not in dotless, so this is intentional.
+    defaultSopsFile = "${inputs.self}/secrets/${profile.login}/secrets.yaml";
 
     # Avoid "secrets.yaml is not in the Nix store" errors
     # NOTE enable this when using a sring path to the secrets file in the `defaultSopsFile` option
