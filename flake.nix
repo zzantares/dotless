@@ -131,7 +131,26 @@
           "x86_64-linux"
           "aarch64-darwin"
         ]
-        (system: {
-          formatter = nixpkgs.legacyPackages.${system}.nixfmt;
-        });
+        (system:
+          let
+            pkgs = import nixpkgs {
+              inherit system;
+              config.allowUnfree = true;
+              overlays = [ self.overlays.default ];
+            };
+          in
+          {
+            formatter = pkgs.nixfmt;
+
+            # Expose overlay packages for local testing: `nix build .#claude-code`
+            packages = {
+              inherit (pkgs)
+                claude-code
+                opencode
+                fonts
+                wallpapers
+                linear-cli
+                ;
+            };
+          });
 }
