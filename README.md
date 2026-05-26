@@ -47,8 +47,8 @@ home-manager.lib.homeManagerConfiguration {
 }
 ```
 
-Optionally include the nix module to get an opinionated nix daemon
-configuration (experimental features, binary caches, registry pinning):
+Optionally include the nix module for opinionated nix daemon configuration
+(experimental features, binary caches, registry pinning):
 
 ```nix
 modules = [
@@ -57,6 +57,10 @@ modules = [
   inputs.dotless.homeManagerModules.devstation
 ];
 ```
+
+> **Note:** `nixosModules.nix` works in both the HM module system and the
+> NixOS/nix-darwin system module system — import it wherever is appropriate
+> for your setup (see the NixOS and nix-darwin sections below).
 
 ### NixOS + Home Manager
 
@@ -94,17 +98,26 @@ imports = [
 ];
 ```
 
-Optionally include the nix module for opinionated nix settings (binary caches,
-registry pinning, experimental features). Despite being exported under
-`nixosModules`, this is a **Home Manager module** — it must go in HM imports,
-not in the system-level `modules` list. On NixOS it detects the system context
-and defers daemon management to NixOS, only writing user-level nix settings:
+Optionally include the nix module for opinionated nix daemon configuration
+(binary caches, registry pinning, experimental features). Import it at the
+system level so nix is configured once for the whole machine, not per user:
 
 ```nix
-home-manager.users.${profile.login}.imports = [
-  inputs.dotless.nixosModules.nix        # opt-in: HM module, goes here not in nixosSystem modules
-  inputs.dotless.homeManagerModules.devstation
-];
+nixpkgs.lib.nixosSystem {
+  specialArgs = { inherit inputs profile; };
+  modules = [
+    ./hardware-configuration.nix
+    inputs.dotless.nixosModules.bare-metal
+    inputs.dotless.nixosModules.nix          # opt-in: system-level nix config
+    inputs.home-manager.nixosModules.home-manager
+    {
+      home-manager.extraSpecialArgs = { inherit inputs profile; };
+      home-manager.users.${profile.login}.imports = [
+        inputs.dotless.homeManagerModules.devstation
+      ];
+    }
+  ];
+}
 ```
 
 ### nix-darwin + Home Manager
@@ -130,17 +143,25 @@ nix-darwin.lib.darwinSystem {
 }
 ```
 
-Optionally include the nix module for opinionated nix settings (binary caches,
-registry pinning, experimental features). As with NixOS, this is a **Home Manager
-module** — it goes in HM imports, not in the system-level `modules` list. On
-nix-darwin it defers daemon management to the system and only writes user-level
-nix settings:
+Optionally include the nix module for opinionated nix daemon configuration
+(binary caches, registry pinning, experimental features). Import it at the
+system level so nix is configured once for the whole machine, not per user:
 
 ```nix
-home-manager.users.${profile.login}.imports = [
-  inputs.dotless.nixosModules.nix        # opt-in: HM module, goes here not in darwinSystem modules
-  inputs.dotless.homeManagerModules.devstation
-];
+nix-darwin.lib.darwinSystem {
+  specialArgs = { inherit inputs profile; };
+  modules = [
+    inputs.dotless.darwinModules.base
+    inputs.dotless.nixosModules.nix          # opt-in: system-level nix config
+    inputs.home-manager.darwinModules.home-manager
+    {
+      home-manager.extraSpecialArgs = { inherit inputs profile; };
+      home-manager.users.${profile.login}.imports = [
+        inputs.dotless.homeManagerModules.devstation
+      ];
+    }
+  ];
+}
 ```
 
 ## The `profile` interface
