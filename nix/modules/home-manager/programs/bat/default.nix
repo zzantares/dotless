@@ -36,7 +36,7 @@ in
 
   # Bat replaces cat
   programs.bat = {
-    enable = true;
+    enable = lib.mkDefault true;
     extraPackages = with pkgs.bat-extras; [
       batman
       batgrep

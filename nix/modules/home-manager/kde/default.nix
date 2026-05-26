@@ -66,7 +66,7 @@ in
   #   - https://github.com/nix-community/plasma-manager
   #   - https://develop.kde.org/docs/plasma/scripting/
   programs.plasma = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     workspace = {
       # Analogous to color-scheme = "prefer-dark"
@@ -113,7 +113,7 @@ in
     };
 
     kwin.nightLight = {
-      enable = true;
+      enable = lib.mkDefault true;
       mode = "location";
       location = {
         latitude = "20.668991";

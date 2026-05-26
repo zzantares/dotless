@@ -2,7 +2,7 @@
 
 {
   programs.jujutsu = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     # TODO add change signing support
     settings = {

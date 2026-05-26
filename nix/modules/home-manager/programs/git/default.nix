@@ -42,7 +42,7 @@ in
 
   # provides better diffs
   programs.delta = {
-    enable = true;
+    enable = lib.mkDefault true;
     enableGitIntegration = true;
     options = {
       dark = true;
@@ -65,7 +65,7 @@ in
   # };
 
   programs.git = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     ignores = [
       "*.log"
@@ -86,7 +86,7 @@ in
     ];
 
     lfs = {
-      enable = true;
+      enable = lib.mkDefault true;
       package = pkgs.git-lfs;
       # Resolve binary files LFS pointers to the actual objects automatically
       skipSmudge = false;

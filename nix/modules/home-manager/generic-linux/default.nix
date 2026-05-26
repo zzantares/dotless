@@ -21,7 +21,7 @@
   };
 
   targets.genericLinux = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     # This instructs the HM nixGL module to actually use nixGL rather than bypass it
     nixGL.packages = inputs.nixGL.packages;

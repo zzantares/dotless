@@ -36,14 +36,14 @@
   // (profile.shellAliases or {});
 
   programs.zsh = {
-    enable = true;
+    enable = lib.mkDefault true;
     autocd = true;
     enableCompletion = true;
     dotDir = "${config.xdg.configHome}/zsh";
     defaultKeymap = "emacs";
 
     autosuggestion = {
-      enable = true;
+      enable = lib.mkDefault true;
       highlight = "fg=102";
       strategy = [ "history" ];
     };
@@ -91,7 +91,7 @@
     ];
 
     syntaxHighlighting = {
-      enable = true;
+      enable = lib.mkDefault true;
       highlighters = [
         "main"
         "brackets"
@@ -100,7 +100,7 @@
     };
 
     oh-my-zsh = {
-      enable = true;
+      enable = lib.mkDefault true;
       plugins = [
         "direnv"
         "fzf"
@@ -127,19 +127,19 @@
   };
 
   programs.direnv = {
-    enable = true;
+    enable = lib.mkDefault true;
     enableZshIntegration = true;
-    nix-direnv.enable = true;
+    nix-direnv.enable = lib.mkDefault true;
     nix-direnv.package = pkgs.nix-direnv;
   };
 
   programs.zoxide = {
-    enable = true;
+    enable = lib.mkDefault true;
     enableZshIntegration = true;
   };
 
   programs.fzf = {
-    enable = true;
+    enable = lib.mkDefault true;
     enableZshIntegration = true;
 
     tmux = {

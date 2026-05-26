@@ -96,7 +96,7 @@
   };
 
   programs.opencode = {
-    enable = true;
+    enable = lib.mkDefault true;
     package = pkgs.opencode;
     enableMcpIntegration = true;
     settings = {

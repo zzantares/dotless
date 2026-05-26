@@ -2,7 +2,7 @@
 
 {
   programs.chromium = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     package = config.lib.nixGL.wrap pkgs.google-chrome;
     # commandLineArgs = []; # strings get it from ps -o cmd

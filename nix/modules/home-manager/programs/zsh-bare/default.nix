@@ -19,14 +19,14 @@
   };
 
   programs.zsh = {
-    enable = true;
+    enable = lib.mkDefault true;
     autocd = true;
     enableCompletion = true;
     dotDir = "${config.xdg.configHome}/zsh";
     defaultKeymap = "emacs";
 
     autosuggestion = {
-      enable = true;
+      enable = lib.mkDefault true;
       highlight = "fg=102";
       strategy = [ "history" ];
     };
@@ -64,7 +64,7 @@
     ];
 
     syntaxHighlighting = {
-      enable = true;
+      enable = lib.mkDefault true;
       highlighters = [
         "main"
         "brackets"
@@ -73,7 +73,7 @@
     };
 
     oh-my-zsh = {
-      enable = true;
+      enable = lib.mkDefault true;
       plugins = [ ];
       theme = "robbyrussell";
       custom = "${config.programs.zsh.dotDir}/custom";

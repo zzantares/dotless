@@ -11,7 +11,7 @@
   # - per-machine projects: projectile-known-projects-file (~/.config/emacs/.local/cache/projectile.projects)
   # - custom dictionary: spell-fu-directory (~/.config/emacs/.local/etc/spell-fu)
   programs.emacs = {
-    enable = true;
+    enable = lib.mkDefault true;
     package = pkgs.emacs;
     extraPackages =
       epkgs: with epkgs; [
@@ -21,7 +21,7 @@
   };
 
   services.emacs = lib.mkIf pkgs.stdenv.isLinux {
-    enable = true;
+    enable = lib.mkDefault true;
     package = config.programs.emacs.package;
   };
 

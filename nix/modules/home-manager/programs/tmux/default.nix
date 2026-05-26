@@ -39,7 +39,7 @@ in
   home.sessionPath = [ "${t}/share/tmux-plugins/t/bin" ];
 
   programs.tmux = {
-    enable = true;
+    enable = lib.mkDefault true;
     mouse = true; # allows to use the wheel to scroll (one never knows)
     aggressiveResize = true;
     baseIndex = 0;

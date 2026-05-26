@@ -6,7 +6,7 @@
 
 {
   programs.obs-studio = {
-    enable = true;
+    enable = lib.mkDefault true;
     package = config.lib.nixGL.wrap (pkgs.obs-studio.override { cudaSupport = true; });
     plugins = with pkgs.obs-studio-plugins; [
       wlrobs

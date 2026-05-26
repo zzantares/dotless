@@ -11,7 +11,7 @@ let
 in
 {
   programs.alacritty = {
-    enable = true;
+    enable = lib.mkDefault true;
     package = config.lib.nixGL.wrap pkgs.alacritty;
 
     settings = {

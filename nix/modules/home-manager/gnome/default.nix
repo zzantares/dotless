@@ -67,7 +67,7 @@ in
   services.gpg-agent.pinentry.package = lib.mkForce pkgs.pinentry-gnome3;
 
   programs.gnome-shell = {
-    enable = true;
+    enable = lib.mkDefault true;
     extensions = map (x: {
       id = x.extensionUuid;
       package = x;

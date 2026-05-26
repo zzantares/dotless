@@ -217,7 +217,7 @@ let
   '';
 in
 {
-  xsession.enable = true;
+  xsession.enable = lib.mkDefault true;
 
   # GDM on Ubuntu auto-sources ~/.xprofile for ALL X sessions (including GNOME).
   # The default profilePath generates ~/.xprofile which would run
@@ -226,7 +226,7 @@ in
   xsession.profilePath = ".xprofile-hm";
 
   programs.autorandr = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     profiles = {
       # Laptop display only (no external monitor connected)
@@ -288,7 +288,7 @@ in
     };
   };
 
-  services.autorandr.enable = true;
+  services.autorandr.enable = lib.mkDefault true;
 
   # XMonad sessions don't benefit from GNOME keyring's SSH agent (that's only
   # started automatically for GNOME sessions), so run HM's ssh-agent instead.
@@ -301,7 +301,7 @@ in
   # Runs as a systemd user service tied to graphical-session.target — XMonad only.
   # GNOME has its own Night Light; this service is not active there.
   services.redshift = {
-    enable = true;
+    enable = lib.mkDefault true;
     latitude = "19.4326";
     longitude = "-99.1332";
     temperature = {
@@ -711,7 +711,7 @@ in
   home.file.".xmonad/xmonad-x86_64-linux".force = true;
 
   xsession.windowManager.xmonad = {
-    enable = true;
+    enable = lib.mkDefault true;
     enableContribAndExtras = true;
 
     # NOTE by setting this to null we're allowed to use `xmonad --recompile` for quick iteration.

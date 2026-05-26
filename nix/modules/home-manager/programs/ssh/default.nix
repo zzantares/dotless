@@ -15,7 +15,7 @@
 
   # This only handles the SSH client configuration not the installation of the client
   programs.ssh = {
-    enable = true;
+    enable = lib.mkDefault true;
     package = pkgs.openssh; # NOTE not setting this means to use the system's SSH
     enableDefaultConfig = false;
 

@@ -6,7 +6,7 @@
 
 {
   services.syncthing = {
-    enable = true;
+    enable = lib.mkDefault true;
     user = profile.login;
     systemService = true;
     openDefaultPorts = true;

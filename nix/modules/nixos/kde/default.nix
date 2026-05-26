@@ -6,16 +6,16 @@
 }:
 
 {
-  services.displayManager.sddm.enable = true;
-  services.desktopManager.plasma6.enable = true;
+  services.displayManager.sddm.enable = lib.mkDefault true;
+  services.desktopManager.plasma6.enable = lib.mkDefault true;
 
   # Night light is handled by KWin (configured via plasma-manager in the HM KDE module).
   # geoclue2 is kept for KDE's automatic location mode if ever needed.
-  services.geoclue2.enable = true;
+  services.geoclue2.enable = lib.mkDefault true;
   services.geoclue2.geoProviderUrl = "https://api.beacondb.net/v1/geolocate";
 
   # Enable touchpad support (enabled default in most desktopManager).
-  services.libinput.enable = true;
+  services.libinput.enable = lib.mkDefault true;
   services.libinput.touchpad.tapping = true;
   services.libinput.touchpad.naturalScrolling = true;
   services.libinput.touchpad.disableWhileTyping = true;

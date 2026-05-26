@@ -4,21 +4,21 @@
 
 {
   # Enable the X11 windowing system.
-  services.xserver.enable = true;
+  services.xserver.enable = lib.mkDefault true;
 
   # Enable the GNOME Desktop Environment.
   services.displayManager.defaultSession = "gnome";
-  services.xserver.displayManager.gdm.enable = true;
-  services.desktopManager.gnome.enable = true;
-  services.gnome.gnome-settings-daemon.enable = true;
-  programs.dconf.enable = true;
+  services.xserver.displayManager.gdm.enable = lib.mkDefault true;
+  services.desktopManager.gnome.enable = lib.mkDefault true;
+  services.gnome.gnome-settings-daemon.enable = lib.mkDefault true;
+  programs.dconf.enable = lib.mkDefault true;
 
   # Warm screen light at night
   location.provider = "geoclue2";
-  services.geoclue2.enable = true;
+  services.geoclue2.enable = lib.mkDefault true;
   services.geoclue2.geoProviderUrl = "https://api.beacondb.net/v1/geolocate";
   services.redshift = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     brightness = {
       day = "1";
@@ -32,7 +32,7 @@
   };
 
   # Enable touchpad support (enabled default in most desktopManager).
-  services.libinput.enable = true;
+  services.libinput.enable = lib.mkDefault true;
   services.libinput.touchpad.tapping = true;
   services.libinput.touchpad.naturalScrolling = true;
   services.libinput.touchpad.disableWhileTyping = true;
