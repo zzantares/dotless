@@ -12,7 +12,7 @@ GCS_BUCKET=$(curl -fsSL https://claude.ai/install.sh | grep -oP 'GCS_BUCKET="\K[
 GCS_ORIGIN="${GCS_BUCKET%/claude-code-releases}"
 
 hex_to_sri() {
-    echo -n "$1" | xxd -r -p | base64 | tr -d '\n' | xargs -I{} printf 'sha256-%s' '{}'
+    python3 -c "import sys,base64,binascii; print('sha256-' + base64.b64encode(binascii.unhexlify('$1')).decode())"
 }
 
 list_versions() {
@@ -32,12 +32,14 @@ print_channel() {
     fi
 
     manifest=$(curl -fsSL "$GCS_BUCKET/$version/manifest.json")
-    x64_hex=$(echo "$manifest" | jq -r '.platforms["linux-x64"].checksum')
+    get_hash() { hex_to_sri "$(echo "$manifest" | jq -r ".platforms[\"$1\"].checksum")"; }
 
     cat <<EOF
 [$channel]
 version = "$version"
-x86_64-linux:  $(hex_to_sri "$x64_hex")
+x86_64-linux   (linux-x64):    $(get_hash "linux-x64")
+aarch64-darwin (darwin-arm64): $(get_hash "darwin-arm64")
+x86_64-darwin  (darwin-x64):   $(get_hash "darwin-x64")
 EOF
 }
 

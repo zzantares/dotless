@@ -8,26 +8,42 @@
 }:
 
 let
-  # Run `nix/pkgs/claude-code/update.sh` to get a new version + hash
+  # Run `nix/pkgs/claude-code/update.sh` to get a new version + hashes
   version = "2.1.77";
   gcs = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
+
+  srcs = {
+    "x86_64-linux" = {
+      urlPlatform = "linux-x64";
+      hash = "sha256-NFWcnMnurclC1nMTZ67TkVtrc1HZjGHr/rvY+llQjs0=";
+    };
+    "aarch64-darwin" = {
+      urlPlatform = "darwin-arm64";
+      hash = "sha256-ZCZ3JBnHWOcRRnJVgtZ/HdpCaHxpPIPe+a00IruB6/E=";
+    };
+    "x86_64-darwin" = {
+      urlPlatform = "darwin-x64";
+      hash = "sha256-m+SiSiE80/R1cT6Pt1SMYxqr3DVcoZHpJsy2PxKXZAk=";
+    };
+  };
+
+  platformSrc = srcs.${stdenv.hostPlatform.system} or (throw "claude-code: unsupported system ${stdenv.hostPlatform.system}");
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-code";
   inherit version;
 
   src = fetchurl {
-    url = "${gcs}/${version}/linux-x64/claude";
-    hash = "sha256-NFWcnMnurclC1nMTZ67TkVtrc1HZjGHr/rvY+llQjs0=";
+    url = "${gcs}/${version}/${platformSrc.urlPlatform}/claude";
+    hash = platformSrc.hash;
   };
 
-  nativeBuildInputs = [
-    autoPatchelfHook
-    makeWrapper
-  ];
+  nativeBuildInputs =
+    lib.optionals stdenv.isLinux [ autoPatchelfHook ]
+    ++ [ makeWrapper ];
 
-  # The binary dynamically links against glibc and libstdc++
-  buildInputs = [ stdenv.cc.cc.lib ];
+  # The Linux binary dynamically links against glibc and libstdc++
+  buildInputs = lib.optionals stdenv.isLinux [ stdenv.cc.cc.lib ];
 
   dontUnpack = true;
   dontBuild = true;
@@ -48,6 +64,6 @@ stdenvNoCC.mkDerivation {
     homepage = "https://github.com/anthropics/claude-code";
     license = licenses.unfree;
     mainProgram = "claude";
-    platforms = [ "x86_64-linux" ];
+    platforms = builtins.attrNames srcs;
   };
 }
