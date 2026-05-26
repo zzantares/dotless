@@ -94,12 +94,35 @@
         "generic-linux" = ./nix/modules/home-manager/generic-linux;
       };
 
-      # NixOS-level modules — for system configuration (not home-manager)
+      # NixOS-level modules and presets — for system configuration (not home-manager)
       nixosModules = {
+        # Individual opt-in modules
         nix = ./nix/modules/nix;
         sops = ./nix/modules/nixos/sops;
         gnome = ./nix/modules/nixos/gnome;
         kde = ./nix/modules/nixos/kde;
+        syncthing = ./nix/modules/nixos/syncthing;
+        tailscale = ./nix/modules/nixos/tailscale;
+
+        # Presets: batteries-included bundles for common machine roles.
+        # base — foundation for all managed NixOS systems
+        # bare-metal — extends base with user creation, firewall, boot loader
+        # server — bare-metal + node networking (no desktop, no wireless)
+        # desktop — bare-metal + NetworkManager + wireless
+        # node — compute-oriented networking + optional auto-upgrade (set profile.flakeUrl)
+        base = ./nix/presets/nixos/base;
+        bare-metal = ./nix/presets/nixos/bare-metal;
+        server = ./nix/presets/nixos/server;
+        desktop = ./nix/presets/nixos/desktop;
+        node = ./nix/presets/nixos/node;
+      };
+
+      # nix-darwin-level modules and presets — for system configuration (not home-manager)
+      darwinModules = {
+        # base — foundation for all managed nix-darwin systems; sets
+        # users.users.${profile.login}.home so home-manager can derive
+        # home.homeDirectory correctly when used as a nix-darwin module.
+        base = ./nix/presets/darwin/base;
       };
     }
     //
