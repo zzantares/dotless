@@ -20,7 +20,7 @@
       ];
   };
 
-  services.emacs = {
+  services.emacs = lib.mkIf pkgs.stdenv.isLinux {
     enable = true;
     package = config.programs.emacs.package;
   };

@@ -19,7 +19,9 @@
   # Ensure after switch that bin scripts are executable
   # chmod +x ${config.home.homeDirectory}/${profile.flakeRoot}/src/bin/*
   home.activation.makeLocalBinExecutables = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    chmod +x ${config.home.homeDirectory}/.local/bin/*
+    if [[ -d "${config.home.homeDirectory}/.local/bin" ]]; then
+      chmod +x ${config.home.homeDirectory}/.local/bin/*
+    fi
   '';
 
   # This is configured as a symlink to not have to re-build HM to change Emacs config

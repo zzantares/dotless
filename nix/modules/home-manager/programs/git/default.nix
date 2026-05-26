@@ -11,13 +11,6 @@
 
 let
   identityFile = "${config.home.homeDirectory}/${profile.identityFile}";
-  # FIXME reading files causes us to build with `--impure` we could avoid it in
-  #   this case if we instead set the literal key prefixed with `key::` in the
-  #   `users.signingkey`. Literal keys are already available from
-  #   `profile.sshKeys`, by convention we could pick the first one on the list
-  #   to be the signing key.
-  #   See: https://lore.kernel.org/git/20220628162342.ootjobbjtxg7b7ay@fs/t/
-  identityKey = lib.strings.trim (builtins.readFile identityFile);
 
   # We need a custom script to add the key to the agent when signing a commit
   # because AddKeysToAgent in ssh config is not honored when signing (it's not a

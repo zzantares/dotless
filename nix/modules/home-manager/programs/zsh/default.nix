@@ -110,7 +110,7 @@
     };
 
     initContent = lib.mkMerge [
-      (lib.mkBefore ''
+      (lib.mkBefore (''
         # source the nix profiles outside of TMUX (to avoid re-sourcing)
         if [[ -z "$TMUX" && -r "${config.home.homeDirectory}/.nix-profile/etc/profile.d/nix.sh" ]]; then
           source "${config.home.homeDirectory}/.nix-profile/etc/profile.d/nix.sh"
@@ -121,7 +121,7 @@
       '' + lib.optionalString pkgs.stdenv.isLinux ''
         # Workaround for: https://github.com/Mic92/sops-nix/issues/687
         ${pkgs.systemd}/bin/systemctl --user start sops-nix-starter.service
-      '')
+      ''))
       (lib.mkAfter (lib.readFile ./extra.zsh))
     ];
   };
