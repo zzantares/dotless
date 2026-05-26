@@ -7,7 +7,7 @@
 
 {
   xdg.configFile.fourmolu = {
-    enable = true;
+    enable = lib.mkDefault true;
     source = ./fourmolu.yaml;
     target = "${config.xdg.configHome}/fourmolu/fourmolu.yaml";
   };

@@ -49,7 +49,7 @@
 
   # Declare authorized SSH keys
   home.file.ssh_authorized_keys = {
-    enable = true;
+    enable = lib.mkDefault true;
 
     # TODO pull base keys from profile
     text = lib.strings.concatLines (

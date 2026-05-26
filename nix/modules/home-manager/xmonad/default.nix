@@ -698,7 +698,7 @@ in
   # Symlinked so Albert writes config changes (e.g. new websearch engines) back
   # to the dotfiles repo directly, without requiring a Home Manager rebuild.
   home.file.albert = {
-    enable = true;
+    enable = lib.mkDefault true;
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/${profile.flakeRoot}/config/albert";
     target = "${config.xdg.configHome}/albert";
     force = true; # Replace the backup file if one is already there
