@@ -14,7 +14,6 @@
     ./../../../modules/home-manager/programs/zsh
     ./../../../modules/home-manager/programs/bat
     ./../../../modules/home-manager/email
-    ./../../../modules/home-manager/dotfiles
     ./../../../modules/home-manager/programs/alacritty
     ./../../../modules/home-manager/programs/emacs
     ./../../../modules/home-manager/programs/fourmolu
