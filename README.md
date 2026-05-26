@@ -9,7 +9,7 @@ included, but designed to be extended with your own private layer.
 - **Home Manager presets** — composable role bundles (`base`, `devstation`, `workstation`, `server`)
 - **Home Manager modules** — individual modules you can opt into à la carte (`git`, `zsh`, `ssh`, `sops`, `emacs`, …)
 - **NixOS presets** — system-level role bundles (`base`, `bare-metal`, `server`, `desktop`, `node`)
-- **NixOS modules** — opt-in system services (`sops`, `syncthing`, `tailscale`, `gnome`, `kde`)
+- **NixOS modules** — opt-in system services (`sops`, `syncthing`, `tailscale`, `gnome`, `kde`) and an opt-in nix daemon module (`nix`) usable on any platform
 - **nix-darwin presets** — system-level foundation (`base`) that unblocks Home Manager integration
 - **Overlay** — curated toolchain groupings (`haskell`, `rust`, `python`, `ops`, `network`, …)
 - **Lib** — flake discovery utilities (`discoverHome`, `discoverDarwin`, `discoverNixos`)
@@ -45,6 +45,17 @@ home-manager.lib.homeManagerConfiguration {
     inputs.dotless.homeManagerModules.devstation
   ];
 }
+```
+
+Optionally include the nix module to get an opinionated nix daemon
+configuration (experimental features, binary caches, registry pinning):
+
+```nix
+modules = [
+  { nixpkgs.overlays = [ inputs.dotless.overlays.default ]; }
+  inputs.dotless.nixosModules.nix      # opt-in: manages the nix daemon
+  inputs.dotless.homeManagerModules.devstation
+];
 ```
 
 ### NixOS + Home Manager
@@ -83,6 +94,18 @@ imports = [
 ];
 ```
 
+Optionally include the nix module in your Home Manager config for an opinionated
+nix daemon configuration (binary caches, registry pinning, experimental features).
+On NixOS it defers daemon management to the system and only applies user-level
+nix settings:
+
+```nix
+home-manager.users.${profile.login}.imports = [
+  inputs.dotless.nixosModules.nix        # opt-in: opinionated nix settings
+  inputs.dotless.homeManagerModules.devstation
+];
+```
+
 ### nix-darwin + Home Manager
 
 The `darwinModules.base` preset sets `users.users.${login}.home` so that
@@ -104,6 +127,18 @@ nix-darwin.lib.darwinSystem {
     }
   ];
 }
+```
+
+Optionally include the nix module in your Home Manager config for an opinionated
+nix daemon configuration (binary caches, registry pinning, experimental features).
+On nix-darwin it defers daemon management to the system and only applies
+user-level nix settings:
+
+```nix
+home-manager.users.${profile.login}.imports = [
+  inputs.dotless.nixosModules.nix        # opt-in: opinionated nix settings
+  inputs.dotless.homeManagerModules.devstation
+];
 ```
 
 ## The `profile` interface
