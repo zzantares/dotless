@@ -40,15 +40,15 @@ in
 
   programs.tmux = {
     enable = lib.mkDefault true;
-    mouse = true; # allows to use the wheel to scroll (one never knows)
-    aggressiveResize = true;
+    mouse = lib.mkDefault true; # allows to use the wheel to scroll (one never knows)
+    aggressiveResize = lib.mkDefault true;
     baseIndex = 0;
-    focusEvents = true;
+    focusEvents = lib.mkDefault true;
     clock24 = false;
     escapeTime = 10;
     historyLimit = 10000;
     keyMode = "vi";
-    secureSocket = true;
+    secureSocket = lib.mkDefault true;
     terminal = "tmux-256color";
     prefix = "C-t";
     shell = "${config.programs.zsh.package}/bin/zsh";

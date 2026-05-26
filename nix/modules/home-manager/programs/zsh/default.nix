@@ -37,8 +37,8 @@
 
   programs.zsh = {
     enable = lib.mkDefault true;
-    autocd = true;
-    enableCompletion = true;
+    autocd = lib.mkDefault true;
+    enableCompletion = lib.mkDefault true;
     dotDir = "${config.xdg.configHome}/zsh";
     defaultKeymap = "emacs";
 
@@ -49,12 +49,12 @@
     };
 
     history = {
-      share = true;
-      append = true;
-      ignoreDups = true;
-      ignoreSpace = true;
-      ignoreAllDups = true;
-      expireDuplicatesFirst = true;
+      share = lib.mkDefault true;
+      append = lib.mkDefault true;
+      ignoreDups = lib.mkDefault true;
+      ignoreSpace = lib.mkDefault true;
+      ignoreAllDups = lib.mkDefault true;
+      expireDuplicatesFirst = lib.mkDefault true;
       save = 100000;
       size = builtins.ceil (config.programs.zsh.history.save * 1.2); # $HISTSIZE should be at least 20% larger than $SAVEHIST
       ignorePatterns = [
@@ -128,24 +128,24 @@
 
   programs.direnv = {
     enable = lib.mkDefault true;
-    enableZshIntegration = true;
+    enableZshIntegration = lib.mkDefault true;
     nix-direnv.enable = lib.mkDefault true;
     nix-direnv.package = pkgs.nix-direnv;
   };
 
   programs.zoxide = {
     enable = lib.mkDefault true;
-    enableZshIntegration = true;
+    enableZshIntegration = lib.mkDefault true;
   };
 
   programs.fzf = {
     enable = lib.mkDefault true;
-    enableZshIntegration = true;
+    enableZshIntegration = lib.mkDefault true;
 
     tmux = {
       # NOTE this is enabled conditionally in `./extra.zsh` due to emacs-vterm
       #   which won't play nice with it when triggered within Emacs
-      enableShellIntegration = false;
+      enableShellIntegration = lib.mkDefault false;
       shellIntegrationOptions = [ "-p" ];
     };
 

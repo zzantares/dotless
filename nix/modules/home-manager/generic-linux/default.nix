@@ -54,7 +54,7 @@
     };
 
     "org/gnome/desktop/peripherals/mouse" = {
-      speed = lib.mkForce 0.35; # We might want this only when an external display is attached
+      speed = lib.mkDefault 0.35; # We might want this only when an external display is attached
     };
   };
 

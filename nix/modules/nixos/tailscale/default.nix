@@ -4,6 +4,6 @@
   services.tailscale = {
     enable = lib.mkDefault true;
     package = pkgs.tailscale;
-    openFirewall = true;
+    openFirewall = lib.mkDefault true;
   };
 }

@@ -43,7 +43,7 @@ in
   # provides better diffs
   programs.delta = {
     enable = lib.mkDefault true;
-    enableGitIntegration = true;
+    enableGitIntegration = lib.mkDefault true;
     options = {
       dark = true;
       navigate = true; # use n and N to move between diff sections
@@ -95,7 +95,7 @@ in
     signing = {
       format = "ssh";
       key = identityFile;
-      signByDefault = true;
+      signByDefault = lib.mkDefault true;
       signer = "${ssh-agent-signer}/bin/ssh-agent-signer";
     };
 

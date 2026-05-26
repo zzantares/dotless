@@ -16,9 +16,9 @@
 
   # Enable touchpad support (enabled default in most desktopManager).
   services.libinput.enable = lib.mkDefault true;
-  services.libinput.touchpad.tapping = true;
-  services.libinput.touchpad.naturalScrolling = true;
-  services.libinput.touchpad.disableWhileTyping = true;
+  services.libinput.touchpad.tapping = lib.mkDefault true;
+  services.libinput.touchpad.naturalScrolling = lib.mkDefault true;
+  services.libinput.touchpad.disableWhileTyping = lib.mkDefault true;
   services.libinput.touchpad.accelSpeed = "0.6";
 
   # NOTE Other desirable stuff (though might not be only for KDE)

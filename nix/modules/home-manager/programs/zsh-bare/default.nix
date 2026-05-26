@@ -20,8 +20,8 @@
 
   programs.zsh = {
     enable = lib.mkDefault true;
-    autocd = true;
-    enableCompletion = true;
+    autocd = lib.mkDefault true;
+    enableCompletion = lib.mkDefault true;
     dotDir = "${config.xdg.configHome}/zsh";
     defaultKeymap = "emacs";
 
@@ -32,12 +32,12 @@
     };
 
     history = {
-      share = true;
-      append = true;
-      ignoreDups = true;
-      ignoreSpace = true;
-      ignoreAllDups = true;
-      expireDuplicatesFirst = true;
+      share = lib.mkDefault true;
+      append = lib.mkDefault true;
+      ignoreDups = lib.mkDefault true;
+      ignoreSpace = lib.mkDefault true;
+      ignoreAllDups = lib.mkDefault true;
+      expireDuplicatesFirst = lib.mkDefault true;
       save = 100000;
       size = builtins.ceil (config.programs.zsh.history.save * 1.2); # $HISTSIZE should be at least 20% larger than $SAVEHIST
       ignorePatterns = [
