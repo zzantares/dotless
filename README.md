@@ -207,6 +207,55 @@ profile = {
 };
 ```
 
+## Secrets
+
+dotless uses [sops-nix](https://github.com/Mic92/sops-nix) for secret management. Secrets are
+read from your own flake at:
+
+```
+${inputs.self}/secrets/${profile.login}/secrets.yaml
+```
+
+The file must be encrypted with the keys configured in your `.sops.yaml`. dotless itself never
+ships secrets — the file lives in your private repo.
+
+The Home Manager sops module decrypts using GPG (`~/.gnupg`). The NixOS sops module uses age,
+deriving keys from your SSH host key (`/etc/ssh/ssh_host_ed25519_key`) and your profile SSH key
+(`~/.ssh/id_ed25519`).
+
+### Secret inventory
+
+All secrets are conditional — they are only required when the module that needs them is enabled.
+If you hit a `key cannot be found` error, either populate the secret or disable the relevant module.
+
+| Secret key | Required when | Purpose |
+|---|---|---|
+| `openrouter_api_key` | `programs.opencode.enable = true` (default on) | OpenRouter API key used by opencode and the `q` (qwen-code) alias |
+| `github_auth_token` | `programs.opencode.enable = true` (default on) | GitHub personal access token exported as `GITHUB_TOKEN` |
+| `forgejo_mcp_token` | `programs.claude-code.enable = true` (default on supported platforms) | Access token for the Forgejo MCP server |
+
+**To opt out of a secret**, disable the module that requires it:
+
+```nix
+# disable all three secrets
+programs.claude-code.enable = false;
+programs.opencode.enable    = false;
+
+# disable only the forgejo token
+programs.claude-code.enable = false;
+
+# disable only the openrouter + github tokens
+programs.opencode.enable = false;
+```
+
+**Minimum `secrets.yaml` structure** (when all modules are enabled):
+
+```yaml
+openrouter_api_key: <your OpenRouter API key>
+github_auth_token: <your GitHub personal access token>
+forgejo_mcp_token: <your Forgejo access token>
+```
+
 ## Extending dotless
 
 Use `disabledModules` to opt out of any sub-module:
