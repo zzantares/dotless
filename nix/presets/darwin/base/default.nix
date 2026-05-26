@@ -36,18 +36,12 @@
 
   services.openssh = {
     enable = true;
-    settings = {
-      PermitRootLogin = "no";
-      PasswordAuthentication = false;
-      UseDns = false;
-    };
-  };
-
-  # Expose /nix/store over SSH to authorized identities.
-  nix.sshServe = {
-    enable = true;
-    trusted = false;
-    protocol = "ssh-ng";
-    keys = profile.sshKeys;
+    # nix-darwin's openssh module does not expose a structured settings attrset;
+    # sshd_config directives go into extraConfig instead.
+    extraConfig = ''
+      PermitRootLogin no
+      PasswordAuthentication no
+      UseDns no
+    '';
   };
 }

@@ -29,6 +29,8 @@
     check = "cabal build --disable-optimization --ghc-options=\"+RTS -A256m -I0 -RTS -fno-code\"";
     recheck = "git diff --name-only | rg '\.hs$' | zz-hs-file-components | rg ':lib:' | xargs --no-run-if-empty cabal build --disable-optimization --ghc-options=\"+RTS -A256m -I0 -RTS -fno-code\"";
     dev = "ghcid --command \"cabal repl $@\"";
+  }
+  // lib.optionalAttrs pkgs.stdenv.isLinux {
     doom-reload = "doom sync && systemctl --user restart emacs.service";
   }
   // (profile.shellAliases or {});
@@ -116,7 +118,7 @@
 
         # Creates a menu for tmux-fzf that exposes Claude Code sessions (defined in overlays)
         export TMUX_FZF_MENU="Claude Sessions\n${pkgs.tmux-claude-picker}/bin/tmux-claude-picker\n"
-
+      '' + lib.optionalString pkgs.stdenv.isLinux ''
         # Workaround for: https://github.com/Mic92/sops-nix/issues/687
         ${pkgs.systemd}/bin/systemctl --user start sops-nix-starter.service
       '')
