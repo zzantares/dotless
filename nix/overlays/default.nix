@@ -183,11 +183,12 @@ in
           hadolint
           hclfmt
           atlas
+        ]
+        ++ prev.lib.optionals prev.stdenv.isLinux [
+          # CGO_ENABLED=1 builds — require Linux/Darwin SDK; primarily server-side daemons
           nomad
           consul
           vault
-        ]
-        ++ prev.lib.optionals prev.stdenv.isLinux [
           qemu_kvm
           virt-manager
         ];
