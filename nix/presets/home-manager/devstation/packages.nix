@@ -38,13 +38,13 @@
       toolchains.shell
       toolchains.typescript
       toolchains.web
-      wol
       yq
     ]
     ++ lib.optionals stdenv.isLinux [
       linux-manual
       man-pages
       wikiman # TODO see how to install it with additional sources (tldr, arch)
+      wol
       xclip
       xsel
     ]
