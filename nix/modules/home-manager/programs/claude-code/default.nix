@@ -1,13 +1,14 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }:
 
 {
   programs.claude-code = {
-    enable = true;
-    package = pkgs.claude-code;
+    enable = lib.mkDefault true;
+    package = lib.mkDefault pkgs.claude-code;
     skills = ./skills;
     settings = {
       autoUpdates = false;
