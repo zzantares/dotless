@@ -1,6 +1,7 @@
 {
   profile,
   config,
+  lib,
   pkgs,
   ...
 }:

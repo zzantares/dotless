@@ -1,4 +1,4 @@
-{ profile, ... }:
+{ lib, profile, ... }:
 
 {
   programs.jujutsu = {
