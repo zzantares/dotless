@@ -9,6 +9,7 @@
 {
   imports = [
     ./../base
+    ./../../../modules/home-manager/dotfiles
     ./../../../modules/home-manager/programs/git
     ./../../../modules/home-manager/programs/tmux
     ./../../../modules/home-manager/programs/zsh

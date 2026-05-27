@@ -29,7 +29,7 @@ in
   };
 
   home.shellAliases = {
-    cat = "bat -n";
+    cat = "bat -n --paging=never";
     less = "batpipe";
     man = "batman";
   };
@@ -46,7 +46,8 @@ in
     config = {
       theme = "1337";
       pager = "less"; # add "less -XFRS" for explicit behavior
-      style = "numbers,changes";
+      style = "auto";
+      decorations = "auto";
     };
 
     themes = {

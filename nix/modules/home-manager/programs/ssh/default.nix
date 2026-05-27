@@ -39,7 +39,7 @@
         hashKnownHosts = true;
         userKnownHostsFile = "~/.ssh/known_hosts";
         controlMaster = "no";
-        controlPath = "~/.ssh/master-%r@%n:%p";
+        controlPath = "~/.ssh/master-%C";
         controlPersist = "no";
 
         identityFile = "~/.ssh/id_ed25519";
