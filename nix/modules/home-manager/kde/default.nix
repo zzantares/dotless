@@ -54,8 +54,8 @@ in
 
   # Use ksshaskpass for graphical SSH passphrase prompts (analogous to GNOME Keyring handling SSH on GNOME)
   home.sessionVariables = {
-    SSH_ASKPASS = "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass";
-    SSH_ASKPASS_REQUIRE = "prefer";
+    SSH_ASKPASS = lib.mkDefault "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass";
+    SSH_ASKPASS_REQUIRE = lib.mkDefault "prefer";
   };
 
   # Qt pinentry for KDE (analogous to pinentry-gnome3 in gnome/default.nix)

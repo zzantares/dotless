@@ -24,8 +24,8 @@ let
 in
 {
   home.sessionVariables = {
-    PAGER = "bat";
-    MANPAGER = "batman";
+    PAGER = lib.mkDefault "bat";
+    MANPAGER = lib.mkDefault "batman";
   };
 
   home.shellAliases = {

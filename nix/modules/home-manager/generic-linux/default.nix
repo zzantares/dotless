@@ -11,7 +11,7 @@
 {
   home.sessionVariables = {
     # So that CLI tools can use any locale other than "C"
-    LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive";
+    LOCALE_ARCHIVE = lib.mkDefault "${pkgs.glibcLocales}/lib/locale/locale-archive";
   };
 
   home.shellAliases = {

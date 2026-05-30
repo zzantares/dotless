@@ -57,21 +57,21 @@
   ];
 
   home.sessionVariables = {
-    DOTFILES_FLAKE_ROOT = "${config.home.homeDirectory}/${profile.flakeRoot}";
-    ASPELL_CONF = "data-dir ${pkgs.aspell}/lib/aspell";
+    DOTFILES_FLAKE_ROOT = lib.mkDefault "${config.home.homeDirectory}/${profile.flakeRoot}";
+    ASPELL_CONF = lib.mkDefault "data-dir ${pkgs.aspell}/lib/aspell";
 
     # Improves Ansible interaction
-    ANSIBLE_FORCE_COLOR = "True";
-    ANSIBLE_STDOUT_CALLBACK = "yaml";
-    ANSIBLE_SSH_ARGS = "-o ControlMaster=auto -o ControlPersist=60s -F ${config.home.homeDirectory}/.ssh/config";
-    ANSIBLE_REMOTE_USER = config.home.username;
+    ANSIBLE_FORCE_COLOR = lib.mkDefault "True";
+    ANSIBLE_STDOUT_CALLBACK = lib.mkDefault "yaml";
+    ANSIBLE_SSH_ARGS = lib.mkDefault "-o ControlMaster=auto -o ControlPersist=60s -F ${config.home.homeDirectory}/.ssh/config";
+    ANSIBLE_REMOTE_USER = lib.mkDefault config.home.username;
 
     # Speed up Emacs LSP: https://emacs-lsp.github.io/lsp-mode/page/performance/#use-plists-for-deserialization
-    LSP_USE_PLISTS = "true";
+    LSP_USE_PLISTS = lib.mkDefault "true";
 
     # Used by qwen-code
-    OPENAI_BASE_URL = "https://openrouter.ai/api/v1";
-    OPENAI_MODEL = "qwen/qwen3-coder:free";
+    OPENAI_BASE_URL = lib.mkDefault "https://openrouter.ai/api/v1";
+    OPENAI_MODEL = lib.mkDefault "qwen/qwen3-coder:free";
   };
 
   home.shellAliases = { } // (profile.shellAliases or { });

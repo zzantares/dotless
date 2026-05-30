@@ -33,7 +33,7 @@ let
 in
 {
   home.sessionVariables = {
-    T_SESSION_USE_GIT_ROOT = "true";
+    T_SESSION_USE_GIT_ROOT = lib.mkDefault "true";
   };
 
   home.sessionPath = [ "${t}/share/tmux-plugins/t/bin" ];

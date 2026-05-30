@@ -1,6 +1,7 @@
 {
   profile,
   config,
+  lib,
   pkgs,
   ...
 }:
@@ -27,9 +28,9 @@
   home.homeDirectory =
     if pkgs.stdenv.isDarwin then "/Users/${config.home.username}" else "/home/${config.home.username}";
   home.sessionVariables = {
-    EDITOR = "nvim";
-    COLORTERM = "truecolor";
-    TERM = "xterm-256color";
+    EDITOR = lib.mkDefault "nvim";
+    COLORTERM = lib.mkDefault "truecolor";
+    TERM = lib.mkDefault "xterm-256color";
   };
 
   xdg.enable = true;
