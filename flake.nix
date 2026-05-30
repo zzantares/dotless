@@ -73,6 +73,7 @@
         # Individual modules — opt in à la carte
         git = ./nix/modules/home-manager/programs/git;
         zsh = ./nix/modules/home-manager/programs/zsh;
+        zsh-bare = ./nix/modules/home-manager/programs/zsh-bare;
         tmux = ./nix/modules/home-manager/programs/tmux;
         bat = ./nix/modules/home-manager/programs/bat;
         alacritty = ./nix/modules/home-manager/programs/alacritty;
