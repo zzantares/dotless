@@ -55,13 +55,15 @@
     text = lib.strings.concatLines (
       [ "# File managed by HomeManager - any changes will be overwritten" ] ++ profile.sshKeys
     );
-
-    # This file can not be a regular /nix/store symlink unless disabling
-    # strict checking which is undesirable. Therefore we detect when the
-    # file content changes and `cat` the contents into place.
-    onChange = ''
-      cat ${config.home.file.ssh_authorized_keys.target} > ${config.home.homeDirectory}/.ssh/authorized_keys && \
-        chmod 600 ${config.home.homeDirectory}/.ssh/authorized_keys
-    '';
   };
+
+  # This file can not be a regular /nix/store symlink unless disabling strict
+  # checking which is undesirable. Use home.activation (runs on every switch,
+  # not just on content changes) so the file is always present with correct
+  # permissions — including on fresh systems and after accidental deletion.
+  home.activation.writeAuthorizedKeys = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    install -Dm600 \
+      "${config.home.homeDirectory}/${config.home.file.ssh_authorized_keys.target}" \
+      "${config.home.homeDirectory}/.ssh/authorized_keys"
+  '';
 }
