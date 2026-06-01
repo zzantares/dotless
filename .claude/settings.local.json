@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(gh api:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:nix-darwin.github.io)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(nix flake:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,v[''''storePath'''']\\) for k,v in d.get\\(''''locks'''',{}\\).get\\(''''nodes'''',{}\\).items\\(\\) if ''''storePath'''' in v and ''''home-manager'''' in k.lower\\(\\)]\")",
+      "Bash(python3 -c \":*)",
+      "Bash(find /nix/store -maxdepth 1 -name *home-manager*source* -o -name *fdb2ccba*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k\\) for k in d.get\\(''''packages'''',{}\\).keys\\(\\)]\")",
+      "Bash(GCS=\"https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases\")",
+      "Bash(curl -fsSL \"$GCS/2.1.77/manifest.json\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -fsSL \"https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/2.1.77/manifest.json\")",
+      "Bash(python3:*)",
+      "Bash(nix eval:*)",
+      "Bash(NIXPKGS_ALLOW_UNFREE=1 nix build --impure --expr ':*)",
+      "Bash(./result/bin/claude --version)",
+      "Bash(ls:*)",
+      "Bash(just check:*)"
+    ]
+  }
+}

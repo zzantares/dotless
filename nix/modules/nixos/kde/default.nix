@@ -20,6 +20,7 @@
   services.libinput.touchpad.naturalScrolling = lib.mkDefault true;
   services.libinput.touchpad.disableWhileTyping = lib.mkDefault true;
   services.libinput.touchpad.accelSpeed = "0.6";
+  services.libinput.mouse.naturalScrolling = lib.mkDefault true;
 
   # NOTE Other desirable stuff (though might not be only for KDE)
   # 2. Run SDDM itself on Wayland (currently it defaults to X11 even when the desktop session is Wayland)

@@ -58,7 +58,7 @@
 
   home.sessionVariables = {
     DOTFILES_FLAKE_ROOT = lib.mkDefault "${config.home.homeDirectory}/${profile.flakeRoot}";
-    ASPELL_CONF = lib.mkDefault "data-dir ${pkgs.aspell}/lib/aspell";
+    ASPELL_CONF = lib.mkDefault "data-dir ${pkgs.aspell-with-dicts}/lib/aspell";
 
     # Improves Ansible interaction
     ANSIBLE_FORCE_COLOR = lib.mkDefault "True";
