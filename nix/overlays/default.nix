@@ -102,17 +102,20 @@ in
 
     android = final.buildEnv {
       name = "android-toolchain";
-      paths = prev.lib.optionals prev.stdenv.isLinux (with final; [
-        (symlinkJoin {
-          name = "android-studio-wrapped";
-          paths = [ android-studio ];
-          buildInputs = [ makeWrapper ];
-          postBuild = ''
-            wrapProgram $out/bin/android-studio \
-              --prefix PATH : ${glib}/bin
-          '';
-        })
-      ]);
+      paths = prev.lib.optionals prev.stdenv.isLinux (
+        with final;
+        [
+          (symlinkJoin {
+            name = "android-studio-wrapped";
+            paths = [ android-studio ];
+            buildInputs = [ makeWrapper ];
+            postBuild = ''
+              wrapProgram $out/bin/android-studio \
+                --prefix PATH : ${glib}/bin
+            '';
+          })
+        ]
+      );
     };
 
     shell = final.buildEnv {
@@ -129,6 +132,17 @@ in
       paths = with final; [
         pkgs.rust-bin.stable.latest.default
         rust-analyzer
+      ];
+    };
+
+    ocaml = final.buildEnv {
+      name = "ocaml-toolchain";
+      paths = with final; [
+        ocaml
+        dune
+        opam
+        ocamlPackages.ocaml-lsp
+        ocamlPackages.merlin
       ];
     };
 
