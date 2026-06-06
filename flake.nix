@@ -2,11 +2,11 @@
   description = "dotless - a composable Home Manager and NixOS distribution";
 
   inputs = {
-    # nixos-unstable at 2026-06-04
+    # nixos-unstable at 2026-06-06
     nixpkgs.url = "github:NixOS/nixpkgs?rev=331800de5053fcebacf6813adb5db9c9dca22a0c";
 
-    # master at 2026-06-04
-    home-manager.url = "github:nix-community/home-manager?rev=447fd9ff62501dae7206dfe180ee89f8de27b7d5";
+    # master at 2026-06-06
+    home-manager.url = "github:nix-community/home-manager?rev=b2b7db486e06e098711dc291bb25db82850e1d16";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
     nix-darwin.url = "github:nix-darwin/nix-darwin?rev=56c666e108467d87d13508936aade6d567f2a501";
