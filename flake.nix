@@ -65,7 +65,7 @@
 
       # Presets: batteries-included bundles suitable for most users.
       # Import one of these as a starting point and override/extend as needed.
-      homeManagerModules = {
+      homeModules = {
         base = ./nix/presets/home-manager/base;
         devstation = ./nix/presets/home-manager/devstation;
         workstation = ./nix/presets/home-manager/workstation;

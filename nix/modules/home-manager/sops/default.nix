@@ -6,7 +6,7 @@
 }:
 
 {
-  imports = [ inputs.sops-nix.homeManagerModules.sops ];
+  imports = [ inputs.sops-nix.homeModules.sops ];
 
   sops = {
     defaultSopsFile = "${inputs.self}/secrets/${profile.login}/secrets.yaml";

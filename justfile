@@ -83,7 +83,7 @@ check-linux:
           };
           extraSpecialArgs = { inherit inputs profile; };
           modules = [
-            flake.homeManagerModules.devstation
+            flake.homeModules.devstation
             {
               home.username = profile.login;
               home.homeDirectory = "/home/${profile.login}";
@@ -134,7 +134,7 @@ check-darwin:
               home-manager.useUserPackages = true;
               home-manager.extraSpecialArgs = { inherit inputs profile; };
               home-manager.users.${profile.login} = {
-                imports = [ flake.homeManagerModules.devstation ];
+                imports = [ flake.homeModules.devstation ];
                 home.stateVersion = "24.11";
                 sops.validateSopsFiles = false;
               };

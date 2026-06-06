@@ -59,7 +59,7 @@
   };
 
   programs.ssh = {
-    matchBlocks = {
+    settings = {
       "*.local" = {
         user = profile.login;
       };

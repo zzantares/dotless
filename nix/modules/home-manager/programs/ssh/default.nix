@@ -20,7 +20,7 @@
     enableDefaultConfig = false;
 
     # Options are taken as they are encountered from top to bottom
-    matchBlocks = {
+    settings = {
       "codeberg.org" = {
         # We do this to speed up connections to codeberg (there's no IPv6 support)
         addressFamily = "inet";

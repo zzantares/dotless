@@ -42,7 +42,7 @@ home-manager.lib.homeManagerConfiguration {
   extraSpecialArgs = { inherit inputs profile; };
   modules = [
     { nixpkgs.overlays = [ inputs.dotless.overlays.default ]; }
-    inputs.dotless.homeManagerModules.devstation
+    inputs.dotless.homeModules.devstation
   ];
 }
 ```
@@ -54,7 +54,7 @@ Optionally include the nix module for opinionated nix daemon configuration
 modules = [
   { nixpkgs.overlays = [ inputs.dotless.overlays.default ]; }
   inputs.dotless.nixosModules.nix      # opt-in: manages the nix daemon
-  inputs.dotless.homeManagerModules.devstation
+  inputs.dotless.homeModules.devstation
 ];
 ```
 
@@ -79,7 +79,7 @@ nixpkgs.lib.nixosSystem {
     {
       home-manager.extraSpecialArgs = { inherit inputs profile; };
       home-manager.users.${profile.login}.imports = [
-        inputs.dotless.homeManagerModules.devstation
+        inputs.dotless.homeModules.devstation
       ];
     }
   ];
@@ -113,7 +113,7 @@ nixpkgs.lib.nixosSystem {
     {
       home-manager.extraSpecialArgs = { inherit inputs profile; };
       home-manager.users.${profile.login}.imports = [
-        inputs.dotless.homeManagerModules.devstation
+        inputs.dotless.homeModules.devstation
       ];
     }
   ];
@@ -136,7 +136,7 @@ nix-darwin.lib.darwinSystem {
     {
       home-manager.extraSpecialArgs = { inherit inputs profile; };
       home-manager.users.${profile.login}.imports = [
-        inputs.dotless.homeManagerModules.devstation
+        inputs.dotless.homeModules.devstation
       ];
     }
   ];
@@ -157,7 +157,7 @@ nix-darwin.lib.darwinSystem {
     {
       home-manager.extraSpecialArgs = { inherit inputs profile; };
       home-manager.users.${profile.login}.imports = [
-        inputs.dotless.homeManagerModules.devstation
+        inputs.dotless.homeModules.devstation
       ];
     }
   ];
@@ -261,14 +261,14 @@ forgejo_mcp_token: <your Forgejo access token>
 Use `disabledModules` to opt out of any sub-module:
 
 ```nix
-disabledModules = [ inputs.dotless.homeManagerModules."claude-code" ];
+disabledModules = [ inputs.dotless.homeModules."claude-code" ];
 ```
 
 Add your own private modules alongside dotless ones:
 
 ```nix
 imports = [
-  inputs.dotless.homeManagerModules.devstation
+  inputs.dotless.homeModules.devstation
   ./my-private-module.nix
 ];
 ```

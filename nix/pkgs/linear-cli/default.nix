@@ -1,40 +1,50 @@
 {
   lib,
-  buildNpmPackage,
-  fetchFromGitHub,
+  stdenv,
+  stdenvNoCC,
+  fetchurl,
+  autoPatchelfHook,
 }:
 
-buildNpmPackage rec {
-  pname = "linear-cli";
+let
   version = "1.11.1";
+  base = "https://github.com/schpet/linear-cli/releases/download/v${version}";
 
-  # Fetch the repository
-  src = fetchFromGitHub {
-    owner = "schpet";
-    repo = "linear-cli";
-    rev = "v${version}";
-    sha256 = "sha256-os/p8P1ZFqdMFuqci0XtbDpJQP31PDfCtYSX9xFv8D4=";
+  srcs = {
+    "x86_64-linux" = {
+      urlSuffix = "x86_64-unknown-linux-gnu";
+      hash = "sha256-S7zwxOYXwYmK+zcyuhuvVW8JhXPI5hgaWiyEz7T0gII=";
+    };
+    "aarch64-darwin" = {
+      urlSuffix = "aarch64-apple-darwin";
+      hash = "sha256-v906DXJ3YgGLX9wnQ6yZN/1wiws99wxz2tas1idEdpQ=";
+    };
   };
 
-  # # Optional: override build phase if needed
-  # buildPhase = ''
-  #   # Usually you just need 'npm install' and 'npm run build'
-  #   npm install
-  #   npm run build
-  # '';
+  platformSrc = srcs.${stdenvNoCC.hostPlatform.system} or (throw "linear-cli: unsupported system ${stdenvNoCC.hostPlatform.system}");
+in
+stdenvNoCC.mkDerivation {
+  pname = "linear-cli";
+  inherit version;
 
-  # Optional: specify what to install globally
-  # installPhase = ''
-  #   mkdir -p $out/bin
-  #   cp -r . $out
-  # '';
+  src = fetchurl {
+    url = "${base}/linear-${platformSrc.urlSuffix}.tar.xz";
+    hash = platformSrc.hash;
+  };
 
-  # Node.js runtime dependency
-  # propagatedBuildInputs = [ nodejs ];
+  nativeBuildInputs = lib.optionals stdenvNoCC.hostPlatform.isLinux [ autoPatchelfHook ];
+
+  buildInputs = lib.optionals stdenvNoCC.hostPlatform.isLinux [ stdenv.cc.cc.lib ];
+
+  installPhase = ''
+    install -Dm755 linear $out/bin/linear
+  '';
 
   meta = with lib; {
-    description = "linear without leaving the command line: list, start, and create PRs for linear issues. agent friendly.";
-    license = licenses.isc;
-    # maintainers = with maintainers; [ yourNameHere ];
+    description = "linear without leaving the command line: list, start, and create PRs for linear issues";
+    homepage = "https://github.com/schpet/linear-cli";
+    license = licenses.mit;
+    mainProgram = "linear";
+    platforms = builtins.attrNames srcs;
   };
 }
