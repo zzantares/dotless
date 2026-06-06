@@ -2,27 +2,25 @@
   description = "dotless - a composable Home Manager and NixOS distribution";
 
   inputs = {
-    # nixos-unstable at 2026-06-06
-    nixpkgs.url = "github:NixOS/nixpkgs?rev=331800de5053fcebacf6813adb5db9c9dca22a0c";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # master at 2026-06-06
-    home-manager.url = "github:nix-community/home-manager?rev=b2b7db486e06e098711dc291bb25db82850e1d16";
+    home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    nix-darwin.url = "github:nix-darwin/nix-darwin?rev=56c666e108467d87d13508936aade6d567f2a501";
+    nix-darwin.url = "github:nix-darwin/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
 
-    flake-utils.url = "github:numtide/flake-utils";
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     nixGL.url = "github:nix-community/nixGL";
     nixGL.inputs.nixpkgs.follows = "nixpkgs";
 
+    flake-utils.url = "github:numtide/flake-utils";
+
     rust-overlay.url = "github:oxalica/rust-overlay";
 
     nur.url = "github:nix-community/NUR";
-
-    sops-nix.url = "github:Mic92/sops-nix";
-    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     plasma-manager.url = "github:nix-community/plasma-manager";
     plasma-manager.inputs.nixpkgs.follows = "nixpkgs";
@@ -32,7 +30,7 @@
     zsh-hist.url = "github:marlonrichert/zsh-hist";
     zsh-hist.flake = false;
 
-    t.url = "github:joshmedeski/t-smart-tmux-session-manager?rev=3726950525ac9966412ea3f2093bf2ffe06aa023";
+    t.url = "github:joshmedeski/t-smart-tmux-session-manager?ref=v2.11.1";
     t.flake = false;
 
     zed-editor.url = "github:zed-industries/zed?ref=v0.226.5";

@@ -107,7 +107,6 @@
       "original": {
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "b2b7db486e06e098711dc291bb25db82850e1d16",
         "type": "github"
       }
     },
@@ -128,7 +127,6 @@
       "original": {
         "owner": "nix-darwin",
         "repo": "nix-darwin",
-        "rev": "56c666e108467d87d13508936aade6d567f2a501",
         "type": "github"
       }
     },
@@ -164,8 +162,8 @@
       },
       "original": {
         "owner": "NixOS",
+        "ref": "nixos-unstable",
         "repo": "nixpkgs",
-        "rev": "331800de5053fcebacf6813adb5db9c9dca22a0c",
         "type": "github"
       }
     },
@@ -418,17 +416,17 @@
     "t": {
       "flake": false,
       "locked": {
-        "lastModified": 1705612422,
-        "narHash": "sha256-AMeYo3HVtRP1w8gQpok+/9fvNCXiMEzZ9ct+gUoL2V4=",
+        "lastModified": 1704384682,
+        "narHash": "sha256-iEiTF4NPUCVDp+bIfrbRx8HE1NrTJtxd667fTk0EfEA=",
         "owner": "joshmedeski",
         "repo": "t-smart-tmux-session-manager",
-        "rev": "3726950525ac9966412ea3f2093bf2ffe06aa023",
+        "rev": "9a46c00ca4c83d4b2ce4fdae7cade69a31d0ab56",
         "type": "github"
       },
       "original": {
         "owner": "joshmedeski",
+        "ref": "v2.11.1",
         "repo": "t-smart-tmux-session-manager",
-        "rev": "3726950525ac9966412ea3f2093bf2ffe06aa023",
         "type": "github"
       }
     },
