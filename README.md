@@ -18,17 +18,37 @@ included, but designed to be extended with your own private layer.
 
 ### Add dotless as a flake input
 
-```nix
-inputs.dotless.url = "codeberg.org/youruser/dotless";
+Your flake owns the pins for foundational inputs; dotless follows them.
+This ensures a single unified nixpkgs evaluation across your whole system.
 
-# Pin inputs to dotless's versions to avoid version mismatches
-inputs.nixpkgs.follows        = "dotless/nixpkgs";
-inputs.home-manager.follows   = "dotless/home-manager";
-inputs.zsh-hist.follows       = "dotless/zsh-hist";
-inputs.t.follows              = "dotless/t";
-inputs.sops-nix.follows       = "dotless/sops-nix";   # required by sops modules
-inputs.nixGL.follows          = "dotless/nixGL";        # required by generic-linux module
-inputs.nix-darwin.follows     = "dotless/nix-darwin";  # nix-darwin users only
+```nix
+# Your flake owns these pins
+inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+inputs.home-manager.url = "github:nix-community/home-manager";
+inputs.home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+inputs.sops-nix.url = "github:Mic92/sops-nix";          # required by sops modules
+inputs.sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+inputs.nixGL.url = "github:nix-community/nixGL";         # required by generic-linux module
+inputs.nixGL.inputs.nixpkgs.follows = "nixpkgs";
+
+# nix-darwin users only:
+# inputs.nix-darwin.url = "github:nix-darwin/nix-darwin";
+# inputs.nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+
+# dotless follows your pins
+inputs.dotless.url = "codeberg.org/youruser/dotless";
+inputs.dotless.inputs.nixpkgs.follows      = "nixpkgs";
+inputs.dotless.inputs.home-manager.follows = "home-manager";
+inputs.dotless.inputs.sops-nix.follows     = "sops-nix";
+inputs.dotless.inputs.nixGL.follows        = "nixGL";
+# inputs.dotless.inputs.nix-darwin.follows = "nix-darwin";  # nix-darwin users only
+
+# dotless-internal source inputs — follow dotless
+inputs.t.follows       = "dotless/t";
+inputs.zsh-hist.follows = "dotless/zsh-hist";
 ```
 
 ### Standalone Home Manager
