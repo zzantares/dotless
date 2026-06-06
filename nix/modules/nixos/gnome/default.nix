@@ -9,7 +9,7 @@
 
   # Enable the GNOME Desktop Environment.
   services.displayManager.defaultSession = "gnome";
-  services.xserver.displayManager.gdm.enable = lib.mkDefault true;
+  services.displayManager.gdm.enable = lib.mkDefault true;
   services.desktopManager.gnome.enable = lib.mkDefault true;
   services.gnome.gnome-settings-daemon.enable = lib.mkDefault true;
   programs.dconf.enable = lib.mkDefault true;
