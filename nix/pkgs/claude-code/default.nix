@@ -27,7 +27,9 @@ let
     };
   };
 
-  platformSrc = srcs.${stdenv.hostPlatform.system} or (throw "claude-code: unsupported system ${stdenv.hostPlatform.system}");
+  platformSrc =
+    srcs.${stdenv.hostPlatform.system}
+      or (throw "claude-code: unsupported system ${stdenv.hostPlatform.system}");
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-code";
@@ -38,9 +40,7 @@ stdenvNoCC.mkDerivation {
     hash = platformSrc.hash;
   };
 
-  nativeBuildInputs =
-    lib.optionals stdenv.isLinux [ autoPatchelfHook ]
-    ++ [ makeWrapper ];
+  nativeBuildInputs = lib.optionals stdenv.isLinux [ autoPatchelfHook ] ++ [ makeWrapper ];
 
   # The Linux binary dynamically links against glibc and libstdc++
   buildInputs = lib.optionals stdenv.isLinux [ stdenv.cc.cc.lib ];

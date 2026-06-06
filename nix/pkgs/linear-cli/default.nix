@@ -21,7 +21,9 @@ let
     };
   };
 
-  platformSrc = srcs.${stdenvNoCC.hostPlatform.system} or (throw "linear-cli: unsupported system ${stdenvNoCC.hostPlatform.system}");
+  platformSrc =
+    srcs.${stdenvNoCC.hostPlatform.system}
+      or (throw "linear-cli: unsupported system ${stdenvNoCC.hostPlatform.system}");
 in
 stdenvNoCC.mkDerivation {
   pname = "linear-cli";

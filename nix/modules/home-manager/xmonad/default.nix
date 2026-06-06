@@ -296,7 +296,8 @@ in
   # SSH keys are added on first use via addKeysToAgent = "yes" in ssh config.
   services.ssh-agent.enable = true;
 
-  systemd.user.services.autorandr.Service.ExecStart = pkgs.lib.mkForce "${autorandrChange}/bin/autorandr-change";
+  systemd.user.services.autorandr.Service.ExecStart =
+    pkgs.lib.mkForce "${autorandrChange}/bin/autorandr-change";
 
   # Adjusts color temperature by time of day (warm at night, neutral during the day).
   # Runs as a systemd user service tied to graphical-session.target — XMonad only.
@@ -607,7 +608,10 @@ in
   systemd.user.services.audio-sink-switch = {
     Unit = {
       Description = "Auto-switch audio sink on headphone jack plug/unplug";
-      After = [ "pipewire.service" "pulseaudio.service" ];
+      After = [
+        "pipewire.service"
+        "pulseaudio.service"
+      ];
       PartOf = [ "graphical-session.target" ];
     };
     Service = {

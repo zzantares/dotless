@@ -39,6 +39,5 @@ in
     );
 
   # Discover nix-darwin configurations (directories containing darwin.nix)
-  discoverDarwin =
-    dir: baseArgs: discoverConfigs dir baseArgs (subdir: hasFile subdir "darwin.nix");
+  discoverDarwin = dir: baseArgs: discoverConfigs dir baseArgs (subdir: hasFile subdir "darwin.nix");
 }

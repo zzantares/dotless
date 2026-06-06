@@ -142,7 +142,7 @@
             };
           in
           {
-            formatter = pkgs.nixfmt;
+            formatter = pkgs.nixfmt-tree;
 
             # Expose overlay packages for local testing: `nix build .#claude-code`
             packages = {

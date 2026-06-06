@@ -44,7 +44,8 @@
 
         identityFile = "~/.ssh/id_ed25519";
       };
-    } // (profile.sshMatchBlocks or {});
+    }
+    // (profile.sshMatchBlocks or { });
   };
 
   # Declare authorized SSH keys

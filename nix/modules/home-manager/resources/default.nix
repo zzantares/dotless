@@ -28,11 +28,13 @@
   };
 
   # User-provided wallpapers
-  xdg.dataFile.user-wallpapers = lib.mkIf ((profile ? wallpapersPath) && profile.wallpapersPath != null) {
-    enable = lib.mkDefault true;
-    source = profile.wallpapersPath;
-    target = "wallpapers/user";
-  };
+  xdg.dataFile.user-wallpapers =
+    lib.mkIf ((profile ? wallpapersPath) && profile.wallpapersPath != null)
+      {
+        enable = lib.mkDefault true;
+        source = profile.wallpapersPath;
+        target = "wallpapers/user";
+      };
 
   # User-provided custom fonts (set profile.fontsPath to a dir of .ttf/.otf files)
   # Note: nixpkgs-based fonts are handled via home.packages + fonts.fontconfig

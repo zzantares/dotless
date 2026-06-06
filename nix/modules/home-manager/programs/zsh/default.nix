@@ -33,7 +33,7 @@
   // lib.optionalAttrs pkgs.stdenv.isLinux {
     doom-reload = "doom sync && systemctl --user restart emacs.service";
   }
-  // (profile.shellAliases or {});
+  // (profile.shellAliases or { });
 
   programs.zsh = {
     enable = lib.mkDefault true;
@@ -110,18 +110,21 @@
     };
 
     initContent = lib.mkMerge [
-      (lib.mkBefore (''
-        # source the nix profiles outside of TMUX (to avoid re-sourcing)
-        if [[ -z "$TMUX" && -r "${config.home.homeDirectory}/.nix-profile/etc/profile.d/nix.sh" ]]; then
-          source "${config.home.homeDirectory}/.nix-profile/etc/profile.d/nix.sh"
-        fi
+      (lib.mkBefore (
+        ''
+          # source the nix profiles outside of TMUX (to avoid re-sourcing)
+          if [[ -z "$TMUX" && -r "${config.home.homeDirectory}/.nix-profile/etc/profile.d/nix.sh" ]]; then
+            source "${config.home.homeDirectory}/.nix-profile/etc/profile.d/nix.sh"
+          fi
 
-        # Creates a menu for tmux-fzf that exposes Claude Code sessions (defined in overlays)
-        export TMUX_FZF_MENU="Claude Sessions\n${pkgs.tmux-claude-picker}/bin/tmux-claude-picker\n"
-      '' + lib.optionalString pkgs.stdenv.isLinux ''
-        # Workaround for: https://github.com/Mic92/sops-nix/issues/687
-        ${pkgs.systemd}/bin/systemctl --user start sops-nix-starter.service
-      ''))
+          # Creates a menu for tmux-fzf that exposes Claude Code sessions (defined in overlays)
+          export TMUX_FZF_MENU="Claude Sessions\n${pkgs.tmux-claude-picker}/bin/tmux-claude-picker\n"
+        ''
+        + lib.optionalString pkgs.stdenv.isLinux ''
+          # Workaround for: https://github.com/Mic92/sops-nix/issues/687
+          ${pkgs.systemd}/bin/systemctl --user start sops-nix-starter.service
+        ''
+      ))
       (lib.mkAfter (lib.readFile ./extra.zsh))
     ];
   };

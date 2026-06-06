@@ -1,3 +1,6 @@
+fmt:
+    nix fmt
+
 flake-update:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -48,6 +51,7 @@ flake-update:
 
 # Route to the correct platform-specific check recipe.
 check:
+    nix flake check --all-systems
     just check-{{ if os() == "macos" { "darwin" } else { "linux" } }}
 
 # Check that the devstation preset builds cleanly as a standalone home-manager

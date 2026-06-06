@@ -7,7 +7,9 @@
 
 {
   programs.claude-code = {
-    enable = lib.mkDefault (builtins.elem pkgs.stdenv.hostPlatform.system pkgs.claude-code.meta.platforms);
+    enable = lib.mkDefault (
+      builtins.elem pkgs.stdenv.hostPlatform.system pkgs.claude-code.meta.platforms
+    );
     package = lib.mkDefault pkgs.claude-code;
     skills = ./skills;
     settings = {
