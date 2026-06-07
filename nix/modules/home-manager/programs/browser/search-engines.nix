@@ -1,4 +1,4 @@
-{ profile, pkgs, ... }:
+{ pkgs, ... }:
 
 {
   bing.metadata.hidden = true;
@@ -11,10 +11,6 @@
       {
         template = "https://kagi.com/search";
         params = [
-          {
-            name = "token";
-            value = "${profile.sensitive.kagiAuthToken}";
-          }
           {
             name = "q";
             value = "{searchTerms}";
