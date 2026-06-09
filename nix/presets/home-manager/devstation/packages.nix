@@ -13,6 +13,7 @@
     with pkgs;
     [
       aspell-with-dicts
+      entr
       fonts
       fzf
       git
