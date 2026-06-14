@@ -29,10 +29,13 @@ in
   };
 
   home.shellAliases = {
-    cat = "bat -n --paging=never";
-    less = "batpipe";
+    cat = "bat --paging=never";
     man = "batman";
   };
+
+  programs.zsh.initContent = lib.mkAfter ''
+    eval "$(${pkgs.bat-extras.batpipe}/bin/batpipe)"
+  '';
 
   # Bat replaces cat
   programs.bat = {
