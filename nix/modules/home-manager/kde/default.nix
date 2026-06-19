@@ -138,6 +138,27 @@ in
       };
     };
 
+    # WORKAROUND: plasma-manager's powerdevil module writes to `powerdevilrc`
+    # (the Plasma 5 format), but Plasma 6 powerdevil reads from
+    # `powermanagementprofilesrc`. Once KDE runs the one-time migration, it sets
+    # a marker and stops reading `powerdevilrc`, so the powerdevil options above
+    # become silently ineffective. Writing the same values here directly to
+    # `powermanagementprofilesrc` ensures they are always applied.
+    # Numeric values mirror the enums in plasma-manager's powerdevil.nix:
+    #   AutoSuspendAction / PowerButtonAction: 0=nothing, 1=sleep
+    configFile."powermanagementprofilesrc" = {
+      "AC/SuspendAndShutdown" = {
+        AutoSuspendAction = 0;
+        PowerButtonAction = 1;
+      };
+      "AC/Display".TurnOffDisplayIdleTimeoutSec = 3600;
+      "Battery/SuspendAndShutdown" = {
+        AutoSuspendAction = 1;
+        AutoSuspendIdleTimeoutSec = 900;
+        PowerButtonAction = 1;
+      };
+    };
+
     # Analogous to org/gnome/desktop/wm/keybindings switch-windows/switch-applications
     shortcuts = {
       "kwin"."Walk Through Windows" = "Alt+Tab";
