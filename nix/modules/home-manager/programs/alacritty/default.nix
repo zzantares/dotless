@@ -39,7 +39,7 @@ in
         offset.y = 6;
 
         normal.family = "CaskaydiaCove Nerd Font";
-        normal.style = "Book";
+        normal.style = "Regular";
       };
 
       colors = themes."${profile.alacrittyColors}";
