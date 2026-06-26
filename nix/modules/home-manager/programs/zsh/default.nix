@@ -131,6 +131,7 @@
 
   programs.direnv = {
     enable = lib.mkDefault true;
+    silent = lib.mkDefault false;
     enableZshIntegration = lib.mkDefault true;
     nix-direnv.enable = lib.mkDefault true;
     nix-direnv.package = pkgs.nix-direnv;

@@ -39,6 +39,8 @@
   services.openssh.settings.AllowGroups = [ "remote" ];
 
   environment.systemPackages = with pkgs; [
+    parted
+    ntfs3g
     gparted
     lm_sensors
     pciutils
