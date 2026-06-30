@@ -44,21 +44,27 @@ bindkey -r '^T'
 bindkey '^F' fzf-file-widget
 bindkey '^L' clear-screen
 
-pbcopy() {
-    if [[ -n "$WSL_DISTRO_NAME" ]]; then
-        clip.exe "$@"
-    else
-        xclip -selection clipboard "$@"
-    fi
-}
+# Provide pbcopy/pbpaste on systems that lack them (Linux/WSL). macOS ships
+# both natively, so guard the definitions to avoid shadowing the real commands.
+if ! command -v pbcopy >/dev/null 2>&1; then
+    pbcopy() {
+        if [[ -n "$WSL_DISTRO_NAME" ]]; then
+            clip.exe "$@"
+        else
+            xclip -selection clipboard "$@"
+        fi
+    }
+fi
 
-pbpaste() {
-    if [[ -n "$WSL_DISTRO_NAME" ]]; then
-        powershell.exe Get-Clipboard
-    else
-        xclip -selection clipboard -o "$@"
-    fi
-}
+if ! command -v pbpaste >/dev/null 2>&1; then
+    pbpaste() {
+        if [[ -n "$WSL_DISTRO_NAME" ]]; then
+            powershell.exe Get-Clipboard
+        else
+            xclip -selection clipboard -o "$@"
+        fi
+    }
+fi
 
 # NOTE we need to keep this one lean and fast because it's usually triggered in a pre-commit
 glint () {
