@@ -16,6 +16,7 @@
     ./../../../modules/home-manager/programs/bat
     ./../../../modules/home-manager/email
     ./../../../modules/home-manager/programs/alacritty
+    ./../../../modules/home-manager/programs/wezterm
     ./../../../modules/home-manager/programs/emacs
     ./../../../modules/home-manager/programs/fourmolu
     ./../../../modules/home-manager/programs/claude-code
