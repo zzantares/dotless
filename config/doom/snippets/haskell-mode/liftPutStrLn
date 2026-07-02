@@ -1,6 +1,0 @@
-# -*- mode: snippet -*-
-# name: liftPutStrLn
-# key: lput
-# --
-
-liftIO . putStrLn $ "==> [ $1 ] $2 = " <> show $2$0
