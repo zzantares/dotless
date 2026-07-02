@@ -64,7 +64,7 @@ in
       bind =
         [
           # ── Essentials ──
-          "SUPER, Return, exec, alacritty"
+          "SUPER, Return, exec, wezterm"
           "SUPER SHIFT, backspace, killactive"
           "SUPER, space, exec, wofi --show drun"
 

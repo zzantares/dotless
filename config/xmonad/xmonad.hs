@@ -109,7 +109,7 @@ main =
         desktopConfig
             { -- The modifier key `mod4Mask` is the Super/Windows key.
               modMask = mod4Mask
-            , terminal = "alacritty"
+            , terminal = "wezterm"
             , borderWidth = 1
             , workspaces = myWorkspaces
             , layoutHook = myLayout
@@ -134,8 +134,8 @@ main =
                              , -- Screenshots
                                ((0, xK_Print), spawn "maim -s | tee ~/Pictures/Screenshots/screenshot-$(date +%F-%T).png | xclip -selection clipboard -t image/png && notify-send 'Screenshot copied'")
                              , ((shiftMask, xK_Print), spawn "maim | tee ~/Pictures/Screenshots/screenshot-$(date +%F-%T).png | xclip -selection clipboard -t image/png && notify-send 'Screenshot copied'")
-                             , -- Open Alacritty
-                               ((mod4Mask .|. controlMask, xK_t), spawn "alacritty")
+                             , -- Open WezTerm
+                               ((mod4Mask .|. controlMask, xK_t), spawn "wezterm")
                              , -- Open Emacs
                                ((mod4Mask .|. controlMask, xK_e), spawn "emacsclient -c -n")
                              , -- Open LibreWolf

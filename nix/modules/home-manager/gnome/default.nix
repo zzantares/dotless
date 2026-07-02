@@ -206,8 +206,8 @@ in
     };
 
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
-      name = "Alacritty";
-      command = "alacritty";
+      name = "WezTerm";
+      command = "wezterm";
       binding = "<Ctrl><Alt>t";
     };
 
