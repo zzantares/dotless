@@ -55,7 +55,7 @@ in
 
     enableZshIntegration = lib.mkDefault true;
 
-    extraConfig = lib.mkDefault (builtins.readFile ./../../../../config/wezterm/wezterm.lua);
+    extraConfig = lib.mkDefault (builtins.readFile ./../../../../../config/wezterm/wezterm.lua);
   };
 
   # WezTerm's shell integration emits OSC 1337 sequences (SetUserVar, semantic
