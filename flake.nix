@@ -100,6 +100,7 @@
         sops = ./nix/modules/nixos/sops;
         gnome = ./nix/modules/nixos/gnome;
         kde = ./nix/modules/nixos/kde;
+        cosmic = ./nix/modules/nixos/cosmic;
         syncthing = ./nix/modules/nixos/syncthing;
         tailscale = ./nix/modules/nixos/tailscale;
 
