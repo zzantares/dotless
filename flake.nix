@@ -101,6 +101,7 @@
         gnome = ./nix/modules/nixos/gnome;
         kde = ./nix/modules/nixos/kde;
         cosmic = ./nix/modules/nixos/cosmic;
+        hyprland = ./nix/modules/nixos/hyprland;
         syncthing = ./nix/modules/nixos/syncthing;
         tailscale = ./nix/modules/nixos/tailscale;
 
