@@ -88,6 +88,7 @@
         sops = ./nix/modules/home-manager/sops;
         gnome = ./nix/modules/home-manager/gnome;
         kde = ./nix/modules/home-manager/kde;
+        hyprland = ./nix/modules/home-manager/hyprland;
         xmonad = ./nix/modules/home-manager/xmonad;
         streaming = ./nix/modules/home-manager/streaming;
         "generic-linux" = ./nix/modules/home-manager/generic-linux;
