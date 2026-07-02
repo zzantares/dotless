@@ -30,6 +30,8 @@ in
 {
   wayland.windowManager.hyprland = {
     enable = lib.mkDefault true;
+    # TODO: migrate extraConfig (submap section) to Lua and switch to "lua"
+    configType = "hyprlang";
 
     settings = {
       input = {
