@@ -45,6 +45,19 @@
     onChange = "${pkgs.fontconfig}/bin/fc-cache -f -v";
   };
 
+  # macOS doesn't use fontconfig to discover fonts from the Nix profile;
+  # copy them into ~/Library/Fonts/Nix so the system font registry picks them up.
+  home.activation.copyNixFonts = lib.mkIf pkgs.stdenv.isDarwin (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      fontsDir="${config.home.homeDirectory}/Library/Fonts/Nix"
+      mkdir -p "$fontsDir"
+      rm -rf "$fontsDir"/*
+      find "${config.home.profileDirectory}/share/fonts" \
+        -type f \( -name '*.ttf' -o -name '*.otf' \) \
+        -exec cp {} "$fontsDir/" \;
+    ''
+  );
+
   # User-provided icon themes
   xdg.dataFile.user-icons = lib.mkIf ((profile ? iconsPath) && profile.iconsPath != null) {
     enable = lib.mkDefault true;
