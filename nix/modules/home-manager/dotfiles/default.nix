@@ -59,13 +59,6 @@
     target = "${config.xdg.configHome}/zed";
   };
 
-  # Configured as a symlink for rapid Wezterm iteration
-  home.file.wezterm = {
-    enable = lib.mkDefault true;
-    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/${profile.flakeRoot}/config/wezterm";
-    target = "${config.xdg.configHome}/wezterm";
-  };
-
   # Configured as a symlink for rapid SBCL iteration
   home.file.sbclrc = {
     enable = lib.mkDefault true;
