@@ -8,7 +8,7 @@
 let
   wezterm = config.programs.wezterm.package;
 
-  tw = pkgs.writeShellScriptBin "tw" ''
+  tw = pkgs.writeShellScriptBin "t" ''
     set -euo pipefail
 
     # 1. Resolve target directory

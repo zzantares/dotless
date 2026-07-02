@@ -64,7 +64,7 @@ config.inactive_pane_hsb = {
 config.enable_scroll_bar = false
 
 -- Key bindings
-config.leader = { key = ".", mods = "CTRL", timeout_milliseconds = 1000 }
+config.leader = { key = "t", mods = "CTRL", timeout_milliseconds = 1000 }
 
 -- Workspace switcher: zoxide + fzf picker that creates or switches to a
 -- workspace named after the chosen directory (git root when possible).
@@ -152,8 +152,7 @@ config.keys = {
 	{ key = "x", mods = "LEADER", action = act.CloseCurrentPane({ confirm = false }) },
 	{ key = "s", mods = "LEADER", action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }) },
 	{ key = "v", mods = "LEADER", action = act.SplitVertical({ domain = "CurrentPaneDomain" }) },
-	{ key = "t", mods = "SUPER", action = wezterm.action_callback(workspace_switcher) },
-	{ key = "w", mods = "SUPER", action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }) },
+	{ key = "t", mods = "LEADER", action = wezterm.action_callback(workspace_switcher) },
 }
 
 return config

@@ -8,13 +8,19 @@
 
 let
   # NOTE see: https://github.com/joshmedeski/t-smart-tmux-session-manager
-  # TODO need to separate live sessions from directories when picking tmux sessions `C-t T` (separated with a line)
-  t = pkgs.tmuxPlugins.mkTmuxPlugin {
+  # TODO need to separate live sessions from directories when picking tmux sessions `C-b T` (separated with a line)
+  t-plugin = pkgs.tmuxPlugins.mkTmuxPlugin {
     pluginName = "t";
     rtpFilePath = "t-smart-tmux-session-manager.tmux";
     version = inputs.t.shortRev;
     src = inputs.t;
   };
+
+  # Expose Medeski's session manager as `ts` (tmux session) — `t` is reserved
+  # for the wezterm workspace launcher.
+  ts = pkgs.writeShellScriptBin "ts" ''
+    exec ${t-plugin}/share/tmux-plugins/t/bin/t "$@"
+  '';
 
   # This will add tmux claude sessions needing attention to the tmux status bar
   tmux-claude-status = pkgs.writeShellScriptBin "tmux-claude-status" ''
@@ -36,7 +42,7 @@ in
     T_SESSION_USE_GIT_ROOT = lib.mkDefault "true";
   };
 
-  home.sessionPath = [ "${t}/share/tmux-plugins/t/bin" ];
+  home.packages = [ ts ];
 
   programs.tmux = {
     enable = lib.mkDefault true;
@@ -50,13 +56,16 @@ in
     keyMode = "vi";
     secureSocket = lib.mkDefault true;
     terminal = "tmux-256color";
-    prefix = "C-t";
+    prefix = "C-b";
     shell = "${config.programs.zsh.package}/bin/zsh";
 
     plugins = [
       {
-        plugin = t;
-        extraConfig = "set -g detach-on-destroy off";
+        plugin = t-plugin;
+        extraConfig = ''
+          set -g detach-on-destroy off
+          set -g @t-bind "b"
+        '';
       }
       pkgs.tmuxPlugins.resurrect
       # TODO see: https://github.com/tmux-plugins/tmux-resurrect/blob/master/docs/restoring_vim_and_neovim_sessions.md
