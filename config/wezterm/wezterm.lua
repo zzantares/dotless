@@ -55,6 +55,7 @@ config.tab_bar_at_bottom = true
 -- Keep the tab bar visible even with a single tab, so the workspace indicator in
 -- the right status is always shown.
 config.hide_tab_bar_if_only_one_tab = false
+config.tab_max_width = 32
 
 -- Panes
 config.inactive_pane_hsb = {
@@ -162,6 +163,28 @@ wezterm.on("update-status", function(window, pane)
         { Attribute = { Intensity = "Bold" } },
         { Text = " " .. ws .. " " },
     }))
+end)
+
+-- Tab titles: a tab you explicitly renamed (LEADER ,) keeps its name; otherwise show
+-- the foreground executable's name (zsh, nvim, git, …), falling back to the pane
+-- title if the process name isn't available.
+wezterm.on("format-tab-title", function(tab, tabs, panes, cfg, hover, max_width)
+    local title = tab.tab_title
+    if not title or title == "" then
+        local ok, p = pcall(wezterm.mux.get_pane, tab.active_pane.pane_id)
+        local proc
+        if ok and p then
+            local ok2, name = pcall(function()
+                return p:get_foreground_process_name()
+            end)
+            if ok2 and name and name ~= "" then
+                proc = name:match("([^/]+)$") -- basename of the executable path
+            end
+        end
+        title = proc or tab.active_pane.title or "shell"
+    end
+    title = wezterm.truncate_right(title, math.max(max_width - 5, 6))
+    return string.format(" %d: %s ", tab.tab_index + 1, title)
 end)
 
 config.keys = {
