@@ -11,29 +11,60 @@ let
   tw = pkgs.writeShellScriptBin "t" ''
     set -euo pipefail
 
-    # 1. Resolve target directory
+    # Open workspaces are the source of truth for "is a workspace already open for
+    # this directory". Pull them (real names + cwd) from the running mux so we can
+    # switch to an existing workspace by its ACTUAL name and only create when none is
+    # open. This is what makes create-first / switch-after reliable even for
+    # auto-named workspaces (whose name != the directory basename).
+    json=$(${wezterm}/bin/wezterm cli list --format json 2>/dev/null || printf '[]')
+    # "<workspace>\t<cwd>" per pane; cwd stripped of the file://<host> prefix and any
+    # trailing slash so it compares cleanly with zoxide paths.
+    ws_dirs=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq -r \
+      '.[] | [.workspace, (.cwd | sub("^file://[^/]*"; "") | sub("/+$"; ""))] | @tsv' 2>/dev/null || true)
+    current=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq -r --arg p "''${WEZTERM_PANE:-}" \
+      'first(.[] | select((.pane_id | tostring) == $p) | .workspace) // ""' 2>/dev/null || true)
+
+    # 1. Resolve the target directory.
+    mru_file="$HOME/.cache/wezterm-workspace-mru"
     if [ $# -gt 0 ]; then
       dir=$(${pkgs.zoxide}/bin/zoxide query "$@") || exit 1
     else
-      # Order candidates by workspace recency. wezterm.lua maintains an MRU cache
-      # listing workspaces most-recent-first as "<name>\t<cwd>". Skip line 1 (the
-      # current workspace), take each cwd, then append everything zoxide knows and
-      # dedupe preserving order. fzf keeps this order for the initial view, so the
-      # top item is the last-active workspace — press Enter to jump straight there.
-      mru_file="$HOME/.cache/wezterm-workspace-mru"
-      dir=$(
-        {
-          [ -r "$mru_file" ] && ${pkgs.coreutils}/bin/tail -n +2 "$mru_file" | ${pkgs.coreutils}/bin/cut -f2
-          ${pkgs.zoxide}/bin/zoxide query -l
-        } | ${pkgs.gawk}/bin/awk '{ p = $0; sub(/\/+$/, "", p); if (p != "" && !seen[p]++) print p }' \
+      # Picker: recently-used (MRU cache) + open-workspace dirs + everything zoxide
+      # knows — normalized, deduped, with the CURRENT workspace's dirs excluded so it
+      # never offers to "switch" to where you already are.
+      mru_dirs=""
+      [ -r "$mru_file" ] && mru_dirs=$(${pkgs.coreutils}/bin/cut -f2 "$mru_file")
+      open_dirs=$(printf '%s\n' "$ws_dirs" | ${pkgs.coreutils}/bin/cut -f2)
+      CUR_DIRS=$(printf '%s\n' "$ws_dirs" | ${pkgs.gawk}/bin/awk -F'\t' -v c="$current" '$1 == c { print $2 }')
+      export CUR_DIRS
+      dir=$( {
+          printf '%s\n' "$mru_dirs"
+          printf '%s\n' "$open_dirs"
+          ${pkgs.zoxide}/bin/zoxide query -l 2>/dev/null || true
+        } | ${pkgs.gawk}/bin/awk '
+            BEGIN { n = split(ENVIRON["CUR_DIRS"], a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") excl[a[i]] = 1 }
+            { p = $0; sub(/\/+$/, "", p); if (p != "" && !(p in excl) && !seen[p]++) print p }
+          ' \
           | ${pkgs.fzf}/bin/fzf --reverse --preview 'ls -1 --color=always {}'
       ) || exit 0
     fi
+    dir=''${dir%/}
+    [ -n "$dir" ] || exit 0
 
-    # 2. Derive workspace name (git root basename when possible)
+    # 2. Switch to the workspace already open for this directory, else create one.
+    #    "Open for this dir" = a pane whose cwd is the repo root or lives inside it.
     git_root=$(${pkgs.git}/bin/git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)
-    base_dir="''${git_root:-$dir}"
-    ws_name="''${base_dir##*/}"
+    root="''${git_root:-$dir}"
+    ws=$(printf '%s\n' "$ws_dirs" | ${pkgs.gawk}/bin/awk -F'\t' -v r="$root" \
+      '$2 == r || index($2, r "/") == 1 { print $1; exit }')
+    if [ -n "$ws" ]; then
+      ws_name="$ws"
+      target_cwd=""        # existing workspace → switch only (no spawn)
+    else
+      ws_name="''${root##*/}"
+      target_cwd="$root"   # new workspace → create at the repo root
+    fi
+    [ -n "$ws_name" ] || exit 0
 
     # 3. Switch to (or create) the workspace.
     #
@@ -43,7 +74,7 @@ let
     # "<name>\t<cwd>"). The wezterm.lua `user-var-changed` handler performs the
     # actual switch. This works when `t` is run inside a WezTerm pane.
     if [ -n "''${WEZTERM_PANE:-}" ]; then
-      payload=$(printf '%s\t%s' "$ws_name" "$dir" | ${pkgs.coreutils}/bin/base64 | tr -d '\n')
+      payload=$(printf '%s\t%s' "$ws_name" "$target_cwd" | ${pkgs.coreutils}/bin/base64 | tr -d '\n')
       osc=$(printf '\033]1337;SetUserVar=switch-workspace=%s\a' "$payload")
       esc=$(printf '\033')
       if [ -n "''${TMUX:-}" ]; then
@@ -60,10 +91,10 @@ let
     elif ${wezterm}/bin/wezterm cli list >/dev/null 2>&1; then
       # A mux is running but we're not inside a WezTerm pane — best effort: create
       # the workspace in a new window (focus may not follow; use CTRL+t T to switch).
-      ${wezterm}/bin/wezterm cli spawn --new-window --workspace "$ws_name" --cwd "$dir" >/dev/null
+      ${wezterm}/bin/wezterm cli spawn --new-window --workspace "$ws_name" --cwd "''${target_cwd:-$dir}" >/dev/null
     else
       # No running instance — start one in the target workspace.
-      ${wezterm}/bin/wezterm start --workspace "$ws_name" --cwd "$dir"
+      ${wezterm}/bin/wezterm start --workspace "$ws_name" --cwd "''${target_cwd:-$dir}"
     fi
   '';
 in
