@@ -81,14 +81,24 @@ local function workspace_switcher(window, pane)
 	local script = [[
     printf '=== workspaces ===\n'
     wezterm cli list --format json 2>/dev/null \
-      | grep -o '"workspace":"[^"]*"' \
-      | sed 's/"workspace":"//;s/"$//' \
+      | grep -o '"workspace": *"[^"]*"' \
+      | sed 's/"workspace": *"//;s/"$//' \
       | sort -u
     printf '=== directories ===\n'
     zoxide query -l 2>/dev/null
   ]]
 
-	local success, stdout, stderr = wezterm.run_child_process({ "bash", "-c", script })
+	-- WezTerm launched from the GUI (Spotlight/Dock) inherits only a minimal PATH,
+	-- so bare `wezterm`/`zoxide` aren't found. Prepend the Nix profile bins.
+	local child_path = "/etc/profiles/per-user/"
+		.. (os.getenv("USER") or "")
+		.. "/bin:/run/current-system/sw/bin:"
+		.. home
+		.. "/.nix-profile/bin:"
+		.. (os.getenv("PATH") or "")
+
+	local success, stdout, stderr =
+		wezterm.run_child_process({ "/usr/bin/env", "PATH=" .. child_path, "bash", "-c", script })
 	if not success then
 		wezterm.log_error("workspace switcher: " .. (stderr or "unknown error"))
 		return
@@ -134,7 +144,7 @@ local function workspace_switcher(window, pane)
 
 				local git_root = nil
 				local git_ok, git_out, _ =
-					wezterm.run_child_process({ "git", "-C", id, "rev-parse", "--show-toplevel" })
+					wezterm.run_child_process({ "/usr/bin/env", "PATH=" .. child_path, "git", "-C", id, "rev-parse", "--show-toplevel" })
 				if git_ok and git_out then
 					git_root = git_out:match("^%s*(.-)%s*$")
 				end
@@ -219,9 +229,12 @@ config.keys = {
 	{ key = "t", mods = "LEADER", action = act.ActivateLastTab },
 
 	-- Sessions == WezTerm workspaces (the analog of a tmux session).
-	-- LEADER T → zoxide + fzf switcher (git-root aware, defined above).
+	-- LEADER T → picker over existing workspaces AND zoxide directories; switches to
+	-- (or creates + switches to, via SwitchToWorkspace) the chosen one. This is the
+	-- reliable in-GUI equivalent of tmux's `t`/`ts` — WezTerm's CLI cannot switch
+	-- workspaces, so this has to happen inside the GUI.
 	{ key = "T", mods = "LEADER", action = wezterm.action_callback(workspace_switcher) },
-	-- LEADER S → built-in fuzzy workspace launcher (tmux: choose-tree).
+	-- LEADER S → built-in launcher: switch between EXISTING workspaces only.
 	{ key = "S", mods = "LEADER", action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }) },
 	-- Previous / next workspace  (tmux: prefix ( / ) )
 	{ key = "(", mods = "LEADER", action = act.SwitchWorkspaceRelative(-1) },
