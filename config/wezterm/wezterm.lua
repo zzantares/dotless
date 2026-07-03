@@ -111,12 +111,22 @@ local function pane_cwd(pane)
     if not ok or not uri then
         return nil
     end
+    local path
     if type(uri) == "userdata" then
-        return uri.file_path -- newer wezterm: Url object
+        path = uri.file_path -- newer wezterm: Url object
     elseif type(uri) == "string" then
-        return (uri:gsub("^file://[^/]*", "")) -- older wezterm: file:// URL
+        path = uri:gsub("^file://[^/]*", "") -- older wezterm: file:// URL
     end
-    return nil
+    if not path or path == "" then
+        return nil
+    end
+    -- WezTerm reports directory cwds with a trailing slash; strip it so the cache
+    -- matches zoxide's slash-free form (avoids duplicate picker entries).
+    local stripped = path:gsub("/+$", "")
+    if stripped ~= "" then
+        path = stripped
+    end
+    return path
 end
 
 local function record_ws(name, cwd)

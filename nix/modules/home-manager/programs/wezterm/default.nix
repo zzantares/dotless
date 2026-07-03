@@ -25,7 +25,7 @@ let
         {
           [ -r "$mru_file" ] && ${pkgs.coreutils}/bin/tail -n +2 "$mru_file" | ${pkgs.coreutils}/bin/cut -f2
           ${pkgs.zoxide}/bin/zoxide query -l
-        } | ${pkgs.gawk}/bin/awk 'NF && !seen[$0]++' \
+        } | ${pkgs.gawk}/bin/awk '{ p = $0; sub(/\/+$/, "", p); if (p != "" && !seen[p]++) print p }' \
           | ${pkgs.fzf}/bin/fzf --reverse --preview 'ls -1 --color=always {}'
       ) || exit 0
     fi
