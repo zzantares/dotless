@@ -63,7 +63,14 @@ config.inactive_pane_hsb = {
 -- Misc
 config.enable_scroll_bar = false
 
--- Key bindings
+-- ============================================================================
+-- tmux-style key bindings
+--   Leader / prefix: CTRL+t  (press & release, then the command key)
+--   "windows" in tmux == tabs in wezterm; "panes" map 1:1.
+--   This is WezTerm's own multiplexer layer. It nests cleanly with tmux: WezTerm
+--   owns CTRL+t while tmux keeps its CTRL+b prefix (see programs/tmux), so a tmux
+--   session running inside WezTerm receives CTRL+b untouched.
+-- ============================================================================
 config.leader = { key = "t", mods = "CTRL", timeout_milliseconds = 1000 }
 
 -- Workspace switcher: zoxide + fzf picker that creates or switches to a
@@ -149,10 +156,170 @@ local function workspace_switcher(window, pane)
 end
 
 config.keys = {
+	-- Send a literal CTRL+t to the program (tmux convention: prefix then prefix).
+	-- Requires CTRL held on the 2nd key so it doesn't shadow `LEADER t` (the
+	-- workspace switcher below).
+	{ key = "t", mods = "LEADER|CTRL", action = act.SendKey({ key = "t", mods = "CTRL" }) },
+
+	-- Splits  (tmux: % = left/right divider, " = top/bottom divider)
+	{ key = "%", mods = "LEADER", action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }) },
+	{ key = '"', mods = "LEADER", action = act.SplitVertical({ domain = "CurrentPaneDomain" }) },
+	-- convenience aliases, Vim-style (v = :vsplit → left/right, s = :split → top/bottom)
+	{ key = "v", mods = "LEADER", action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }) },
+	{ key = "s", mods = "LEADER", action = act.SplitVertical({ domain = "CurrentPaneDomain" }) },
+
+	-- Pane focus  (tmux: prefix + arrows; here also vim hjkl)
+	{ key = "h", mods = "LEADER", action = act.ActivatePaneDirection("Left") },
+	{ key = "j", mods = "LEADER", action = act.ActivatePaneDirection("Down") },
+	{ key = "k", mods = "LEADER", action = act.ActivatePaneDirection("Up") },
+	{ key = "l", mods = "LEADER", action = act.ActivatePaneDirection("Right") },
+	{ key = "LeftArrow", mods = "LEADER", action = act.ActivatePaneDirection("Left") },
+	{ key = "DownArrow", mods = "LEADER", action = act.ActivatePaneDirection("Down") },
+	{ key = "UpArrow", mods = "LEADER", action = act.ActivatePaneDirection("Up") },
+	{ key = "RightArrow", mods = "LEADER", action = act.ActivatePaneDirection("Right") },
+
+	-- Cycle to next pane  (tmux: prefix + o)
+	{ key = "o", mods = "LEADER", action = act.ActivatePaneDirection("Next") },
+	-- Rotate/swap panes  (tmux: prefix + { / })
+	{ key = "{", mods = "LEADER", action = act.RotatePanes("CounterClockwise") },
+	{ key = "}", mods = "LEADER", action = act.RotatePanes("Clockwise") },
+
+	-- Zoom current pane  (tmux: prefix + z)
+	{ key = "z", mods = "LEADER", action = act.TogglePaneZoomState },
+
+	-- Kill pane  (tmux: prefix + x). confirm=false keeps the original preference;
+	-- tmux actually prompts y/n — flip to confirm=true to mirror that.
 	{ key = "x", mods = "LEADER", action = act.CloseCurrentPane({ confirm = false }) },
-	{ key = "s", mods = "LEADER", action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }) },
-	{ key = "v", mods = "LEADER", action = act.SplitVertical({ domain = "CurrentPaneDomain" }) },
+	-- Kill window/tab  (tmux: prefix + &)
+	{ key = "&", mods = "LEADER", action = act.CloseCurrentTab({ confirm = true }) },
+
+	-- Tabs == tmux windows
+	{ key = "c", mods = "LEADER", action = act.SpawnTab("CurrentPaneDomain") },
+	{ key = "n", mods = "LEADER", action = act.ActivateTabRelative(1) },
+	{ key = "p", mods = "LEADER", action = act.ActivateTabRelative(-1) },
+	-- Rename tab  (tmux: prefix + ,)
+	{
+		key = ",",
+		mods = "LEADER",
+		action = act.PromptInputLine({
+			description = "Rename tab:",
+			action = wezterm.action_callback(function(window, _, line)
+				if line then
+					window:active_tab():set_title(line)
+				end
+			end),
+		}),
+	},
+
+	-- Copy mode  (tmux: prefix + [)   and   paste  (tmux: prefix + ])
+	{ key = "[", mods = "LEADER", action = act.ActivateCopyMode },
+	{ key = "]", mods = "LEADER", action = act.PasteFrom("Clipboard") },
+
+	-- Sessions == WezTerm workspaces (the analog of a tmux session).
+	-- LEADER t → zoxide + fzf switcher (git-root aware, defined above).
 	{ key = "t", mods = "LEADER", action = wezterm.action_callback(workspace_switcher) },
+	-- LEADER S → built-in fuzzy workspace launcher (tmux: choose-tree).
+	{ key = "S", mods = "LEADER", action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }) },
+	-- Previous / next workspace  (tmux: prefix ( / ) )
+	{ key = "(", mods = "LEADER", action = act.SwitchWorkspaceRelative(-1) },
+	{ key = ")", mods = "LEADER", action = act.SwitchWorkspaceRelative(1) },
+	-- Create a new named workspace and switch to it
+	{
+		key = "N",
+		mods = "LEADER",
+		action = act.PromptInputLine({
+			description = "New workspace name:",
+			action = wezterm.action_callback(function(window, pane, line)
+				if line and line ~= "" then
+					window:perform_action(act.SwitchToWorkspace({ name = line }), pane)
+				end
+			end),
+		}),
+	},
+	-- Rename current workspace  (tmux: prefix $)
+	{
+		key = "$",
+		mods = "LEADER",
+		action = act.PromptInputLine({
+			description = "Rename workspace:",
+			action = wezterm.action_callback(function(_, _, line)
+				if line and line ~= "" then
+					wezterm.mux.rename_workspace(wezterm.mux.get_active_workspace(), line)
+				end
+			end),
+		}),
+	},
+
+	-- Repeatable resize mode  (tmux-ish): prefix + r, then hjkl/arrows, Esc to exit
+	{
+		key = "r",
+		mods = "LEADER",
+		action = act.ActivateKeyTable({ name = "resize_pane", one_shot = false, timeout_milliseconds = 1000 }),
+	},
 }
+
+-- Select tab by number  (tmux: prefix + <n>). 1-indexed here: prefix+1 == first
+-- tab (matches tmux with `base-index 1`). Use ActivateTab(i) for tmux's 0-based default.
+for i = 1, 9 do
+	table.insert(config.keys, {
+		key = tostring(i),
+		mods = "LEADER",
+		action = act.ActivateTab(i - 1),
+	})
+end
+
+-- ============================================================================
+-- Key tables
+-- ============================================================================
+config.key_tables = {
+	-- Repeatable resize mode entered via prefix + r.
+	resize_pane = {
+		{ key = "h", action = act.AdjustPaneSize({ "Left", 2 }) },
+		{ key = "j", action = act.AdjustPaneSize({ "Down", 2 }) },
+		{ key = "k", action = act.AdjustPaneSize({ "Up", 2 }) },
+		{ key = "l", action = act.AdjustPaneSize({ "Right", 2 }) },
+		{ key = "LeftArrow", action = act.AdjustPaneSize({ "Left", 2 }) },
+		{ key = "DownArrow", action = act.AdjustPaneSize({ "Down", 2 }) },
+		{ key = "UpArrow", action = act.AdjustPaneSize({ "Up", 2 }) },
+		{ key = "RightArrow", action = act.AdjustPaneSize({ "Right", 2 }) },
+		-- exit resize mode
+		{ key = "Escape", action = "PopKeyTable" },
+		{ key = "Enter", action = "PopKeyTable" },
+		{ key = "q", action = "PopKeyTable" },
+	},
+}
+
+-- ----------------------------------------------------------------------------
+-- Copy mode: start from WezTerm's (already vi/tmux-flavored) defaults and apply
+-- a few tmux copy-mode-vi tweaks. We overwrite-in-place so it doesn't matter
+-- whether wezterm matches the first or last entry for a given key.
+-- ----------------------------------------------------------------------------
+local function set_key(tbl, key, mods, action)
+	for _, e in ipairs(tbl) do
+		if e.key == key and (e.mods or "NONE") == mods then
+			e.action = action
+			return
+		end
+	end
+	table.insert(tbl, { key = key, mods = mods, action = action })
+end
+
+local copy_mode = wezterm.gui.default_key_tables().copy_mode
+
+local copy_and_close = act.Multiple({
+	act.CopyTo("ClipboardAndPrimarySelection"),
+	act.ClearSelection,
+	act.ScrollToBottom,
+	act.CopyMode("Close"),
+})
+
+-- tmux: Enter copies the selection and exits copy mode (default `y` already does this)
+set_key(copy_mode, "Enter", "NONE", copy_and_close)
+-- tmux: / and ? start an incremental search from within copy mode
+set_key(copy_mode, "/", "NONE", act.Search("CurrentSelectionOrEmptyString"))
+set_key(copy_mode, "?", "NONE", act.Search("CurrentSelectionOrEmptyString"))
+
+config.key_tables.copy_mode = copy_mode
+-- search_mode defaults already give you n/N-style cycling via Enter / Ctrl-n / Ctrl-p.
 
 return config
