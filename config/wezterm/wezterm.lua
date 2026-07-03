@@ -215,9 +215,12 @@ config.keys = {
 	{ key = "[", mods = "LEADER", action = act.ActivateCopyMode },
 	{ key = "]", mods = "LEADER", action = act.PasteFrom("Clipboard") },
 
+	-- LEADER t → jump to the most recently active tab (tmux: last-window).
+	{ key = "t", mods = "LEADER", action = act.ActivateLastTab },
+
 	-- Sessions == WezTerm workspaces (the analog of a tmux session).
-	-- LEADER t → zoxide + fzf switcher (git-root aware, defined above).
-	{ key = "t", mods = "LEADER", action = wezterm.action_callback(workspace_switcher) },
+	-- LEADER T → zoxide + fzf switcher (git-root aware, defined above).
+	{ key = "T", mods = "LEADER", action = wezterm.action_callback(workspace_switcher) },
 	-- LEADER S → built-in fuzzy workspace launcher (tmux: choose-tree).
 	{ key = "S", mods = "LEADER", action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }) },
 	-- Previous / next workspace  (tmux: prefix ( / ) )

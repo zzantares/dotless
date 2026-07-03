@@ -64,7 +64,7 @@ in
         plugin = t-plugin;
         extraConfig = ''
           set -g detach-on-destroy off
-          set -g @t-bind "b"
+          set -g @t-bind "B"
         '';
       }
       pkgs.tmuxPlugins.resurrect
