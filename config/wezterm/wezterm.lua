@@ -63,6 +63,13 @@ config.inactive_pane_hsb = {
 -- Misc
 config.enable_scroll_bar = false
 
+-- Rendering backend. macOS + the default WebGpu backend has repaint stalls where a
+-- programmatically-created window (e.g. the one SwitchToWorkspace spawns from the
+-- `user-var-changed` handler) doesn't repaint on PTY output until an input/focus
+-- event. OpenGL avoids that, and also renders window_background_opacity correctly on
+-- macOS (WebGpu disables it). Flip back to "WebGpu" if you prefer and don't hit this.
+config.front_end = "OpenGL"
+
 -- ============================================================================
 -- tmux-style key bindings
 --   Leader / prefix: CTRL+t  (press & release, then the command key)
