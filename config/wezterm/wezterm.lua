@@ -344,4 +344,25 @@ set_key(copy_mode, "l", "NONE", act.CopyMode("MoveRight"))
 config.key_tables.copy_mode = copy_mode
 -- search_mode defaults already give you n/N-style cycling via Enter / Ctrl-n / Ctrl-p.
 
+-- ----------------------------------------------------------------------------
+-- Shell-driven workspace switching (complements LEADER T).
+-- The `t` shell script emits an OSC 1337 SetUserVar named "switch-workspace" whose
+-- value is "<workspace-name>\t<cwd>". WezTerm's CLI can't change the active
+-- workspace, so the switch has to happen here, GUI-side.
+-- ----------------------------------------------------------------------------
+wezterm.on("user-var-changed", function(window, pane, name, value)
+	if name ~= "switch-workspace" then
+		return
+	end
+	local ws, dir = value:match("^(.-)\t(.*)$")
+	if not ws or ws == "" then
+		return
+	end
+	local spawn = nil
+	if dir and dir ~= "" then
+		spawn = { cwd = dir }
+	end
+	window:perform_action(act.SwitchToWorkspace({ name = ws, spawn = spawn }), pane)
+end)
+
 return config

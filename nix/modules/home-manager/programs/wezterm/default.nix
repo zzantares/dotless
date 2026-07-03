@@ -24,28 +24,31 @@ let
     base_dir="''${git_root:-$dir}"
     ws_name="''${base_dir##*/}"
 
-    # 3. Launch or connect
-    if ! ${wezterm}/bin/wezterm cli list >/dev/null 2>&1; then
-      # No running instance — start one
-      ${wezterm}/bin/wezterm start --workspace "$ws_name" --cwd "$dir"
-    elif [ -n "''${WEZTERM_PANE:-}" ]; then
-      # Inside WezTerm — check if workspace already exists
-      existing_pane=$(${wezterm}/bin/wezterm cli list --format json \
-        | ${pkgs.jq}/bin/jq -r --arg ws "$ws_name" \
-            '.[] | select(.workspace == $ws) | .pane_id' \
-        | head -n1)
-      if [ -n "$existing_pane" ]; then
-        # Switch to existing workspace by activating one of its panes
-        ${wezterm}/bin/wezterm cli activate-pane --pane-id "$existing_pane"
+    # 3. Switch to (or create) the workspace.
+    #
+    # WezTerm's CLI cannot change the active workspace — only the GUI can, via the
+    # SwitchToWorkspace action. So hand the request to the GUI through a user var
+    # (OSC 1337 SetUserVar named "switch-workspace", value = base64 of
+    # "<name>\t<cwd>"). The wezterm.lua `user-var-changed` handler performs the
+    # actual switch. This works when `t` is run inside a WezTerm pane.
+    if [ -n "''${WEZTERM_PANE:-}" ]; then
+      payload=$(printf '%s\t%s' "$ws_name" "$dir" | ${pkgs.coreutils}/bin/base64 | tr -d '\n')
+      osc=$(printf '\033]1337;SetUserVar=switch-workspace=%s\a' "$payload")
+      esc=$(printf '\033')
+      if [ -n "''${TMUX:-}" ]; then
+        # Inside tmux: wrap for passthrough (needs `set -g allow-passthrough on`),
+        # doubling every ESC in the inner sequence.
+        printf '\033Ptmux;%s\033\\' "''${osc//$esc/$esc$esc}" > /dev/tty
       else
-        # New workspace: create it in a new window, then focus it
-        new_pane=$(${wezterm}/bin/wezterm cli spawn --new-window --workspace "$ws_name" --cwd "$dir")
-        ${wezterm}/bin/wezterm cli activate-pane --pane-id "$new_pane"
+        printf '%s' "$osc" > /dev/tty
       fi
+    elif ${wezterm}/bin/wezterm cli list >/dev/null 2>&1; then
+      # A mux is running but we're not inside a WezTerm pane — best effort: create
+      # the workspace in a new window (focus may not follow; use CTRL+t T to switch).
+      ${wezterm}/bin/wezterm cli spawn --new-window --workspace "$ws_name" --cwd "$dir" >/dev/null
     else
-      # Outside WezTerm but mux is running — create in a new window and focus it
-      new_pane=$(${wezterm}/bin/wezterm cli spawn --new-window --workspace "$ws_name" --cwd "$dir")
-      ${wezterm}/bin/wezterm cli activate-pane --pane-id "$new_pane"
+      # No running instance — start one in the target workspace.
+      ${wezterm}/bin/wezterm start --workspace "$ws_name" --cwd "$dir"
     fi
   '';
 in
