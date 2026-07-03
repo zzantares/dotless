@@ -30,23 +30,26 @@ let
       dir=$(${pkgs.zoxide}/bin/zoxide query "$@") || exit 1
     else
       # Picker: recently-used (MRU cache) + open-workspace dirs + everything zoxide
-      # knows — normalized, deduped, with the CURRENT workspace's dirs excluded so it
-      # never offers to "switch" to where you already are.
+      # knows — normalized, deduped, current workspace excluded. Each row is DISPLAYED
+      # as the workspace name when one is already open for that dir, otherwise the full
+      # path; the real directory is carried in a hidden 2nd column (tab-separated) that
+      # the selection logic below reads, so presentation is decoupled from behaviour.
       mru_dirs=""
       [ -r "$mru_file" ] && mru_dirs=$(${pkgs.coreutils}/bin/cut -f2 "$mru_file")
       open_dirs=$(printf '%s\n' "$ws_dirs" | ${pkgs.coreutils}/bin/cut -f2)
       CUR_DIRS=$(printf '%s\n' "$ws_dirs" | ${pkgs.gawk}/bin/awk -F'\t' -v c="$current" '$1 == c { print $2 }')
       export CUR_DIRS
-      dir=$( {
-          printf '%s\n' "$mru_dirs"
-          printf '%s\n' "$open_dirs"
-          ${pkgs.zoxide}/bin/zoxide query -l 2>/dev/null || true
-        } | ${pkgs.gawk}/bin/awk '
-            BEGIN { n = split(ENVIRON["CUR_DIRS"], a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") excl[a[i]] = 1 }
-            { p = $0; sub(/\/+$/, "", p); if (p != "" && !(p in excl) && !seen[p]++) print p }
-          ' \
-          | ${pkgs.fzf}/bin/fzf --reverse --preview 'ls -1 --color=always {}'
-      ) || exit 0
+      sel=$(${pkgs.gawk}/bin/awk -F'\t' '
+          BEGIN { n = split(ENVIRON["CUR_DIRS"], a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") excl[a[i]] = 1 }
+          NR == FNR { if ($2 != "") name[$2] = $1; next }
+          { d = $0; sub(/\/+$/, "", d); if (d == "" || (d in excl) || seen[d]++) next; print ((d in name) ? name[d] : d) "\t" d }
+        ' <(printf '%s\n' "$ws_dirs") <( {
+            printf '%s\n' "$mru_dirs"
+            printf '%s\n' "$open_dirs"
+            ${pkgs.zoxide}/bin/zoxide query -l 2>/dev/null || true
+          } ) \
+        | ${pkgs.fzf}/bin/fzf --delimiter='\t' --with-nth=1 --reverse --preview 'ls -1 --color=always {2}') || exit 0
+      dir=$(printf '%s' "$sel" | ${pkgs.coreutils}/bin/cut -f2)
     fi
     dir=''${dir%/}
     [ -n "$dir" ] || exit 0
