@@ -80,97 +80,68 @@ config.front_end = "OpenGL"
 -- ============================================================================
 config.leader = { key = "t", mods = "CTRL", timeout_milliseconds = 1000 }
 
--- Workspace switcher: zoxide + fzf picker that creates or switches to a
--- workspace named after the chosen directory (git root when possible).
-local function workspace_switcher(window, pane)
-	local home = os.getenv("HOME") or ""
+-- ---------------------------------------------------------------------------
+-- Workspace MRU (most-recently-active first).
+-- Tracks workspace activation so LEADER g can toggle to the last active workspace
+-- and the `t` picker can order candidates by recency. Populated by an update-status
+-- poll (catches every switch) plus the explicit switch points below; persisted to a
+-- cache file for the `t` shell script. Each entry: { name, cwd }.
+-- ---------------------------------------------------------------------------
+local ws_mru = {}
+local ws_mru_path = (os.getenv("HOME") or "") .. "/.cache/wezterm-workspace-mru"
 
-	local script = [[
-    printf '=== workspaces ===\n'
-    wezterm cli list --format json 2>/dev/null \
-      | grep -o '"workspace": *"[^"]*"' \
-      | sed 's/"workspace": *"//;s/"$//' \
-      | sort -u
-    printf '=== directories ===\n'
-    zoxide query -l 2>/dev/null
-  ]]
+local function persist_ws_mru()
+	local lines = {}
+	for _, e in ipairs(ws_mru) do
+		table.insert(lines, e.name .. "\t" .. (e.cwd or ""))
+	end
+	pcall(function()
+		local f = io.open(ws_mru_path, "w")
+		if f then
+			f:write(table.concat(lines, "\n"))
+			f:close()
+		end
+	end)
+end
 
-	-- WezTerm launched from the GUI (Spotlight/Dock) inherits only a minimal PATH,
-	-- so bare `wezterm`/`zoxide` aren't found. Prepend the Nix profile bins.
-	local child_path = "/etc/profiles/per-user/"
-		.. (os.getenv("USER") or "")
-		.. "/bin:/run/current-system/sw/bin:"
-		.. home
-		.. "/.nix-profile/bin:"
-		.. (os.getenv("PATH") or "")
+local function pane_cwd(pane)
+	local ok, uri = pcall(function()
+		return pane and pane:get_current_working_dir()
+	end)
+	if not ok or not uri then
+		return nil
+	end
+	if type(uri) == "userdata" then
+		return uri.file_path -- newer wezterm: Url object
+	elseif type(uri) == "string" then
+		return (uri:gsub("^file://[^/]*", "")) -- older wezterm: file:// URL
+	end
+	return nil
+end
 
-	local success, stdout, stderr =
-		wezterm.run_child_process({ "/usr/bin/env", "PATH=" .. child_path, "bash", "-c", script })
-	if not success then
-		wezterm.log_error("workspace switcher: " .. (stderr or "unknown error"))
+local function record_ws(name, cwd)
+	if not name or name == "" then
 		return
 	end
-
-	local choices = {}
-	local seen = {}
-	local section = ""
-
-	for line in stdout:gmatch("[^\r\n]+") do
-		if line == "=== workspaces ===" then
-			section = "workspace"
-		elseif line == "=== directories ===" then
-			section = "directory"
-		elseif line ~= "" then
-			local label
-			if section == "workspace" then
-				label = "[active]  " .. line
-			else
-				local display = line
-				if home ~= "" and line:sub(1, #home) == home then
-					display = "~" .. line:sub(#home + 1)
-				end
-				label = display
-			end
-
-			if not seen[line] then
-				seen[line] = true
-				table.insert(choices, { id = line, label = label })
-			end
+	if ws_mru[1] and ws_mru[1].name == name then
+		if cwd and cwd ~= "" then
+			ws_mru[1].cwd = cwd
+		end
+		return
+	end
+	for i, e in ipairs(ws_mru) do
+		if e.name == name then
+			table.remove(ws_mru, i)
+			break
 		end
 	end
-
-	window:perform_action(
-		act.InputSelector({
-			title = "Switch workspace",
-			choices = choices,
-			fuzzy = true,
-			action = wezterm.action_callback(function(inner_window, inner_pane, id, label)
-				if not id then
-					return
-				end
-
-				local git_root = nil
-				local git_ok, git_out, _ =
-					wezterm.run_child_process({ "/usr/bin/env", "PATH=" .. child_path, "git", "-C", id, "rev-parse", "--show-toplevel" })
-				if git_ok and git_out then
-					git_root = git_out:match("^%s*(.-)%s*$")
-				end
-
-				local base_dir = git_root or id
-				local ws_name = base_dir:match("([^/]+)$") or id
-
-				inner_window:perform_action(
-					act.SwitchToWorkspace({
-						name = ws_name,
-						spawn = { cwd = id },
-					}),
-					inner_pane
-				)
-			end),
-		}),
-		pane
-	)
+	table.insert(ws_mru, 1, { name = name, cwd = cwd })
+	persist_ws_mru()
 end
+
+wezterm.on("update-status", function(window, pane)
+	record_ws(window:active_workspace(), pane_cwd(pane))
+end)
 
 config.keys = {
 	-- Send a literal CTRL+t to the program (tmux convention: prefix then prefix).
@@ -234,13 +205,33 @@ config.keys = {
 
 	-- LEADER t → jump to the most recently active tab (tmux: last-window).
 	{ key = "t", mods = "LEADER", action = act.ActivateLastTab },
+	-- LEADER g → jump to the most recently active WORKSPACE (tmux last-window, but for
+	-- workspaces). ws_mru[1] is the current one, so ws_mru[2] is the previous. Recording
+	-- immediately after the switch makes repeated presses toggle between the two.
+	{
+		key = "g",
+		mods = "LEADER",
+		action = wezterm.action_callback(function(window, pane)
+			local prev = ws_mru[2]
+			if prev then
+				window:perform_action(act.SwitchToWorkspace({ name = prev.name }), pane)
+				record_ws(prev.name, prev.cwd)
+			end
+		end),
+	},
 
 	-- Sessions == WezTerm workspaces (the analog of a tmux session).
-	-- LEADER T → picker over existing workspaces AND zoxide directories; switches to
-	-- (or creates + switches to, via SwitchToWorkspace) the chosen one. This is the
-	-- reliable in-GUI equivalent of tmux's `t`/`ts` — WezTerm's CLI cannot switch
-	-- workspaces, so this has to happen inside the GUI.
-	{ key = "T", mods = "LEADER", action = wezterm.action_callback(workspace_switcher) },
+	-- LEADER T → the `t` fzf picker in a transient tab. fzf honors YOUR keybindings
+	-- (FZF_DEFAULT_OPTS — e.g. Colemak Ctrl-k/Ctrl-h), and on select it emits the OSC
+	-- that the user-var handler below turns into a SwitchToWorkspace. Run via a login
+	-- shell so PATH + FZF_DEFAULT_OPTS are present; the tab closes when `t` exits.
+	-- (WezTerm's built-in InputSelector has fixed, non-customizable keys — hence
+	-- delegating to fzf, which is fully key-programmable.)
+	{
+		key = "T",
+		mods = "LEADER",
+		action = act.SpawnCommandInNewTab({ args = { os.getenv("SHELL") or "/bin/zsh", "-lc", "t" } }),
+	},
 	-- LEADER S → built-in launcher: switch between EXISTING workspaces only.
 	{ key = "S", mods = "LEADER", action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }) },
 	-- Previous / next workspace  (tmux: prefix ( / ) )
@@ -370,6 +361,7 @@ wezterm.on("user-var-changed", function(window, pane, name, value)
 		spawn = { cwd = dir }
 	end
 	window:perform_action(act.SwitchToWorkspace({ name = ws, spawn = spawn }), pane)
+	record_ws(ws, dir)
 end)
 
 return config

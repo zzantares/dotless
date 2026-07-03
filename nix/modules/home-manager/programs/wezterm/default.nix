@@ -15,8 +15,19 @@ let
     if [ $# -gt 0 ]; then
       dir=$(${pkgs.zoxide}/bin/zoxide query "$@") || exit 1
     else
-      dir=$(${pkgs.zoxide}/bin/zoxide query -l \
-        | ${pkgs.fzf}/bin/fzf --reverse --preview 'ls -1 --color=always {}') || exit 0
+      # Order candidates by workspace recency. wezterm.lua maintains an MRU cache
+      # listing workspaces most-recent-first as "<name>\t<cwd>". Skip line 1 (the
+      # current workspace), take each cwd, then append everything zoxide knows and
+      # dedupe preserving order. fzf keeps this order for the initial view, so the
+      # top item is the last-active workspace — press Enter to jump straight there.
+      mru_file="$HOME/.cache/wezterm-workspace-mru"
+      dir=$(
+        {
+          [ -r "$mru_file" ] && ${pkgs.coreutils}/bin/tail -n +2 "$mru_file" | ${pkgs.coreutils}/bin/cut -f2
+          ${pkgs.zoxide}/bin/zoxide query -l
+        } | ${pkgs.gawk}/bin/awk 'NF && !seen[$0]++' \
+          | ${pkgs.fzf}/bin/fzf --reverse --preview 'ls -1 --color=always {}'
+      ) || exit 0
     fi
 
     # 2. Derive workspace name (git root basename when possible)
