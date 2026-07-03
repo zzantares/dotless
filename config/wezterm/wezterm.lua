@@ -52,7 +52,9 @@ config.window_padding = {
 config.enable_tab_bar = true
 config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true
-config.hide_tab_bar_if_only_one_tab = true
+-- Keep the tab bar visible even with a single tab, so the workspace indicator in
+-- the right status is always shown.
+config.hide_tab_bar_if_only_one_tab = false
 
 -- Panes
 config.inactive_pane_hsb = {
@@ -150,7 +152,16 @@ local function record_ws(name, cwd)
 end
 
 wezterm.on("update-status", function(window, pane)
-    record_ws(window:active_workspace(), pane_cwd(pane))
+    local ws = window:active_workspace()
+    record_ws(ws, pane_cwd(pane))
+    -- Show the active workspace name in the status bar (like tmux's session name),
+    -- as a small colored pill matching the active-tab colors.
+    window:set_right_status(wezterm.format({
+        { Background = { Color = "#8ba4b0" } },
+        { Foreground = { Color = "#181616" } },
+        { Attribute = { Intensity = "Bold" } },
+        { Text = " " .. ws .. " " },
+    }))
 end)
 
 config.keys = {
