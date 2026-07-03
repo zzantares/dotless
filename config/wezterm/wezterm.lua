@@ -168,10 +168,10 @@ config.keys = {
 	{ key = "v", mods = "LEADER", action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }) },
 	{ key = "s", mods = "LEADER", action = act.SplitVertical({ domain = "CurrentPaneDomain" }) },
 
-	-- Pane focus  (tmux: prefix + arrows; here also vim hjkl)
-	{ key = "h", mods = "LEADER", action = act.ActivatePaneDirection("Left") },
-	{ key = "j", mods = "LEADER", action = act.ActivatePaneDirection("Down") },
-	{ key = "k", mods = "LEADER", action = act.ActivatePaneDirection("Up") },
+	-- Pane focus  (Colemak hjkl: h=up, j=left, k=down, l=right; arrows too)
+	{ key = "h", mods = "LEADER", action = act.ActivatePaneDirection("Up") },
+	{ key = "j", mods = "LEADER", action = act.ActivatePaneDirection("Left") },
+	{ key = "k", mods = "LEADER", action = act.ActivatePaneDirection("Down") },
 	{ key = "l", mods = "LEADER", action = act.ActivatePaneDirection("Right") },
 	{ key = "LeftArrow", mods = "LEADER", action = act.ActivatePaneDirection("Left") },
 	{ key = "DownArrow", mods = "LEADER", action = act.ActivatePaneDirection("Down") },
@@ -274,9 +274,9 @@ end
 config.key_tables = {
 	-- Repeatable resize mode entered via prefix + r.
 	resize_pane = {
-		{ key = "h", action = act.AdjustPaneSize({ "Left", 2 }) },
-		{ key = "j", action = act.AdjustPaneSize({ "Down", 2 }) },
-		{ key = "k", action = act.AdjustPaneSize({ "Up", 2 }) },
+		{ key = "h", action = act.AdjustPaneSize({ "Up", 2 }) },
+		{ key = "j", action = act.AdjustPaneSize({ "Left", 2 }) },
+		{ key = "k", action = act.AdjustPaneSize({ "Down", 2 }) },
 		{ key = "l", action = act.AdjustPaneSize({ "Right", 2 }) },
 		{ key = "LeftArrow", action = act.AdjustPaneSize({ "Left", 2 }) },
 		{ key = "DownArrow", action = act.AdjustPaneSize({ "Down", 2 }) },
@@ -318,6 +318,12 @@ set_key(copy_mode, "Enter", "NONE", copy_and_close)
 -- tmux: / and ? start an incremental search from within copy mode
 set_key(copy_mode, "/", "NONE", act.Search("CurrentSelectionOrEmptyString"))
 set_key(copy_mode, "?", "NONE", act.Search("CurrentSelectionOrEmptyString"))
+
+-- Colemak navigation: h=up, j=left, k=down, l=right (overrides wezterm's vi defaults)
+set_key(copy_mode, "h", "NONE", act.CopyMode("MoveUp"))
+set_key(copy_mode, "j", "NONE", act.CopyMode("MoveLeft"))
+set_key(copy_mode, "k", "NONE", act.CopyMode("MoveDown"))
+set_key(copy_mode, "l", "NONE", act.CopyMode("MoveRight"))
 
 config.key_tables.copy_mode = copy_mode
 -- search_mode defaults already give you n/N-style cycling via Enter / Ctrl-n / Ctrl-p.
