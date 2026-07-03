@@ -38,11 +38,14 @@ let
         # Switch to existing workspace by activating one of its panes
         ${wezterm}/bin/wezterm cli activate-pane --pane-id "$existing_pane"
       else
-        ${wezterm}/bin/wezterm cli spawn --workspace "$ws_name" --cwd "$dir" >/dev/null
+        # New workspace: create it in a new window, then focus it
+        new_pane=$(${wezterm}/bin/wezterm cli spawn --new-window --workspace "$ws_name" --cwd "$dir")
+        ${wezterm}/bin/wezterm cli activate-pane --pane-id "$new_pane"
       fi
     else
-      # Outside WezTerm but mux is running — spawn in target workspace
-      ${wezterm}/bin/wezterm cli spawn --workspace "$ws_name" --cwd "$dir" >/dev/null
+      # Outside WezTerm but mux is running — create in a new window and focus it
+      new_pane=$(${wezterm}/bin/wezterm cli spawn --new-window --workspace "$ws_name" --cwd "$dir")
+      ${wezterm}/bin/wezterm cli activate-pane --pane-id "$new_pane"
     fi
   '';
 in
