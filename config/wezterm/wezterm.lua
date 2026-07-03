@@ -423,10 +423,18 @@ wezterm.on("user-var-changed", function(window, pane, name, value)
     if not ws or ws == "" then
         return
     end
-    local spawn = nil
-    if dir and dir ~= "" then
-        spawn = { cwd = dir }
+    -- Only pass `spawn` when the workspace does NOT already exist. Switching to an
+    -- existing workspace with a spawn arg triggers a repaint stall (the pane doesn't
+    -- redraw until an input event); a plain SwitchToWorkspace(name) — what the
+    -- built-in launcher does — switches cleanly.
+    local exists = false
+    for _, w in ipairs(wezterm.mux.get_workspace_names()) do
+        if w == ws then
+            exists = true
+            break
+        end
     end
+    local spawn = (not exists and dir and dir ~= "") and { cwd = dir } or nil
     window:perform_action(
         act.SwitchToWorkspace({ name = ws, spawn = spawn }),
         pane

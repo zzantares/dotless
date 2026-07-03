@@ -53,6 +53,10 @@ let
       else
         printf '%s' "$osc" > /dev/tty
       fi
+      # Keep this (possibly transient) pane alive briefly so WezTerm reads and
+      # processes the OSC before the process exits — otherwise a throwaway pane like
+      # the tab LEADER T spawns is torn down before the switch is handled.
+      ${pkgs.coreutils}/bin/sleep 0.3
     elif ${wezterm}/bin/wezterm cli list >/dev/null 2>&1; then
       # A mux is running but we're not inside a WezTerm pane — best effort: create
       # the workspace in a new window (focus may not follow; use CTRL+t T to switch).
