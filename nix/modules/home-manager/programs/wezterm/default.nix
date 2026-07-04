@@ -55,11 +55,17 @@ let
     [ -n "$dir" ] || exit 0
 
     # 2. Switch to the workspace already open for this directory, else create one.
-    #    "Open for this dir" = a pane whose cwd is the repo root or lives inside it.
+    #    A workspace matches when it belongs to the SAME git repo (same toplevel) as
+    #    the chosen dir — compared by git root, so a parent dir like $HOME can't
+    #    over-match an unrelated child repo, and a pane sitting in a subdir still maps
+    #    back to its repo's workspace.
     git_root=$(${pkgs.git}/bin/git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)
     root="''${git_root:-$dir}"
-    ws=$(printf '%s\n' "$ws_dirs" | ${pkgs.gawk}/bin/awk -F'\t' -v r="$root" \
-      '$2 == r || index($2, r "/") == 1 { print $1; exit }')
+    ws=$(printf '%s\n' "$ws_dirs" | while IFS=$'\t' read -r wname wcwd; do
+        [ -n "$wcwd" ] || continue
+        wroot=$(${pkgs.git}/bin/git -C "$wcwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$wcwd")
+        if [ "$wroot" = "$root" ]; then printf '%s\n' "$wname"; break; fi
+      done)
     if [ -n "$ws" ]; then
       ws_name="$ws"
       target_cwd=""        # existing workspace → switch only (no spawn)
