@@ -1,4 +1,5 @@
 {
+  profile,
   config,
   lib,
   pkgs,
@@ -106,6 +107,14 @@ let
       ${wezterm}/bin/wezterm start --workspace "$ws_name" --cwd "''${target_cwd:-$dir}"
     fi
   '';
+
+  # Convention: if the consumer provides their own wezterm config dir in their flake
+  # repo, symlink the WHOLE directory live (out-of-store → editable, auto-reloads, no
+  # rebuild, and split-into-multiple-lua-files works). Otherwise bake dotless's bundled
+  # config into the store. Detection keys on the wezterm.lua entrypoint so a stray empty
+  # dir doesn't silently disable the config. Evaluated at switch time under --impure.
+  userDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/wezterm";
+  hasUserConfig = builtins.pathExists "${userDir}/wezterm.lua";
 in
 {
   home.packages = [ tw ];
@@ -116,7 +125,17 @@ in
 
     enableZshIntegration = lib.mkDefault true;
 
-    extraConfig = lib.mkDefault (builtins.readFile ./../../../../../config/wezterm/wezterm.lua);
+    # Empty ⇒ the home-manager wezterm module writes no file, leaving ~/.config/wezterm
+    # free for the directory symlink below (no collision).
+    extraConfig =
+      if hasUserConfig
+      then ""
+      else lib.mkDefault (builtins.readFile ./../../../../../config/wezterm/wezterm.lua);
+  };
+
+  # Consumer-provided config dir → live out-of-store symlink (the doom pattern).
+  xdg.configFile."wezterm" = lib.mkIf hasUserConfig {
+    source = config.lib.file.mkOutOfStoreSymlink userDir;
   };
 
   # WezTerm's shell integration emits OSC 1337 sequences (SetUserVar, semantic
