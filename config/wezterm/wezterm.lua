@@ -65,6 +65,13 @@ config.inactive_pane_hsb = {
 
 -- Misc
 config.enable_scroll_bar = false
+-- Generous scrollback for keyboard copy-mode (LEADER [) navigation. Default is 3500;
+-- this keeps a long tail of normal command output reachable without the trackpad.
+-- Note: this does NOT capture alt-screen apps (vim, less, htop, or Claude Code in its
+-- default fullscreen renderer) — that content never enters the scrollback buffer. To
+-- make Claude Code's output land here, run it with the classic renderer:
+--   CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1  (or `/tui default` in-session).
+config.scrollback_lines = 100000
 
 -- Rendering backend. macOS + the default WebGpu backend has repaint stalls where a
 -- programmatically-created window (e.g. the one SwitchToWorkspace spawns from the
