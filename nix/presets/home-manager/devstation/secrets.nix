@@ -7,8 +7,11 @@
   # Required for GitHub API access alongside AI tooling
   sops.secrets.github_auth_token = lib.mkIf config.programs.opencode.enable { };
 
-  # Only required when the Forgejo MCP server in the claude-code module is active
-  sops.secrets.forgejo_mcp_token = lib.mkIf config.programs.claude-code.enable { };
+  # Only required when the Forgejo MCP server in the claude-code module is active.
+  # MCP servers are wrapped around the binary, so they cannot run when package is
+  # null (see the claude-code module's own assertion); gate on that rather than on
+  # `enable`, so config-only setups (skills/hooks with a non-nix binary) don't need it.
+  sops.secrets.forgejo_mcp_token = lib.mkIf (config.programs.claude-code.package != null) { };
 
   sops.templates = {
     env = {
@@ -18,7 +21,7 @@
           export OPENAI_API_KEY="${config.sops.placeholder.openrouter_api_key}"; # qwen-code specific
           export OPENROUTER_API_KEY="${config.sops.placeholder.openrouter_api_key}";
         ''
-        + lib.optionalString config.programs.claude-code.enable ''
+        + lib.optionalString (config.programs.claude-code.package != null) ''
           export FORGEJO_ACCESS_TOKEN="${config.sops.placeholder.forgejo_mcp_token}";
         '';
     };
