@@ -15,7 +15,6 @@
     gimp
     languagetool
     ladybird
-    zed-editor
     slack
     spotify
     xournalpp

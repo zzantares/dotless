@@ -14,10 +14,6 @@
     ./packages.nix
   ];
 
-  home.shellAliases = {
-    zed = "zeditor";
-  };
-
   # Default applications
   xdg.configFile."mimeapps.list".force = true;
   xdg.mimeApps = lib.mkIf pkgs.stdenv.isLinux {

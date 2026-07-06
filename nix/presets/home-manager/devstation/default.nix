@@ -75,7 +75,7 @@
     OPENAI_MODEL = lib.mkDefault "qwen/qwen3-coder:free";
   };
 
-  home.shellAliases = { } // (profile.shellAliases or { });
+  home.shellAliases = { zed = "zeditor"; } // (profile.shellAliases or { });
 
   # A systemd service to update tldr cache
   systemd.user.services.tldr-cache-update = lib.mkIf pkgs.stdenv.isLinux {
