@@ -40,7 +40,6 @@
       toolchains.typescript
       toolchains.web
       yq
-      zed-editor
     ]
     ++ lib.optionals stdenv.isLinux [
       linux-manual
