@@ -77,7 +77,21 @@ in
 
   wallpapers = final.callPackage ./../pkgs/wallpapers { };
 
-  zed-editor = inputs.zed-editor.packages.${system}.default;
+  # Zed's flake pins cargo-about to 0.8.2 (via overrideAttrs) but inherits
+  # buildFeatures from the surrounding nixpkgs' cargo-about recipe. Since
+  # nixpkgs bumped cargo-about to 0.9.0 — which moved the CLI behind a `cli`
+  # feature — the inherited `buildFeatures = [ "cli" ]` breaks the 0.8.2 build
+  # ("does not contain this feature: cli"). We follow nixpkgs (needed for the
+  # crates.io User-Agent fix in fetch-cargo-vendor-util), so strip that feature
+  # from the cargo-about Zed receives before it pins the version down.
+  zed-editor = inputs.zed-editor.packages.${system}.default.override {
+    cargo-about = final.cargo-about.overrideAttrs (_: {
+      buildFeatures = [ ];
+      cargoBuildFeatures = [ ];
+      checkFeatures = [ ];
+      cargoCheckFeatures = [ ];
+    });
+  };
 
   toolchains = {
     c = final.buildEnv {

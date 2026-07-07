@@ -33,7 +33,8 @@
     t.url = "github:joshmedeski/t-smart-tmux-session-manager?ref=v2.11.1";
     t.flake = false;
 
-    zed-editor.url = "github:zed-industries/zed?ref=v0.226.5";
+    zed-editor.url = "github:zed-industries/zed?ref=v1.9.0";
+    zed-editor.inputs.nixpkgs.follows = "nixpkgs";
 
     opencode.url = "github:anomalyco/opencode?ref=v1.14.48";
   };
@@ -153,6 +154,7 @@
                 fonts
                 wallpapers
                 linear-cli
+                zed-editor
                 ;
             };
           }
