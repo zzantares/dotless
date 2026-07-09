@@ -1,57 +1,104 @@
 {
+  profile,
   config,
   lib,
   pkgs,
   ...
 }:
 
+let
+  # Per-item live-override convention (mirrors the wezterm module). For each known
+  # Claude config item, if the consumer ships it under their flake's config/claude/,
+  # symlink that item live (out-of-store → editable, no rebuild) AND turn off dotless's
+  # declarative version of it below, so there's no double-owner collision on the path.
+  # Anything the consumer doesn't provide keeps dotless's baked-in default.
+  #
+  # Detection keys on each ITEM's own path (not the bare config/claude dir), so items
+  # can be overridden piecemeal and a stray empty dir can't silently wipe the defaults
+  # (same rationale as the wezterm module's wezterm.lua entrypoint check). Overriding an
+  # item fully REPLACES it — there is no merge with dotless's version (matches wezterm).
+  #
+  # NB: ~/.claude is a MIXED directory — config plus a lot of mutable runtime state
+  # (history, sessions, projects, telemetry, …). Never symlink the whole dir; only the
+  # individual config items enumerated here. Evaluated at switch time under --impure.
+  claudeDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/claude";
+
+  overridableItems = [
+    "settings.json"
+    "skills"
+    "agents"
+    "commands"
+    "rules"
+    "hooks"
+    "CLAUDE.md"
+    "output-styles"
+  ];
+
+  hasUserItem = rel: builtins.pathExists "${claudeDir}/${rel}";
+
+  liveItem =
+    rel:
+    lib.optionalAttrs (hasUserItem rel) {
+      ".claude/${rel}".source = config.lib.file.mkOutOfStoreSymlink "${claudeDir}/${rel}";
+    };
+in
 {
   programs.claude-code = {
     enable = lib.mkDefault (
       builtins.elem pkgs.stdenv.hostPlatform.system pkgs.claude-code.meta.platforms
     );
     package = lib.mkDefault pkgs.claude-code;
-    skills = ./skills;
-    settings = {
-      autoUpdates = false;
-      env = {
-        "DISABLE_AUTOUPDATER" = "1";
-      };
+    # skills: if the consumer ships config/claude/skills/, the live symlink (see the
+    # home.file block below) owns ~/.claude/skills; empty here so the upstream module
+    # writes nothing for that path and there is no double-owner collision.
+    skills = if hasUserItem "skills" then lib.mkForce { } else ./skills;
 
-      hooks = {
-        # This is the hook that runs whenever a task is completed
-        Stop = [
-          {
-            matcher = "";
-            hooks = [
+    # settings.json: if the consumer ships config/claude/settings.json, empty here so the
+    # upstream module writes no settings.json, leaving the path free for the live symlink.
+    settings =
+      if hasUserItem "settings.json" then
+        lib.mkForce { }
+      else
+        {
+          autoUpdates = false;
+          env = {
+            "DISABLE_AUTOUPDATER" = "1";
+          };
+
+          hooks = {
+            # This is the hook that runs whenever a task is completed
+            Stop = [
               {
-                type = "command";
-                command = "~/.local/bin/claude-notify complete 'Claude - Task Completed'";
+                matcher = "";
+                hooks = [
+                  {
+                    type = "command";
+                    command = "~/.local/bin/claude-notify complete 'Claude - Task Completed'";
+                  }
+                ];
               }
             ];
-          }
-        ];
 
-        # This is the hook that runs whenever user input is requested
-        Notification = [
-          {
-            matcher = "";
-            hooks = [
-              # This will make Claude to issue a Tmux notification whenever it requires user attention
-              # In our configuration Tmux is configured to display it in the status bar when it gets issued
+            # This is the hook that runs whenever user input is requested
+            Notification = [
               {
-                type = "command";
-                command = "tmux set-option @claude_attention 1";
-              }
-              {
-                type = "command";
-                command = "~/.local/bin/claude-notify message 'Claude - Needs Input'";
+                matcher = "";
+                hooks = [
+                  # This will make Claude to issue a Tmux notification whenever it requires user attention
+                  # In our configuration Tmux is configured to display it in the status bar when it gets issued
+                  {
+                    type = "command";
+                    command = "tmux set-option @claude_attention 1";
+                  }
+                  {
+                    type = "command";
+                    command = "~/.local/bin/claude-notify message 'Claude - Needs Input'";
+                  }
+                ];
               }
             ];
-          }
-        ];
-      };
-    };
+          };
+        };
 
     # See the HomeManager module docs for extra options they all look very interesting
     # settings = {}; # settings.json
@@ -96,6 +143,12 @@
       # };
     };
   };
+
+  # Consumer-provided config items → live out-of-store symlinks (per-item; the wezterm /
+  # doom pattern). Items the consumer doesn't ship fall back to dotless's declarative
+  # defaults above (or to nothing, for items dotless doesn't set). liveItem yields {} for
+  # absent items, so this merges down to only the paths the consumer actually provides.
+  home.file = lib.mkMerge (map liveItem overridableItems);
 
   programs.opencode = {
     enable = lib.mkDefault true;
