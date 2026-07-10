@@ -36,11 +36,17 @@ in
     settings = {
       input = {
         follow_mouse = 1;
+        kb_layout = "us";
+        kb_variant = "colemak";
+        kb_options = "ctrl:nocaps";
         touchpad = {
           natural_scroll = true;
-          tap_to_click = true;
           disable_while_typing = true;
         };
+      };
+
+      cursor = {
+        no_hardware_cursors = true;
       };
 
       general = {
@@ -48,11 +54,6 @@ in
         gaps_out = 10;
         border_size = 2;
         layout = "dwindle";
-      };
-
-      dwindle = {
-        pseudotile = true;
-        preserve_split = true;
       };
 
       decoration = {
@@ -83,7 +84,7 @@ in
           "SUPER SHIFT, l, movewindow, r"
 
           # ── Layout ──
-          "SUPER, slash, togglesplit" # tiles horizontal ↔ vertical
+          "SUPER, slash, layoutmsg, togglesplit" # tiles horizontal ↔ vertical
           "SUPER, comma, togglegroup" # closest to AeroSpace accordion
 
           # ── Resize ──
@@ -122,7 +123,7 @@ in
         ++ mkMoveToWorkspaceBinds;
 
       # ── Window auto-placement ──
-      windowrulev2 = [
+      windowrule = [
         "workspace name:E, class:^(emacs|Emacs)$"
         "workspace name:T, class:^(org\\.wezfurlong\\.wezterm)$"
         "workspace name:F, class:^(firefox|Firefox)$"
