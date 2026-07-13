@@ -133,9 +133,9 @@ in
 
       # ── Window auto-placement ──
       windowrule = [
-        "workspace name:E, class:^(emacs|Emacs)$"
-        "workspace name:T, class:^(org\\.wezfurlong\\.wezterm)$"
-        "workspace name:F, class:^(firefox|Firefox)$"
+        "workspace name:E, class:(emacs|Emacs)"
+        "workspace name:T, class:(org\\.wezfurlong\\.wezterm)"
+        "workspace name:F, class:(firefox|Firefox)"
       ];
     };
 
