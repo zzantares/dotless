@@ -16,8 +16,15 @@ let
   # because AddKeysToAgent in ssh config is not honored when signing (it's not a
   # connection attempt)
   ssh-agent-signer = pkgs.writeShellScriptBin "ssh-agent-signer" ''
-    #!/usr/bin/env bash  
-    ssh-add -T ${identityFile} 2>&- || ssh-add ${identityFile}
+    #!/usr/bin/env bash
+    # Check if the signing key is already in the agent.
+    # Uses ssh-add -l rather than -T: gpg-agent does not implement -T, causing
+    # it to fall through to `ssh-add <pubkey>` which then fails with
+    # "error in libcrypto: unsupported" (you cannot add a public key to an agent).
+    fingerprint=$(ssh-keygen -lf "${identityFile}" 2>/dev/null | awk '{print $2}')
+    ssh-add -l 2>/dev/null | grep -qF "$fingerprint" \
+      || ssh-add "${lib.removeSuffix ".pub" identityFile}" 2>/dev/null \
+      || true
     exec ssh-keygen "$@"
   '';
 in
