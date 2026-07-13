@@ -28,6 +28,8 @@ let
   ) workspaceLetters;
 in
 {
+  imports = [ ./waybar.nix ];
+
   wayland.windowManager.hyprland = {
     enable = lib.mkDefault true;
     # TODO: migrate extraConfig (submap section) to Lua and switch to "lua"
@@ -48,6 +50,13 @@ in
       cursor = {
         no_hardware_cursors = true;
       };
+
+      "exec-once" = [
+        # Propagate compositor env to systemd user session (needed for portals, services).
+        "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=Hyprland"
+        # Polkit authentication agent (required for privilege escalation dialogs).
+        "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
+      ];
 
       general = {
         gaps_in = 10;
@@ -137,12 +146,117 @@ in
       bind = , escape, submap, reset
       bind = , f, exec, hyprctl --batch "dispatch togglefloating ; dispatch submap reset"
       bind = , r, exec, hyprctl reload
+      bind = , l, exec, hyprlock
       submap = reset
     '';
+  };
+
+  programs.hyprlock = {
+    enable = true;
+    settings = {
+      general = {
+        disable_loading_bar = true;
+        hide_cursor = true;
+      };
+      background = [
+        {
+          monitor = "";
+          path = "screenshot";
+          blur_passes = 3;
+          blur_size = 8;
+          brightness = 0.5;
+        }
+      ];
+      "input-field" = [
+        {
+          monitor = "";
+          size = "300, 50";
+          outline_thickness = 2;
+          outer_color = "rgb(8ba4b0)";
+          inner_color = "rgb(282727)";
+          font_color = "rgb(c5c9c5)";
+          fade_on_empty = true;
+          placeholder_text = "<i>Password</i>";
+          check_color = "rgb(87a987)";
+          fail_color = "rgb(c4746e)";
+          fail_text = "<i>$FAIL</i>";
+        }
+      ];
+      label = [
+        {
+          monitor = "";
+          text = "$TIME";
+          color = "rgba(c5c9c5ff)";
+          font_size = 64;
+          font_family = "Overpass";
+          halign = "center";
+          valign = "center";
+          position = "0, 200";
+        }
+        {
+          monitor = "";
+          text = "$DATE";
+          color = "rgba(a09e9cff)";
+          font_size = 18;
+          font_family = "Overpass";
+          halign = "center";
+          valign = "center";
+          position = "0, 130";
+        }
+      ];
+    };
+  };
+
+  services.hypridle = {
+    enable = true;
+    settings = {
+      general = {
+        after_sleep_cmd = "hyprctl dispatch dpms on";
+        ignore_dbus_inhibit = false;
+        lock_cmd = "hyprlock";
+      };
+      listener = [
+        {
+          # Dim screen after 5 minutes of inactivity.
+          timeout = 300;
+          "on-timeout" = "${pkgs.brightnessctl}/bin/brightnessctl -s set 10%";
+          "on-resume" = "${pkgs.brightnessctl}/bin/brightnessctl -r";
+        }
+        {
+          # Lock screen after 10 minutes.
+          timeout = 600;
+          "on-timeout" = "hyprlock";
+        }
+        {
+          # Suspend after 15 minutes — only when on battery (never on AC).
+          timeout = 900;
+          "on-timeout" = "grep -ql 1 /sys/class/power_supply/*/online || systemctl suspend";
+        }
+      ];
+    };
+  };
+
+  services.mako = {
+    enable = true;
+    font = "Overpass 12";
+    backgroundColor = "#1d1c19ee";
+    textColor = "#c5c9c5";
+    borderColor = "#8ba4b0";
+    borderRadius = 8;
+    borderSize = 2;
+    defaultTimeout = 5000;
+    padding = "12";
+    width = 320;
+    height = 100;
+    maxIconSize = 32;
+    layer = "overlay";
   };
 
   home.packages = with pkgs; [
     wl-clipboard
     wofi
+    pavucontrol
+    brightnessctl
+    hyprpolkitagent
   ];
 }
