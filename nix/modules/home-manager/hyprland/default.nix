@@ -1,10 +1,19 @@
 {
+  profile,
+  config,
   lib,
   pkgs,
   ...
 }:
 
 let
+  # Convention: if the consumer places config/hypr/local.conf in their flake root,
+  # symlink it out-of-store (live-editable, auto-reloads on change, no rebuild needed).
+  # Otherwise create an empty placeholder so the `source` directive doesn't error.
+  # Evaluated at switch time under --impure.
+  userDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/hypr";
+  hasUserConfig = builtins.pathExists "${userDir}/local.conf";
+
   # Direction mapping (standard HJKL):
   #   h = up, j = left, k = down, l = right
   navKeys = [
@@ -152,6 +161,10 @@ in
       bind = , r, exec, hyprctl reload
       bind = , l, exec, hyprlock
       submap = reset
+
+      # Per-consumer overrides — sourced last so they can override anything above.
+      # Create config/hypr/local.conf in your flake root to customise without rebuilding.
+      source = ${config.home.homeDirectory}/.config/hypr/local.conf
     '';
   };
 
@@ -257,6 +270,12 @@ in
       layer = "overlay";
     };
   };
+
+  # Consumer override: live symlink when provided, empty placeholder otherwise.
+  xdg.configFile."hypr/local.conf" =
+    if hasUserConfig
+    then { source = config.lib.file.mkOutOfStoreSymlink "${userDir}/local.conf"; }
+    else { text = ""; };
 
   home.packages = with pkgs; [
     wl-clipboard
