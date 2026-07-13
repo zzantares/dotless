@@ -18,7 +18,7 @@
         height = 36;
         spacing = 4;
 
-        "modules-left" = [ "hyprland/workspaces" ];
+        "modules-left" = [ "hyprland/workspaces" "hyprland/submap" ];
         "modules-center" = [ "clock" ];
         "modules-right" = [
           "network"
@@ -28,6 +28,12 @@
           "battery"
           "tray"
         ];
+
+        "hyprland/submap" = {
+          format = " {}";
+          max-length = 10;
+          tooltip = false;
+        };
 
         "hyprland/workspaces" = {
           format = "{name}";
@@ -131,6 +137,16 @@
       #workspaces button.urgent {
         color: #c4746e;
         border-bottom: 2px solid #c4746e;
+      }
+
+      /* ── Submap ── */
+      #submap {
+        color: #c4b28a;
+        background: #282727;
+        border-radius: 4px;
+        padding: 0 8px;
+        margin: 4px 2px;
+        font-weight: bold;
       }
 
       /* ── Center ── */

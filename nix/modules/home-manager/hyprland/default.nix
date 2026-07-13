@@ -158,7 +158,7 @@ in
       submap = service
       bind = , escape, submap, reset
       bind = , f, exec, hyprctl --batch "dispatch togglefloating ; dispatch submap reset"
-      bind = , r, exec, hyprctl reload
+      bind = , r, exec, hyprctl reload && notify-send -u low -t 2000 "Hyprland" "Config reloaded"
       bind = , l, exec, hyprlock
       submap = reset
 
@@ -284,5 +284,6 @@ in
     brightnessctl
     hyprpolkitagent
     networkmanagerapplet
+    libnotify
   ];
 }
