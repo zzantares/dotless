@@ -133,11 +133,8 @@ in
         ++ mkMoveToWorkspaceBinds;
 
       # ── Window auto-placement ──
-      windowrule = [
-        "workspace name:E, class:(emacs|Emacs)"
-        "workspace name:T, class:(org\\.wezfurlong\\.wezterm)"
-        "workspace name:F, class:(firefox|Firefox)"
-      ];
+      # TODO: re-add windowrules once Hyprland 0.55 matcher syntax is confirmed.
+      # The class:(pattern) format from 0.42–0.45 is no longer valid in 0.55.
     };
 
     # Service submap (modal keybindings, like AeroSpace's service mode).
