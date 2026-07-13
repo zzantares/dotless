@@ -77,6 +77,7 @@ in
         [
           # ── Essentials ──
           "SUPER, Return, exec, wezterm"
+          "SUPER CTRL, t, exec, alacritty"
           "SUPER SHIFT, backspace, killactive"
           "SUPER, space, exec, wofi --show drun"
 
