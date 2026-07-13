@@ -158,7 +158,7 @@ in
       submap = service
       bind = , escape, submap, reset
       bind = , f, exec, hyprctl --batch "dispatch togglefloating ; dispatch submap reset"
-      bind = , r, exec, hyprctl reload && notify-send -u low -t 2000 "Hyprland" "Config reloaded"
+      bind = , r, exec, hyprctl reload && hyprctl dispatch submap reset && notify-send -u low -t 2000 "Hyprland" "Config reloaded"
       bind = , l, exec, hyprlock
       submap = reset
 
