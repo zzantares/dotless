@@ -239,18 +239,20 @@ in
 
   services.mako = {
     enable = true;
-    font = "Overpass 12";
-    backgroundColor = "#1d1c19ee";
-    textColor = "#c5c9c5";
-    borderColor = "#8ba4b0";
-    borderRadius = 8;
-    borderSize = 2;
-    defaultTimeout = 5000;
-    padding = "12";
-    width = 320;
-    height = 100;
-    maxIconSize = 32;
-    layer = "overlay";
+    settings = {
+      font = "Overpass 12";
+      "background-color" = "#1d1c19ee";
+      "text-color" = "#c5c9c5";
+      "border-color" = "#8ba4b0";
+      "border-radius" = 8;
+      "border-size" = 2;
+      "default-timeout" = 5000;
+      padding = "12";
+      width = 320;
+      height = 100;
+      "max-icon-size" = 32;
+      layer = "overlay";
+    };
   };
 
   home.packages = with pkgs; [
