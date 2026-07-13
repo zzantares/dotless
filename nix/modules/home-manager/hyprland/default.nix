@@ -56,6 +56,8 @@ in
         "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=Hyprland"
         # Polkit authentication agent (required for privilege escalation dialogs).
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
+        # NetworkManager tray applet — right-click to manage WiFi connections.
+        "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
       ];
 
       general = {
@@ -262,5 +264,6 @@ in
     pavucontrol
     brightnessctl
     hyprpolkitagent
+    networkmanagerapplet
   ];
 }
