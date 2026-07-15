@@ -18,6 +18,13 @@
   services.geoclue2.enable = lib.mkDefault true;
   services.geoclue2.geoProviderUrl = "https://api.beacondb.net/v1/geolocate";
 
+  # Keyring daemon — provides a secrets store for NetworkManager (WiFi passwords)
+  # and other credentials. Without this, apps like nm-applet have nowhere to
+  # persist secrets and prompt on every reconnect. PAM integration auto-unlocks
+  # the keyring on login so it's transparent to the user.
+  services.gnome.gnome-keyring.enable = true;
+  security.pam.services.login.enableGnomeKeyring = true;
+
   # Touchpad
   services.libinput.enable = lib.mkDefault true;
   services.libinput.touchpad.tapping = lib.mkDefault true;
