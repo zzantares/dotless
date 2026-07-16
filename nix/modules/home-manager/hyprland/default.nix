@@ -67,6 +67,8 @@ in
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
         # NetworkManager tray applet — right-click to manage WiFi connections.
         "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
+        # OSD daemon for volume/brightness indicators.
+        "${pkgs.swayosd}/bin/swayosd-server"
       ];
 
       general = {
@@ -138,11 +140,12 @@ in
           "SUPER SHIFT, tab, movecurrentworkspacetomonitor, +1"
 
           # ── Media / hardware keys ──
-          ", XF86MonBrightnessUp, exec, brightnessctl set 5%+"
-          ", XF86MonBrightnessDown, exec, brightnessctl set 5%-"
-          ", XF86AudioRaiseVolume, exec, wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+"
-          ", XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
-          ", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+          # Brightness: backlight device names vary per machine; add to local.conf:
+          #   bindel = , XF86MonBrightnessUp, exec, swayosd-client --brightness raise --device <dev>
+          #   bindel = , XF86MonBrightnessDown, exec, swayosd-client --brightness lower --device <dev>
+          ", XF86AudioRaiseVolume, exec, swayosd-client --output-volume raise"
+          ", XF86AudioLowerVolume, exec, swayosd-client --output-volume lower"
+          ", XF86AudioMute, exec, swayosd-client --output-volume mute-toggle"
 
           # ── Service submap (physical ; → Colemak O) ──
           "SUPER SHIFT, o, submap, service"
@@ -292,5 +295,6 @@ in
     hyprpolkitagent
     networkmanagerapplet
     libnotify
+    swayosd
   ];
 }
