@@ -67,8 +67,6 @@ in
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
         # NetworkManager tray applet — right-click to manage WiFi connections.
         "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
-        # OSD daemon for volume/brightness indicators.
-        "${pkgs.swayosd}/bin/swayosd-server"
       ];
 
       general = {
@@ -279,6 +277,21 @@ in
       "max-icon-size" = 32;
       layer = "overlay";
     };
+  };
+
+  # swayosd-server as a systemd user service so it starts with the session
+  # and restarts on crash — more robust than exec-once.
+  systemd.user.services.swayosd-server = {
+    Unit = {
+      Description = "SwayOSD server";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.swayosd}/bin/swayosd-server";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
   };
 
   # Consumer override: live symlink when provided, empty placeholder otherwise.
