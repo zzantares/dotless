@@ -141,9 +141,9 @@ in
           # Brightness: backlight device names vary per machine; add to local.conf:
           #   bindel = , XF86MonBrightnessUp, exec, swayosd-client --brightness raise --device <dev>
           #   bindel = , XF86MonBrightnessDown, exec, swayosd-client --brightness lower --device <dev>
-          ", XF86AudioRaiseVolume, exec, swayosd-client --output-volume raise"
-          ", XF86AudioLowerVolume, exec, swayosd-client --output-volume lower"
-          ", XF86AudioMute, exec, swayosd-client --output-volume mute-toggle"
+          ", XF86AudioRaiseVolume, exec, ${pkgs.swayosd}/bin/swayosd-client --output-volume raise; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga"
+          ", XF86AudioLowerVolume, exec, ${pkgs.swayosd}/bin/swayosd-client --output-volume lower; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga"
+          ", XF86AudioMute, exec, ${pkgs.swayosd}/bin/swayosd-client --output-volume mute-toggle; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga"
 
           # ── Service submap (physical ; → Colemak O) ──
           "SUPER SHIFT, o, submap, service"
