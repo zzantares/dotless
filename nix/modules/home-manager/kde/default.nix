@@ -59,7 +59,7 @@ in
   };
 
   # Qt pinentry for KDE (analogous to pinentry-gnome3 in gnome/default.nix)
-  services.gpg-agent.pinentry.package = lib.mkForce pkgs.pinentry-qt;
+  services.gpg-agent.pinentry.package = pkgs.pinentry-qt;
 
   # NOTE `plasma-apply-colorscheme --list-schemes` and `kreadconfig6` are useful for inspecting state.
   # See:

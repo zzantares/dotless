@@ -64,7 +64,7 @@ in
     Install.WantedBy = [ "multi-user.target" ];
   };
 
-  services.gpg-agent.pinentry.package = lib.mkForce pkgs.pinentry-gnome3;
+  services.gpg-agent.pinentry.package = pkgs.pinentry-gnome3;
 
   programs.gnome-shell = {
     enable = lib.mkDefault true;

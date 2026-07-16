@@ -115,7 +115,7 @@
     defaultCacheTtl = 1200;
     enableZshIntegration = true;
     grabKeyboardAndMouse = lib.mkIf pkgs.stdenv.isLinux true;
-    pinentry.package = if pkgs.stdenv.isDarwin then pkgs.pinentry_mac else pkgs.pinentry-curses;
+    pinentry.package = lib.mkDefault (if pkgs.stdenv.isDarwin then pkgs.pinentry_mac else pkgs.pinentry-curses);
   };
 
   programs.zellij = {

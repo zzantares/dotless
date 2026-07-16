@@ -39,6 +39,9 @@ in
 {
   imports = [ ./waybar.nix ];
 
+  # pinentry-qt works on Wayland without a full DE, unlike pinentry-gnome3.
+  services.gpg-agent.pinentry.package = pkgs.pinentry-qt;
+
   wayland.windowManager.hyprland = {
     enable = lib.mkDefault true;
     # TODO: migrate extraConfig (submap section) to Lua and switch to "lua"
