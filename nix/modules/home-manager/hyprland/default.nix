@@ -83,8 +83,10 @@ in
         # NetworkManager tray applet — right-click to manage WiFi connections.
         "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
         # Wallpaper daemon + initial wallpaper from profile.
+        # swww wait blocks until the daemon socket is ready, preventing the
+        # race condition where swww img fires before the daemon is up.
         "${pkgs.swww}/bin/swww-daemon"
-        "${pkgs.swww}/bin/swww img ${profile.wallpaper}"
+        "${pkgs.swww}/bin/swww wait && ${pkgs.swww}/bin/swww img ${profile.wallpaper}"
       ];
 
       general = {
