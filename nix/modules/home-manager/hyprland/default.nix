@@ -344,6 +344,6 @@ in
     networkmanagerapplet
     libnotify
     swayosd
-    swww
+    awww
   ];
 }
