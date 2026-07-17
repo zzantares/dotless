@@ -82,6 +82,9 @@ in
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
         # NetworkManager tray applet — right-click to manage WiFi connections.
         "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
+        # Wallpaper daemon + initial wallpaper from profile.
+        "${pkgs.swww}/bin/swww-daemon"
+        "${pkgs.swww}/bin/swww img ${profile.wallpaper}"
       ];
 
       general = {
@@ -194,14 +197,6 @@ in
       # Create config/hypr/local.conf in your flake root to customise without rebuilding.
       source = ${config.home.homeDirectory}/.config/hypr/local.conf
     '';
-  };
-
-  services.hyprpaper = {
-    enable = true;
-    settings = {
-      preload = [ "${profile.wallpaper}" ];
-      wallpaper = [ ",${profile.wallpaper}" ];
-    };
   };
 
   programs.hyprlock = {
@@ -337,5 +332,6 @@ in
     networkmanagerapplet
     libnotify
     swayosd
+    swww
   ];
 }
