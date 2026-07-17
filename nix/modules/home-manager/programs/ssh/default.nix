@@ -8,7 +8,7 @@
 
 {
   services.ssh-agent = {
-    enable = lib.mkDefault false; # So that we use GNOME integration which has better UX
+    enable = lib.mkDefault false; # Prefer desktop-provided agents (GNOME keyring, gpg-agent) over the standalone ssh-agent
     package = config.programs.ssh.package;
     defaultMaximumIdentityLifetime = 14400;
   };

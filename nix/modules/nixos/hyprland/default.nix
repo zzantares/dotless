@@ -18,10 +18,12 @@
   services.geoclue2.enable = lib.mkDefault true;
   services.geoclue2.geoProviderUrl = "https://api.beacondb.net/v1/geolocate";
 
-  # Keyring daemon — provides a secrets store for NetworkManager (WiFi passwords)
-  # and other credentials. Without this, apps like nm-applet have nowhere to
-  # persist secrets and prompt on every reconnect. PAM integration auto-unlocks
-  # the keyring on login so it's transparent to the user.
+  # Keyring daemon for the libsecret API — used by browsers, Element, Slack,
+  # Protonmail Bridge, and similar apps to store credentials. PAM integration
+  # auto-unlocks the keyring on login so it's transparent to the user.
+  # NOTE: gnome-keyring also starts an SSH agent component; that component's
+  # SSH_AUTH_SOCK is overridden in the HM hyprland module to ensure gpg-agent
+  # handles all SSH operations instead.
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.login.enableGnomeKeyring = true;
 

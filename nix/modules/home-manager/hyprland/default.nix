@@ -47,6 +47,13 @@ in
     pinentry.package = pkgs.pinentry-bemenu;
   };
 
+  # gnome-keyring (started by PAM at login for its libsecret service) also
+  # starts an SSH agent component and sets SSH_AUTH_SOCK to its socket.
+  # Override that here so every process in the user session — not just shells
+  # (which gpg-agent's zsh integration already handles) — uses gpg-agent.
+  # $XDG_RUNTIME_DIR is expanded by systemd when it reads environment.d.
+  home.sessionVariables.SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/gnupg/S.gpg-agent.ssh";
+
   wayland.windowManager.hyprland = {
     enable = lib.mkDefault true;
     # TODO: migrate extraConfig (submap section) to Lua and switch to "lua"
