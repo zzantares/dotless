@@ -141,7 +141,7 @@ in
 
           # ── Layout ──
           "SUPER, slash, layoutmsg, togglesplit" # tiles horizontal ↔ vertical
-          "SUPER, comma, togglegroup" # closest to AeroSpace accordion
+          "SUPER, comma, fullscreen, 1" # zoom focused window, press again to restore
 
           # ── Resize ──
           "SUPER, minus, resizeactive, -50 -50"
@@ -182,6 +182,10 @@ in
 
           # ── Service submap (physical ; → Colemak O) ──
           "SUPER SHIFT, o, submap, service"
+
+          # ── Files workspace ──
+          "SUPER, period, workspace, name:."
+          "SUPER SHIFT, period, movetoworkspace, name:."
         ]
         ++ mkWorkspaceBinds
         ++ mkMoveToWorkspaceBinds;
@@ -190,8 +194,9 @@ in
       # Hyprland 0.55: match properties use "match:prop regex" syntax.
       windowrule = [
         "workspace name:E, match:class (emacs|Emacs)"
-        "workspace name:T, match:class (org\\.wezfurlong\\.wezterm)"
+        "workspace name:T, match:class (org\\.wezfurlong\\.wezterm|Alacritty)"
         "workspace name:F, match:class (firefox|Firefox)"
+        "workspace name:., match:class (org\\.gnome\\.Nautilus|nautilus)"
       ];
     };
 
