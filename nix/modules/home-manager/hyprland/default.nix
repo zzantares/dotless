@@ -87,6 +87,11 @@ in
         enabled = true;
       };
 
+      misc = {
+        disable_hyprland_logo = true;
+        disable_splash_rendering = true;
+      };
+
       bind =
         [
           # ── Essentials ──
@@ -177,6 +182,14 @@ in
       # Create config/hypr/local.conf in your flake root to customise without rebuilding.
       source = ${config.home.homeDirectory}/.config/hypr/local.conf
     '';
+  };
+
+  services.hyprpaper = {
+    enable = true;
+    settings = {
+      preload = [ "${profile.wallpaper}" ];
+      wallpaper = [ ", ${profile.wallpaper}" ];
+    };
   };
 
   programs.hyprlock = {
