@@ -39,8 +39,13 @@ in
 {
   imports = [ ./waybar.nix ];
 
-  # pinentry-qt works on Wayland without a full DE, unlike pinentry-gnome3.
-  services.gpg-agent.pinentry.package = pkgs.pinentry-qt;
+  # Use gpg-agent as the unified agent for both GPG and SSH keys, with
+  # pinentry-bemenu for a native Wayland passphrase prompt that blends with
+  # the rest of the Hyprland stack (wofi, mako, etc.).
+  services.gpg-agent = {
+    enableSshSupport = true;
+    pinentry.package = pkgs.pinentry-bemenu;
+  };
 
   wayland.windowManager.hyprland = {
     enable = lib.mkDefault true;
@@ -188,7 +193,7 @@ in
     enable = true;
     settings = {
       preload = [ "${profile.wallpaper}" ];
-      wallpaper = [ ", ${profile.wallpaper}" ];
+      wallpaper = [ ",${profile.wallpaper}" ];
     };
   };
 
