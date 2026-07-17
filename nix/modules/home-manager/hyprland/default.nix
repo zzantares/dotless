@@ -114,6 +114,9 @@ in
           # ── Essentials ──
           "SUPER, Return, exec, wezterm"
           "SUPER CTRL, t, exec, alacritty"
+          "SUPER CTRL, e, exec, emacsclient -c -a emacs"
+          "SUPER CTRL, f, exec, firefox"
+          "SUPER CTRL, period, exec, nautilus"
           "SUPER SHIFT, backspace, killactive"
           "SUPER, space, exec, wofi --show drun"
 
