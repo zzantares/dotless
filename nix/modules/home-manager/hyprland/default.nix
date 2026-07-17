@@ -39,6 +39,13 @@ in
 {
   imports = [ ./waybar.nix ];
 
+  home.pointerCursor = {
+    gtk.enable = true;
+    package = pkgs.bibata-cursors;
+    name = "Bibata-Modern-Classic";
+    size = 24;
+  };
+
   # Use gpg-agent as the unified agent for both GPG and SSH keys, with
   # pinentry-bemenu for a native Wayland passphrase prompt that blends with
   # the rest of the Hyprland stack (wofi, mako, etc.).
@@ -85,8 +92,8 @@ in
         # Wallpaper daemon + initial wallpaper from profile.
         # swww wait blocks until the daemon socket is ready, preventing the
         # race condition where swww img fires before the daemon is up.
-        "${pkgs.swww}/bin/swww-daemon"
-        "${pkgs.swww}/bin/swww wait && ${pkgs.swww}/bin/swww img ${profile.wallpaper}"
+        "${pkgs.awww}/bin/swww-daemon"
+        "${pkgs.awww}/bin/swww wait && ${pkgs.awww}/bin/swww img ${profile.wallpaper}"
       ];
 
       general = {
@@ -248,7 +255,7 @@ in
         }
         {
           monitor = "";
-          text = "$DATE";
+          text = ''cmd[update:60000]echo "$(date +"%A, %B %d")"'';
           color = "rgba(a09e9cff)";
           font_size = 18;
           font_family = "Overpass";
