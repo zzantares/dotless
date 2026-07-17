@@ -59,17 +59,15 @@ in
     };
   };
 
-  # programs.lazygit = {
-  #   enable = true;
-  #   package = pkgs.lazygit;
-  #   enableZshIntegration = true;
-  #   shellWrapperName = "lg";
-  #
-  #   # See: https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md
-  #   settings = {
-  #
-  #   };
-  # };
+  programs.lazygit = {
+    enable = true;
+    package = pkgs.lazygit;
+    enableZshIntegration = true;
+    shellWrapperName = "lg";
+
+    # See: https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md
+    # settings = { };
+  };
 
   programs.git = {
     enable = lib.mkDefault true;
