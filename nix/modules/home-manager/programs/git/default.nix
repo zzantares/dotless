@@ -50,7 +50,9 @@ in
   # provides better diffs
   programs.delta = {
     enable = lib.mkDefault true;
-    enableGitIntegration = lib.mkDefault true;
+    # Default to manual integration so diff uses less and `git df` opts in to
+    # delta. Set enableGitIntegration = true to restore full auto-integration.
+    enableGitIntegration = lib.mkDefault false;
     options = {
       dark = true;
       navigate = true; # use n and N to move between diff sections
@@ -104,7 +106,18 @@ in
       signer = "${ssh-agent-signer}/bin/ssh-agent-signer";
     };
 
-    settings = {
+    settings = lib.mkMerge [
+      (lib.mkIf (config.programs.delta.enable && !config.programs.delta.enableGitIntegration) {
+        # When not using delta's full auto-integration, wire up blame/log/show
+        # manually and expose `git df` to opt in to delta for diff on demand.
+        pager = {
+          blame = lib.getExe config.programs.delta.finalPackage;
+          log = lib.getExe config.programs.delta.finalPackage;
+          show = lib.getExe config.programs.delta.finalPackage;
+        };
+        interactive.diffFilter = "${lib.getExe config.programs.delta.finalPackage} --color-only";
+        alias.df = "-c pager.diff=${lib.getExe config.programs.delta.finalPackage} diff";
+      }){
       # NOTE git's user.signingKey setting is already set because of `programs.git.signing.key` above
       user = {
         name = profile.name;
@@ -159,6 +172,6 @@ in
         br = "!fzf-git-branch";
       };
 
-    };
+    }];
   };
 }
