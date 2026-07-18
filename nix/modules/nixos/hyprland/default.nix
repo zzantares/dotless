@@ -25,7 +25,8 @@
   # SSH_AUTH_SOCK is overridden in the HM hyprland module to ensure gpg-agent
   # handles all SSH operations instead.
   services.gnome.gnome-keyring.enable = true;
-  security.pam.services.login.enableGnomeKeyring = true;
+  # Auto-unlock the keyring when the user authenticates at the SDDM login screen.
+  security.pam.services.sddm.enableGnomeKeyring = true;
 
   # Touchpad
   services.libinput.enable = lib.mkDefault true;
