@@ -23,12 +23,10 @@
   services.geoclue2.enable = lib.mkDefault true;
   services.geoclue2.geoProviderUrl = "https://api.beacondb.net/v1/geolocate";
 
-  # Keyring daemon for the libsecret API — used by browsers, Element, Slack,
-  # Protonmail Bridge, and similar apps to store credentials. PAM integration
-  # auto-unlocks the keyring on login so it's transparent to the user.
-  # NOTE: gnome-keyring also starts an SSH agent component; that component's
-  # SSH_AUTH_SOCK is overridden in the HM hyprland module to ensure gpg-agent
-  # handles all SSH operations instead.
+  # Keyring daemon for the libsecret API — used by browsers, NetworkManager,
+  # and similar apps to store credentials. PAM integration auto-unlocks the
+  # keyring on login so it's transparent to the user. The SSH agent component
+  # caches SSH key passphrases in the keyring (persistent across reboots).
   services.gnome.gnome-keyring.enable = true;
   # Auto-unlock the keyring when the user authenticates at the SDDM login screen.
   security.pam.services.sddm.enableGnomeKeyring = true;

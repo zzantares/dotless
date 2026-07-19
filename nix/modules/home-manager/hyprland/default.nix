@@ -46,20 +46,15 @@ in
     size = 24;
   };
 
-  # Use gpg-agent as the unified agent for both GPG and SSH keys, with
-  # pinentry-bemenu for a native Wayland passphrase prompt that blends with
-  # the rest of the Hyprland stack (wofi, mako, etc.).
+  # gpg-agent handles GPG key operations; pinentry-gnome3 provides the
+  # passphrase prompt and can persist the passphrase in gnome-keyring
+  # ("Save in password manager" checkbox) so it survives across sessions.
+  # SSH key caching is handled by gnome-keyring's SSH agent component, which
+  # is auto-unlocked at login via PAM and stores passphrases in the keyring.
   services.gpg-agent = {
-    enableSshSupport = true;
-    pinentry.package = pkgs.pinentry-bemenu;
+    enableSshSupport = false;
+    pinentry.package = pkgs.pinentry-gnome3;
   };
-
-  # gnome-keyring (started by PAM at login for its libsecret service) also
-  # starts an SSH agent component and sets SSH_AUTH_SOCK to its socket.
-  # Override that here so every process in the user session — not just shells
-  # (which gpg-agent's zsh integration already handles) — uses gpg-agent.
-  # $XDG_RUNTIME_DIR is expanded by systemd when it reads environment.d.
-  home.sessionVariables.SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/gnupg/S.gpg-agent.ssh";
 
   wayland.windowManager.hyprland = {
     enable = lib.mkDefault true;
