@@ -236,6 +236,7 @@ in
           inner_color = "rgb(282727)";
           font_color = "rgb(c5c9c5)";
           fade_on_empty = true;
+          hide_input = true;
           placeholder_text = "<i>Password</i>";
           check_color = "rgb(87a987)";
           fail_color = "rgb(c4746e)";
