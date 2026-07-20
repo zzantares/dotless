@@ -120,7 +120,7 @@ in
           "SUPER CTRL, t, exec, alacritty"
           "SUPER CTRL, e, exec, emacsclient -c -a emacs"
           "SUPER CTRL, f, exec, firefox"
-          "SUPER CTRL, period, exec, nautilus"
+          "SUPER CTRL, period, exec, thunar"
           "SUPER SHIFT, backspace, killactive"
           "SUPER, space, exec, wofi --show drun"
 
@@ -193,7 +193,7 @@ in
         "workspace name:E, match:class (emacs|Emacs)"
         "workspace name:T, match:class (org\\.wezfurlong\\.wezterm|Alacritty)"
         "workspace name:F, match:class (firefox|Firefox)"
-        "workspace name:., match:class (org\\.gnome\\.Nautilus|nautilus)"
+        "workspace name:., match:class (thunar|Thunar)"
       ];
     };
 
