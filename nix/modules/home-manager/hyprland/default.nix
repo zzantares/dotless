@@ -351,7 +351,10 @@ in
   ];
 
   # TUI file manager
-  programs.yazi.enable = true;
+  programs.yazi = {
+    enable = true;
+    shellWrapperName = "y";
+  };
 
   # Wire the system file manager as the default handler for local directories.
   # The GUI file manager itself (e.g. Nautilus) is installed at the NixOS level
