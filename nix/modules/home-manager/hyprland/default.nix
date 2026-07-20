@@ -349,4 +349,12 @@ in
     swayosd
     awww
   ];
+
+  # TUI file manager
+  programs.yazi.enable = true;
+
+  # Wire the system file manager as the default handler for local directories.
+  # The GUI file manager itself (e.g. Nautilus) is installed at the NixOS level
+  # since that varies per machine; this wires up the xdg-open integration.
+  xdg.mimeApps.defaultApplications."inode/directory" = "org.gnome.Nautilus.desktop";
 }
