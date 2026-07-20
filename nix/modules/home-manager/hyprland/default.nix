@@ -85,10 +85,12 @@ in
         # NetworkManager tray applet — right-click to manage WiFi connections.
         "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
         # Wallpaper daemon + initial wallpaper from profile.
-        # swww wait blocks until the daemon socket is ready, preventing the
-        # race condition where swww img fires before the daemon is up.
-        "${pkgs.awww}/bin/swww-daemon"
-        "${pkgs.awww}/bin/swww wait && ${pkgs.awww}/bin/swww img ${profile.wallpaper}"
+        # awww wait blocks until the daemon socket is ready, preventing the
+        # race condition where awww img fires before the daemon is up.
+        # Note: the package is named awww (a fork of swww); binaries are
+        # awww/awww-daemon, not swww/swww-daemon.
+        "${pkgs.awww}/bin/awww-daemon"
+        "${pkgs.awww}/bin/awww wait && ${pkgs.awww}/bin/awww img ${profile.wallpaper}"
       ];
 
       general = {
