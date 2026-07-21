@@ -55,7 +55,7 @@ in
   gtk = {
     enable = true;
     theme = {
-      name = "catppuccin-mocha-mauve-standard+default";
+      name = "catppuccin-mocha-mauve-standard";
       package = catppuccinGtk;
     };
     iconTheme = {
@@ -72,7 +72,7 @@ in
   # we must link the Catppuccin GTK4 stylesheet manually.
   dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-dark";
   xdg.configFile."gtk-4.0/gtk.css".source =
-    "${catppuccinGtk}/share/themes/catppuccin-mocha-mauve-standard+default/gtk-4.0/gtk.css";
+    "${catppuccinGtk}/share/themes/catppuccin-mocha-mauve-standard/gtk-4.0/gtk.css";
 
   # gpg-agent handles GPG key operations; pinentry-gnome3 provides the
   # passphrase prompt and can persist the passphrase in gnome-keyring
