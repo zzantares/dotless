@@ -1,9 +1,14 @@
 {
   lib,
+  pkgs,
   ...
 }:
 
 {
+  imports = [
+    ./sddm.nix
+  ];
+
   # NixOS Hyprland module handles XDG portals and environment setup automatically
   programs.hyprland.enable = lib.mkDefault true;
 
@@ -38,4 +43,19 @@
   services.libinput.touchpad.disableWhileTyping = lib.mkDefault true;
   services.libinput.touchpad.accelSpeed = "0.6";
   services.libinput.mouse.naturalScrolling = lib.mkDefault true;
+
+  # Prevents hyprland-uwsm.desktop (non-blocking Exec=uwsm start -e) from being
+  # created; only hyprland.desktop (blocking Exec=Hyprland) remains, so SDDM
+  # keeps the PAM session open for the full desktop lifetime.
+  programs.hyprland.withUWSM = lib.mkDefault false;
+
+  # NixOS sets SSH_ASKPASS to x11-ssh-askpass by default, which shows a GTK1
+  # dialog. Override with seahorse's GNOME-native askpass so SSH key passphrase
+  # prompts (e.g. from ssh-add during git commit signing) look consistent with
+  # the rest of the desktop.
+  programs.ssh.askPassword = lib.mkForce "${pkgs.seahorse}/libexec/seahorse/ssh-askpass";
+
+  # File manager: Nautilus with gvfs for trash and volume mounting.
+  environment.systemPackages = [ pkgs.nautilus ];
+  services.gvfs.enable = lib.mkDefault true;
 }
