@@ -70,7 +70,10 @@ in
   # Dark mode for GTK4/libadwaita apps (Nautilus, etc.).
   # Home Manager writes gtk-3.0/gtk.css automatically but NOT gtk-4.0;
   # we must link the Catppuccin GTK4 stylesheet manually.
-  dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-dark";
+  dconf.settings."org/gnome/desktop/interface" = {
+    color-scheme = "prefer-dark";
+    font-name = "Overpass 13";
+  };
   xdg.configFile."gtk-4.0/gtk.css".source =
     "${catppuccinGtk}/share/themes/catppuccin-mocha-mauve-standard/gtk-4.0/gtk.css";
 
