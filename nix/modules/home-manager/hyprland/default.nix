@@ -36,10 +36,7 @@ let
     l: "SUPER SHIFT, ${l}, movetoworkspace, name:${lib.toUpper l}"
   ) workspaceLetters;
 
-  catppuccinGtk = pkgs.catppuccin-gtk.override {
-    accents = [ "mauve" ];
-    variant = "mocha";
-  };
+  tokyonightGtk = pkgs.tokyonight-gtk-theme;
 in
 {
   imports = [ ./waybar.nix ];
@@ -51,12 +48,12 @@ in
     size = 24;
   };
 
-  # Catppuccin Mocha theme for GTK3 apps
+  # TokyoNight Dark theme for GTK3 apps
   gtk = {
     enable = true;
     theme = {
-      name = "catppuccin-mocha-mauve-standard";
-      package = catppuccinGtk;
+      name = "Tokyonight-Dark";
+      package = tokyonightGtk;
     };
     iconTheme = {
       name = "Papirus-Dark";
@@ -69,13 +66,13 @@ in
 
   # Dark mode for GTK4/libadwaita apps (Nautilus, etc.).
   # Home Manager writes gtk-3.0/gtk.css automatically but NOT gtk-4.0;
-  # we must link the Catppuccin GTK4 stylesheet manually.
+  # we must link the TokyoNight GTK4 stylesheet manually.
   dconf.settings."org/gnome/desktop/interface" = {
     color-scheme = "prefer-dark";
-    font-name = "Overpass 13";
+    font-name = "Overpass 15";
   };
   xdg.configFile."gtk-4.0/gtk.css".source =
-    "${catppuccinGtk}/share/themes/catppuccin-mocha-mauve-standard/gtk-4.0/gtk.css";
+    "${tokyonightGtk}/share/themes/Tokyonight-Dark/gtk-4.0/gtk.css";
 
   # gpg-agent handles GPG key operations; pinentry-gnome3 provides the
   # passphrase prompt and can persist the passphrase in gnome-keyring
