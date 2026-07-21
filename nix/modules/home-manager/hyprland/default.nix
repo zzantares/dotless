@@ -62,6 +62,9 @@ in
       name = "Papirus-Dark";
       package = pkgs.papirus-icon-theme;
     };
+    # We manage gtk-4.0/gtk.css manually via xdg.configFile below,
+    # so tell HM not to touch GTK4 theme settings.
+    gtk4.theme = null;
   };
 
   # Dark mode for GTK4/libadwaita apps (Nautilus, etc.).
