@@ -126,4 +126,10 @@
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/${profile.flakeRoot}/config/tridactyl";
     target = "${config.xdg.configHome}/tridactyl";
   };
+
+  home.file.lazygit = {
+    enable = lib.mkDefault true;
+    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/${profile.flakeRoot}/config/lazygit";
+    target = "${config.xdg.configHome}/lazygit";
+  };
 }
