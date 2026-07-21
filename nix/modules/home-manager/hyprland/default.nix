@@ -35,6 +35,11 @@ let
   mkMoveToWorkspaceBinds = map (
     l: "SUPER SHIFT, ${l}, movetoworkspace, name:${lib.toUpper l}"
   ) workspaceLetters;
+
+  catppuccinGtk = pkgs.catppuccin-gtk.override {
+    accents = [ "mauve" ];
+    variant = "mocha";
+  };
 in
 {
   imports = [ ./waybar.nix ];
@@ -45,6 +50,26 @@ in
     name = "Bibata-Modern-Classic";
     size = 24;
   };
+
+  # Catppuccin Mocha theme for GTK3 apps
+  gtk = {
+    enable = true;
+    theme = {
+      name = "catppuccin-mocha-mauve-standard+default";
+      package = catppuccinGtk;
+    };
+    iconTheme = {
+      name = "Papirus-Dark";
+      package = pkgs.papirus-icon-theme;
+    };
+  };
+
+  # Dark mode for GTK4/libadwaita apps (Nautilus, etc.).
+  # Home Manager writes gtk-3.0/gtk.css automatically but NOT gtk-4.0;
+  # we must link the Catppuccin GTK4 stylesheet manually.
+  dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-dark";
+  xdg.configFile."gtk-4.0/gtk.css".source =
+    "${catppuccinGtk}/share/themes/catppuccin-mocha-mauve-standard+default/gtk-4.0/gtk.css";
 
   # gpg-agent handles GPG key operations; pinentry-gnome3 provides the
   # passphrase prompt and can persist the passphrase in gnome-keyring
