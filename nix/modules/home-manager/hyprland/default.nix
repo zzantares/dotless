@@ -61,7 +61,7 @@ in
     };
     font = {
       name = "Overpass";
-      size = 15;
+      size = 14;
     };
     # We manage gtk-4.0/gtk.css manually via xdg.configFile below,
     # so tell HM not to touch GTK4 theme settings.
