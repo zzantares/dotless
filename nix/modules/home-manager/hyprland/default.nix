@@ -59,6 +59,10 @@ in
       name = "Papirus-Dark";
       package = pkgs.papirus-icon-theme;
     };
+    font = {
+      name = "Overpass";
+      size = 15;
+    };
     # We manage gtk-4.0/gtk.css manually via xdg.configFile below,
     # so tell HM not to touch GTK4 theme settings.
     gtk4.theme = null;
@@ -67,10 +71,9 @@ in
   # Dark mode for GTK4/libadwaita apps (Nautilus, etc.).
   # Home Manager writes gtk-3.0/gtk.css automatically but NOT gtk-4.0;
   # we must link the TokyoNight GTK4 stylesheet manually.
-  dconf.settings."org/gnome/desktop/interface" = {
-    color-scheme = "prefer-dark";
-    font-name = "Overpass 15";
-  };
+  # Note: font is set via gtk.font (writes gtk-font-name to settings.ini),
+  # NOT via dconf font-name — Nautilus reads settings.ini in non-GNOME sessions.
+  dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-dark";
   xdg.configFile."gtk-4.0/gtk.css".source =
     "${tokyonightGtk}/share/themes/Tokyonight-Dark/gtk-4.0/gtk.css";
 
