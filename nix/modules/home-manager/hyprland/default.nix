@@ -208,6 +208,11 @@ in
           ", XF86AudioLowerVolume, exec, ${pkgs.swayosd}/bin/swayosd-client --output-volume lower; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga"
           ", XF86AudioMute, exec, ${pkgs.swayosd}/bin/swayosd-client --output-volume mute-toggle; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga"
 
+          # ── Screenshots (grimblast: copy + save to ~/Pictures/Screenshots) ──
+          ", Print, exec, grimblast copysave screen"
+          "SHIFT, Print, exec, grimblast copysave area"
+          "SUPER, Print, exec, grimblast copysave active"
+
           # ── Service submap (physical ; → Colemak O) ──
           "SUPER SHIFT, o, submap, service"
 
@@ -370,6 +375,7 @@ in
     else { text = ""; };
 
   home.packages = with pkgs; [
+    grimblast
     wl-clipboard
     wofi
     pavucontrol
@@ -408,6 +414,11 @@ in
       "<C-h>" = "scroll half-up";
     };
   };
+
+  # Declare the screenshots directory via XDG (grimblast respects XDG_SCREENSHOTS_DIR)
+  # and ensure it exists via systemd-tmpfiles rather than an imperative activation script.
+  xdg.userDirs.extraConfig.XDG_SCREENSHOTS_DIR = "$HOME/Pictures/Screenshots";
+  systemd.user.tmpfiles.rules = [ "d %h/Pictures/Screenshots 0755 - - -" ];
 
   # Wire the system file manager as the default handler for local directories.
   # The GUI file manager itself (e.g. Nautilus) is installed at the NixOS level
