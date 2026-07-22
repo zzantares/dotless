@@ -387,8 +387,33 @@ in
     shellWrapperName = "y";
   };
 
+  # PDF viewer with Colemak navigation: h=up, j=left, k=down, l=right
+  programs.zathura = {
+    enable = true;
+    options = {
+      recolor = false; # start in normal mode; toggle night mode with Ctrl+r
+      recolor-lightcolor = "#1a1b26"; # TokyoNight background
+      recolor-darkcolor = "#c0caf5";  # TokyoNight foreground
+      selection-clipboard = "clipboard";
+      adjust-open = "best-fit";
+    };
+    mappings = {
+      k = "scroll down";
+      h = "scroll up";
+      j = "scroll left";
+      l = "scroll right";
+      K = "navigate next";
+      H = "navigate previous";
+      "<C-k>" = "scroll half-down";
+      "<C-h>" = "scroll half-up";
+    };
+  };
+
   # Wire the system file manager as the default handler for local directories.
   # The GUI file manager itself (e.g. Nautilus) is installed at the NixOS level
   # since that varies per machine; this wires up the xdg-open integration.
-  xdg.mimeApps.defaultApplications."inode/directory" = "org.gnome.Nautilus.desktop";
+  xdg.mimeApps.defaultApplications = {
+    "inode/directory" = "org.gnome.Nautilus.desktop";
+    "application/pdf" = "org.pwmt.zathura.desktop";
+  };
 }
