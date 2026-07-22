@@ -122,6 +122,9 @@ in
         # awww/awww-daemon, not swww/swww-daemon.
         "${pkgs.awww}/bin/awww-daemon"
         "${pkgs.awww}/bin/awww wait && ${pkgs.awww}/bin/awww img ${profile.wallpaper}"
+        # Clipboard history — watch both text and image events.
+        "wl-paste --type text --watch cliphist store"
+        "wl-paste --type image --watch cliphist store"
       ];
 
       general = {
@@ -152,6 +155,7 @@ in
           "SUPER CTRL, e, exec, emacsclient -c -a emacs"
           "SUPER CTRL, f, exec, firefox"
           "SUPER CTRL, period, exec, nautilus"
+          "SUPER CTRL, v, exec, cliphist list | wofi --dmenu | cliphist decode | wl-copy"
           "SUPER SHIFT, backspace, killactive"
           "SUPER, space, exec, wofi --show drun"
 
@@ -375,6 +379,7 @@ in
     else { text = ""; };
 
   home.packages = with pkgs; [
+    cliphist
     grimblast
     wl-clipboard
     wofi
