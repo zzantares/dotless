@@ -63,6 +63,8 @@ in
       name = "Overpass";
       size = 11;
     };
+    # Belt-and-suspenders: some GTK3 apps check this flag instead of theme name.
+    gtk3.extraConfig."gtk-application-prefer-dark-theme" = 1;
   };
 
   # GTK4/libadwaita apps (Nautilus, etc.) switch to Adwaita Dark natively
@@ -99,6 +101,11 @@ in
       cursor = {
         no_hardware_cursors = true;
       };
+
+      # QT_QPA_PLATFORMTHEME is set by the HM qt module in shell session vars,
+      # but apps launched from Hyprland don't source the shell profile.
+      # Setting it here ensures Qt apps (VLC, qBittorrent, etc.) see it.
+      env = [ "QT_QPA_PLATFORMTHEME,gtk3" ];
 
       "exec-once" = [
         # Propagate compositor env to systemd user session (needed for portals, services).
