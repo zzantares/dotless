@@ -408,6 +408,12 @@ in
     awww
   ];
 
+  # Qt apps follow the GTK theme so they match TokyoNight without a separate Qt theme.
+  qt = {
+    enable = true;
+    platformTheme.name = "gtk";
+  };
+
   # TUI file manager
   programs.yazi = {
     enable = true;
