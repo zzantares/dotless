@@ -58,4 +58,7 @@
   # File manager: Nautilus with gvfs for trash and volume mounting.
   environment.systemPackages = [ pkgs.nautilus ];
   services.gvfs.enable = lib.mkDefault true;
+
+  # Bluetooth GUI — enables the D-Bus mechanism service needed for pairing.
+  services.blueman.enable = lib.mkDefault true;
 }

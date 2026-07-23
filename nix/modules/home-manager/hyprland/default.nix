@@ -346,6 +346,20 @@ in
     };
   };
 
+  # Bluetooth tray applet — right-click to pair, connect, and manage devices.
+  systemd.user.services.blueman-applet = {
+    Unit = {
+      Description = "Blueman tray applet";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.blueman}/bin/blueman-applet";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
   # Removable media automounter with tray icon.
   # Depends on udisks2, which is already running via services.gvfs at the NixOS level.
   systemd.user.services.udiskie = {
