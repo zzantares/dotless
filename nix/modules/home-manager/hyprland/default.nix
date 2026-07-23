@@ -397,7 +397,18 @@ in
     awww
   ];
 
-  # Qt apps follow the GTK theme so they match TokyoNight without a separate Qt theme.
+  # Blue light filter — warms color temperature at night using geoclue2 for
+  # automatic sunrise/sunset times (geoclue2 is enabled at the NixOS level).
+  services.gammastep = {
+    enable = true;
+    provider = "geoclue2";
+    temperature = {
+      day = 6500;
+      night = 3500;
+    };
+  };
+
+  # Qt apps follow the GTK theme so they match Adwaita Dark without a separate Qt theme.
   qt = {
     enable = true;
     platformTheme.name = "gtk";
