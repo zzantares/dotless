@@ -36,7 +36,6 @@ let
     l: "SUPER SHIFT, ${l}, movetoworkspace, name:${lib.toUpper l}"
   ) workspaceLetters;
 
-  tokyonightGtk = pkgs.tokyonight-gtk-theme;
 in
 {
   imports = [ ./waybar.nix ];
@@ -48,34 +47,24 @@ in
     size = 24;
   };
 
-  # TokyoNight Dark theme for GTK3 apps
   gtk = {
     enable = true;
-    theme = {
-      name = "Tokyonight-Dark";
-      package = tokyonightGtk;
-    };
+    theme.name = "Adwaita-dark"; # ships with GTK, no package needed
     iconTheme = {
       name = "Papirus-Dark";
       package = pkgs.papirus-icon-theme;
     };
+    # Note: font is set via gtk.font (writes gtk-font-name to settings.ini),
+    # NOT via dconf font-name — Nautilus reads settings.ini in non-GNOME sessions.
     font = {
       name = "Overpass";
       size = 11;
     };
-    # We manage gtk-4.0/gtk.css manually via xdg.configFile below,
-    # so tell HM not to touch GTK4 theme settings.
-    gtk4.theme = null;
   };
 
-  # Dark mode for GTK4/libadwaita apps (Nautilus, etc.).
-  # Home Manager writes gtk-3.0/gtk.css automatically but NOT gtk-4.0;
-  # we must link the TokyoNight GTK4 stylesheet manually.
-  # Note: font is set via gtk.font (writes gtk-font-name to settings.ini),
-  # NOT via dconf font-name — Nautilus reads settings.ini in non-GNOME sessions.
+  # GTK4/libadwaita apps (Nautilus, etc.) switch to Adwaita Dark natively
+  # when color-scheme is set — no manual gtk-4.0/gtk.css override needed.
   dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-dark";
-  xdg.configFile."gtk-4.0/gtk.css".source =
-    "${tokyonightGtk}/share/themes/Tokyonight-Dark/gtk-4.0/gtk.css";
 
   # gpg-agent handles GPG key operations; pinentry-gnome3 provides the
   # passphrase prompt and can persist the passphrase in gnome-keyring
@@ -425,8 +414,8 @@ in
     enable = true;
     options = {
       recolor = false; # start in normal mode; toggle night mode with Ctrl+r
-      recolor-lightcolor = "#1a1b26"; # TokyoNight background
-      recolor-darkcolor = "#c0caf5";  # TokyoNight foreground
+      recolor-lightcolor = "#1d1d1d"; # Adwaita Dark background
+      recolor-darkcolor = "#eeeeec";  # Adwaita Dark foreground
       selection-clipboard = "clipboard";
       adjust-open = "best-fit";
     };
