@@ -102,16 +102,27 @@ in
         no_hardware_cursors = true;
       };
 
-      # QT_QPA_PLATFORMTHEME is set by the HM qt module in shell session vars,
-      # but apps launched from Hyprland don't source the shell profile.
-      # Setting it here ensures Qt apps (VLC, qBittorrent, etc.) see it.
-      env = [ "QT_QPA_PLATFORMTHEME,gtk3" ];
+      env = [
+        # QT_QPA_PLATFORMTHEME is set by the HM qt module in shell session vars,
+        # but apps launched from Hyprland don't source the shell profile.
+        # Setting it here ensures Qt apps (VLC, qBittorrent, etc.) see it.
+        "QT_QPA_PLATFORMTHEME,gtk3"
+        # Force GTK3 dark variant regardless of launch context — the dconf
+        # color-scheme setting only reaches apps via the settings portal,
+        # which isn't guaranteed for all GTK3 apps outside a GNOME session.
+        "GTK_THEME,Adwaita:dark"
+      ];
 
       "exec-once" = [
         # Propagate compositor env to systemd user session (needed for portals, services).
         "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=Hyprland"
         # Polkit authentication agent (required for privilege escalation dialogs).
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
+        # NetworkManager secrets agent — required for auto-connecting to saved
+        # WiFi networks. Without this, NM can't retrieve passwords from the
+        # keyring and prompts interactively (or fails). The tray icon is an
+        # acceptable side effect; it uses Papirus-Dark and is not intrusive.
+        "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
         # Wallpaper daemon + initial wallpaper from profile.
         # awww wait blocks until the daemon socket is ready, preventing the
         # race condition where awww img fires before the daemon is up.
