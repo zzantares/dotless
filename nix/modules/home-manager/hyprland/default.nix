@@ -461,11 +461,48 @@ in
   xdg.userDirs.extraConfig.XDG_SCREENSHOTS_DIR = "$HOME/Pictures/Screenshots";
   systemd.user.tmpfiles.rules = [ "d %h/Pictures/Screenshots 0755 - - -" ];
 
+  home.packages = with pkgs; [ imv ];
+
   # Wire the system file manager as the default handler for local directories.
   # The GUI file manager itself (e.g. Nautilus) is installed at the NixOS level
   # since that varies per machine; this wires up the xdg-open integration.
   xdg.mimeApps.defaultApplications = {
     "inode/directory" = "org.gnome.Nautilus.desktop";
     "application/pdf" = "org.pwmt.zathura.desktop";
+
+    # Links from non-browser apps (email, Slack, etc.)
+    "x-scheme-handler/http" = "firefox.desktop";
+    "x-scheme-handler/https" = "firefox.desktop";
+    "text/html" = "firefox.desktop";
+    "application/xhtml+xml" = "firefox.desktop";
+
+    # Images
+    "image/png" = "imv.desktop";
+    "image/jpeg" = "imv.desktop";
+    "image/gif" = "imv.desktop";
+    "image/webp" = "imv.desktop";
+    "image/avif" = "imv.desktop";
+    "image/tiff" = "imv.desktop";
+    "image/bmp" = "imv.desktop";
+    "image/svg+xml" = "imv.desktop";
+
+    # Video
+    "video/mp4" = "vlc.desktop";
+    "video/x-matroska" = "vlc.desktop";
+    "video/webm" = "vlc.desktop";
+    "video/avi" = "vlc.desktop";
+    "video/quicktime" = "vlc.desktop";
+    "video/mpeg" = "vlc.desktop";
+    "video/ogg" = "vlc.desktop";
+
+    # Audio
+    "audio/mpeg" = "vlc.desktop";
+    "audio/ogg" = "vlc.desktop";
+    "audio/flac" = "vlc.desktop";
+    "audio/x-flac" = "vlc.desktop";
+    "audio/wav" = "vlc.desktop";
+    "audio/aac" = "vlc.desktop";
+    "audio/mp4" = "vlc.desktop";
+    "audio/opus" = "vlc.desktop";
   };
 }
