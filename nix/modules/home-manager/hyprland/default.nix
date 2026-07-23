@@ -50,6 +50,9 @@ in
   gtk = {
     enable = true;
     theme.name = "Adwaita-dark"; # ships with GTK, no package needed
+    # GTK4/libadwaita handles dark mode natively via color-scheme; no theme
+    # override needed. Explicitly set null to opt into the new HM default.
+    gtk4.theme = null;
     iconTheme = {
       name = "Papirus-Dark";
       package = pkgs.papirus-icon-theme;
