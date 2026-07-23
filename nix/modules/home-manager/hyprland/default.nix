@@ -411,6 +411,10 @@ in
     awww
   ];
 
+  # Automatic display profile switching on monitor connect/disconnect.
+  # Profiles are machine-specific and defined at the configuration level.
+  services.kanshi.enable = true;
+
   # Blue light filter — warms color temperature at night using geoclue2 for
   # automatic sunrise/sunset times (geoclue2 is enabled at the NixOS level).
   services.gammastep = {
