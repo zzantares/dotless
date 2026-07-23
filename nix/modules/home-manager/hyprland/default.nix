@@ -357,6 +357,21 @@ in
     };
   };
 
+  # Removable media automounter with tray icon.
+  # Depends on udisks2, which is already running via services.gvfs at the NixOS level.
+  systemd.user.services.udiskie = {
+    Unit = {
+      Description = "udiskie automounter";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.udiskie}/bin/udiskie --tray";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
   # swayosd-server as a systemd user service so it starts with the session
   # and restarts on crash — more robust than exec-once.
   systemd.user.services.swayosd-server = {
@@ -381,6 +396,7 @@ in
   home.packages = with pkgs; [
     cliphist
     grimblast
+    udiskie
     wl-clipboard
     wofi
     pavucontrol
