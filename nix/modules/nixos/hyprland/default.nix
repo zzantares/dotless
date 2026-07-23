@@ -66,7 +66,9 @@
   # Exception: when docked (external monitor connected), closing the lid
   # should keep the session running on the external display.
   # hypridle catches PrepareForSleep and runs hyprlock before suspend.
-  services.logind.lidSwitch = lib.mkDefault "suspend";
-  services.logind.lidSwitchExternalPower = lib.mkDefault "suspend";
-  services.logind.lidSwitchDocked = lib.mkDefault "ignore";
+  services.logind.settings.Login = {
+    HandleLidSwitch = lib.mkDefault "suspend";
+    HandleLidSwitchExternalPower = lib.mkDefault "suspend";
+    HandleLidSwitchDocked = lib.mkDefault "ignore";
+  };
 }

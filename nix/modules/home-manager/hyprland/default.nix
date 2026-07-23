@@ -433,7 +433,7 @@ in
   # Qt apps follow the GTK theme so they match Adwaita Dark without a separate Qt theme.
   qt = {
     enable = true;
-    platformTheme.name = "gtk";
+    platformTheme.name = "gtk3";
   };
 
   # TUI file manager
