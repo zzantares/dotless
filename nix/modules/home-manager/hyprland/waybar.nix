@@ -26,6 +26,7 @@
           "cpu"
           "memory"
           "battery"
+          "bluetooth"
           "tray"
         ];
 
@@ -64,6 +65,18 @@
           "format-disconnected" = "󰤭";
           "tooltip-format-wifi" = "{essid} ({signalStrength}%)\n{ifname}";
           "tooltip-format-ethernet" = "{ifname}: {ipaddr}";
+          "on-click" = "${pkgs.networkmanagerapplet}/bin/nm-connection-editor";
+        };
+
+        bluetooth = {
+          format = "󰂯";
+          "format-connected" = "󰂱 {device_alias}";
+          "format-disabled" = "󰂲";
+          "format-off" = "󰂲";
+          "tooltip-format" = "{controller_alias}";
+          "tooltip-format-connected" = "{controller_alias}\n{device_enumerate}";
+          "tooltip-format-enumerate-connected" = "  {device_alias}";
+          "on-click" = "${pkgs.blueman}/bin/blueman-manager";
         };
 
         pulseaudio = {
@@ -167,6 +180,9 @@
       #battery.charging, #battery.plugged { color: #87a987; }
       #battery.warning:not(.charging)  { color: #c4b28a; }
       #battery.critical:not(.charging) { color: #c4746e; }
+      #bluetooth { color: #8ba4b0; padding: 0 6px; }
+      #bluetooth.connected { color: #87a987; }
+      #bluetooth.disabled, #bluetooth.off { color: #625e5a; }
       #tray { padding: 0 6px; }
 
       /* ── Tooltips ── */

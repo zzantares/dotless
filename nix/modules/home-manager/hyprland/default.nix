@@ -112,8 +112,6 @@ in
         "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=Hyprland"
         # Polkit authentication agent (required for privilege escalation dialogs).
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
-        # NetworkManager tray applet — right-click to manage WiFi connections.
-        "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
         # Wallpaper daemon + initial wallpaper from profile.
         # awww wait blocks until the daemon socket is ready, preventing the
         # race condition where awww img fires before the daemon is up.
@@ -356,21 +354,7 @@ in
     };
   };
 
-  # Bluetooth tray applet — right-click to pair, connect, and manage devices.
-  systemd.user.services.blueman-applet = {
-    Unit = {
-      Description = "Blueman tray applet";
-      PartOf = [ "graphical-session.target" ];
-      After = [ "graphical-session.target" ];
-    };
-    Service = {
-      ExecStart = "${pkgs.blueman}/bin/blueman-applet";
-      Restart = "on-failure";
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
-
-  # Removable media automounter with tray icon.
+  # Removable media automounter — no tray icon; mako notifications handle feedback.
   # Depends on udisks2, which is already running via services.gvfs at the NixOS level.
   systemd.user.services.udiskie = {
     Unit = {
@@ -379,7 +363,7 @@ in
       After = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "${pkgs.udiskie}/bin/udiskie --tray";
+      ExecStart = "${pkgs.udiskie}/bin/udiskie";
       Restart = "on-failure";
     };
     Install.WantedBy = [ "graphical-session.target" ];
@@ -407,6 +391,7 @@ in
     else { text = ""; };
 
   home.packages = with pkgs; [
+    blueman
     cliphist
     grimblast
     imv
