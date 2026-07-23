@@ -61,4 +61,12 @@
 
   # Bluetooth GUI — enables the D-Bus mechanism service needed for pairing.
   services.blueman.enable = lib.mkDefault true;
+
+  # Lid close behavior: always suspend, whether on battery or AC.
+  # Exception: when docked (external monitor connected), closing the lid
+  # should keep the session running on the external display.
+  # hypridle catches PrepareForSleep and runs hyprlock before suspend.
+  services.logind.lidSwitch = lib.mkDefault "suspend";
+  services.logind.lidSwitchExternalPower = lib.mkDefault "suspend";
+  services.logind.lidSwitchDocked = lib.mkDefault "ignore";
 }
