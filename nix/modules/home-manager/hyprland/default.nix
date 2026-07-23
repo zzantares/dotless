@@ -399,6 +399,7 @@ in
   home.packages = with pkgs; [
     cliphist
     grimblast
+    imv
     udiskie
     wl-clipboard
     wofi
@@ -464,8 +465,6 @@ in
   # and ensure it exists via systemd-tmpfiles rather than an imperative activation script.
   xdg.userDirs.extraConfig.XDG_SCREENSHOTS_DIR = "$HOME/Pictures/Screenshots";
   systemd.user.tmpfiles.rules = [ "d %h/Pictures/Screenshots 0755 - - -" ];
-
-  home.packages = with pkgs; [ imv ];
 
   # Wire the system file manager as the default handler for local directories.
   # The GUI file manager itself (e.g. Nautilus) is installed at the NixOS level
