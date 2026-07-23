@@ -365,6 +365,40 @@ in
     };
   };
 
+  # At boot NM tries to WiFi autoconnect before the user session exists, so
+  # gnome-keyring is locked and nm-applet (secrets agent) isn't running yet.
+  # NM times out the secrets request (~60 s) and gives up. This oneshot service
+  # runs after the graphical session is up — gnome-keyring is unlocked via PAM
+  # at SDDM login, nm-applet is registered — and reconnects the WiFi device if
+  # NM didn't manage to connect on its own. Works for every network, no per-SSID
+  # configuration needed.
+  systemd.user.services.nm-wifi-reconnect =
+    let
+      script = pkgs.writeShellScript "nm-wifi-reconnect" ''
+        # Give nm-applet a moment to register as NM secrets agent.
+        sleep 5
+        # Nothing to do if already connected (e.g. Ethernet is up, or NM was fast enough).
+        ${pkgs.networkmanager}/bin/nmcli -t -f STATE general | grep -qx "connected" && exit 0
+        # Find the first WiFi device and connect it. NM picks the best autoconnect
+        # connection and retrieves the password from gnome-keyring via nm-applet.
+        WIFI_DEV=$(${pkgs.networkmanager}/bin/nmcli -t -f DEVICE,TYPE device \
+          | awk -F: '$2 == "wifi" {print $1; exit}')
+        [ -n "$WIFI_DEV" ] && ${pkgs.networkmanager}/bin/nmcli device connect "$WIFI_DEV" || true
+      '';
+    in
+    {
+      Unit = {
+        Description = "Reconnect WiFi after secrets agent becomes available";
+        After = [ "graphical-session.target" ];
+        Wants = [ "graphical-session.target" ];
+      };
+      Service = {
+        Type = "oneshot";
+        ExecStart = "${script}";
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
+    };
+
   # Removable media automounter — no tray icon; mako notifications handle feedback.
   # Depends on udisks2, which is already running via services.gvfs at the NixOS level.
   systemd.user.services.udiskie = {
