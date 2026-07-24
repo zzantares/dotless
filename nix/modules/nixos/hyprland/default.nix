@@ -12,6 +12,19 @@
   # NixOS Hyprland module handles XDG portals and environment setup automatically
   programs.hyprland.enable = lib.mkDefault true;
 
+  # xdg-desktop-portal-gtk ships with UseIn=gnome in its .portal descriptor, so
+  # xdg-desktop-portal ignores it in a Hyprland session by default. That means
+  # no Settings portal → GTK4/libadwaita apps (Nautilus, etc.) get no color-scheme
+  # response and fall back to light mode despite the dconf setting.
+  # Explicitly route all unhandled interfaces to gtk so the Settings portal works.
+  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  xdg.portal.config.hyprland = {
+    default = [
+      "hyprland"
+      "gtk"
+    ];
+  };
+
   # SDDM on Wayland as display manager
   services.displayManager.sddm.enable = lib.mkDefault true;
   services.displayManager.sddm.wayland.enable = lib.mkDefault true;
