@@ -83,12 +83,16 @@ in
   # gpg-agent handles GPG key operations; pinentry-gnome3 provides the
   # passphrase prompt and can persist the passphrase in gnome-keyring
   # ("Save in password manager" checkbox) so it survives across sessions.
-  # SSH key caching is handled by gnome-keyring's SSH agent component, which
-  # is auto-unlocked at login via PAM and stores passphrases in the keyring.
   services.gpg-agent = {
     enableSshSupport = false;
     pinentry.package = pkgs.pinentry-gnome3;
   };
+
+  # Standalone SSH agent as a systemd user service. gnome-keyring's SSH
+  # component is deprecated in recent versions and unreliable in non-GNOME
+  # sessions. With addKeysToAgent=yes in the SSH config, the passphrase is
+  # prompted once per session and then cached for the session lifetime.
+  services.ssh-agent.enable = true;
 
   wayland.windowManager.hyprland = {
     enable = lib.mkDefault true;
