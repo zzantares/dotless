@@ -379,25 +379,27 @@ in
     };
   };
 
-  # Run nm-applet without a Wayland/X11 display so it registers as NM secrets
-  # agent on D-Bus (which needs only DBUS_SESSION_BUS_ADDRESS) but cannot
-  # create any tray icon or GUI window. This avoids a duplicate WiFi icon next
-  # to Waybar's native network module while keeping password retrieval working.
+  # Run nm-applet under a virtual framebuffer so its tray icon lands on an
+  # invisible X11 display rather than on the Wayland/SNI tray. This avoids the
+  # duplicate WiFi icon next to Waybar's native network module while keeping the
+  # D-Bus secrets agent working for WiFi password retrieval.
+  #
+  # xvfb-run starts a throwaway Xvfb on an auto-assigned display number, sets
+  # DISPLAY to it, then exec's nm-applet. With WAYLAND_DISPLAY cleared, GTK
+  # falls back to the X11 backend — tray icon goes to the virtual framebuffer
+  # (nobody sees it). Waybar is a Wayland client and only reads SNI items; it
+  # never touches the X11 XEMBED tray on :99.
   systemd.user.services.nm-applet = {
     Unit = {
-      Description = "NetworkManager secrets agent (headless)";
+      Description = "NetworkManager secrets agent (Xvfb-hidden tray)";
       After = [ "graphical-session.target" ];
       PartOf = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "${pkgs.networkmanagerapplet}/bin/nm-applet";
-      # Strip display variables so nm-applet can't register a tray icon.
-      # D-Bus registration only needs DBUS_SESSION_BUS_ADDRESS, which systemd
-      # propagates automatically into the user service environment.
-      Environment = [
-        "WAYLAND_DISPLAY="
-        "DISPLAY="
-      ];
+      ExecStart = "${pkgs.xvfb-run}/bin/xvfb-run -a ${pkgs.networkmanagerapplet}/bin/nm-applet";
+      # Clear Wayland display so nm-applet uses the X11 backend provided by
+      # xvfb-run; its tray icon ends up on an invisible virtual framebuffer.
+      Environment = [ "WAYLAND_DISPLAY=" ];
       Restart = "on-failure";
     };
     Install.WantedBy = [ "graphical-session.target" ];
