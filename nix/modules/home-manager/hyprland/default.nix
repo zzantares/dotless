@@ -135,12 +135,8 @@ in
         "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=Hyprland"
         # Polkit authentication agent (required for privilege escalation dialogs).
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
-        # NetworkManager secrets agent — required for auto-connecting to saved
-        # WiFi networks. Without this, NM can't retrieve passwords from the
-        # keyring and prompts interactively (or fails). No --indicator flag:
-        # on pure Wayland GtkStatusIcon is a no-op so no tray icon appears,
-        # but the D-Bus secrets agent still registers correctly.
-        "${pkgs.networkmanagerapplet}/bin/nm-applet"
+        # NetworkManager secrets agent — launched via systemd (see below) without
+        # a display, so it registers on D-Bus but emits no tray icon.
         # Wallpaper daemon + initial wallpaper from profile.
         # awww wait blocks until the daemon socket is ready, preventing the
         # race condition where awww img fires before the daemon is up.
@@ -381,6 +377,30 @@ in
       "max-icon-size" = 32;
       layer = "overlay";
     };
+  };
+
+  # Run nm-applet without a Wayland/X11 display so it registers as NM secrets
+  # agent on D-Bus (which needs only DBUS_SESSION_BUS_ADDRESS) but cannot
+  # create any tray icon or GUI window. This avoids a duplicate WiFi icon next
+  # to Waybar's native network module while keeping password retrieval working.
+  systemd.user.services.nm-applet = {
+    Unit = {
+      Description = "NetworkManager secrets agent (headless)";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.networkmanagerapplet}/bin/nm-applet";
+      # Strip display variables so nm-applet can't register a tray icon.
+      # D-Bus registration only needs DBUS_SESSION_BUS_ADDRESS, which systemd
+      # propagates automatically into the user service environment.
+      Environment = [
+        "WAYLAND_DISPLAY="
+        "DISPLAY="
+      ];
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
   };
 
   # At boot NM tries to WiFi autoconnect before the user session exists, so
