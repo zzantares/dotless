@@ -235,9 +235,9 @@ in
           ", XF86AudioMute, exec, ${pkgs.swayosd}/bin/swayosd-client --output-volume mute-toggle; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga"
 
           # ── Screenshots (grimblast: copy + save to ~/Pictures/Screenshots) ──
-          ", Print, exec, grimblast copysave screen"
-          "SHIFT, Print, exec, grimblast copysave area"
-          "SUPER, Print, exec, grimblast copysave active"
+          ", Print, exec, grimblast --notify copysave screen"
+          "SHIFT, Print, exec, grimblast --notify copysave area"
+          "SUPER, Print, exec, grimblast --notify copysave active"
 
           # ── Service submap (physical ; → Colemak O) ──
           "SUPER SHIFT, o, submap, service"
