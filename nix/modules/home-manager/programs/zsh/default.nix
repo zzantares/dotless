@@ -164,7 +164,7 @@
     ];
 
     # Triggered by Ctrl + r
-    historyWidgetOptions = [
+    historyWidget.options = [
       "--no-sort"
       "--no-preview"
       "--height=40%"
@@ -174,7 +174,7 @@
     ];
 
     # Triggered by Ctrl + f
-    fileWidgetOptions = [
+    fileWidget.options = [
       "--select-1"
       "--exit-0"
       "--border-label='Files '"
@@ -182,7 +182,7 @@
     ];
 
     # Triggered by Alt + c
-    changeDirWidgetOptions = [
+    changeDirWidget.options = [
       "--preview 'tree -C {} | head -200'"
       "--border-label='Directories '"
     ];

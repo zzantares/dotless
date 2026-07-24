@@ -9,21 +9,21 @@
 
 let
   # Run `nix/pkgs/claude-code/update.sh` to get a new version + hashes
-  version = "2.1.77";
+  version = "2.1.211";
   gcs = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
 
   srcs = {
     "x86_64-linux" = {
       urlPlatform = "linux-x64";
-      hash = "sha256-NFWcnMnurclC1nMTZ67TkVtrc1HZjGHr/rvY+llQjs0=";
+      hash = "sha256-gnLIpHSsnqG8NfGbn3x+fcTcTrbVrT5ISxkzWsckRrI=";
     };
     "aarch64-darwin" = {
       urlPlatform = "darwin-arm64";
-      hash = "sha256-ZCZ3JBnHWOcRRnJVgtZ/HdpCaHxpPIPe+a00IruB6/E=";
+      hash = "sha256-WnKKdhmLbsp/PHzb/0O6tEt3tIwhCPejEH2Il3M4Jik=";
     };
     "x86_64-darwin" = {
       urlPlatform = "darwin-x64";
-      hash = "sha256-m+SiSiE80/R1cT6Pt1SMYxqr3DVcoZHpJsy2PxKXZAk=";
+      hash = "sha256-MwSesUz0cCuZK37aQewHf8bnZTn3/QRubTJTh1cjXaQ=";
     };
   };
 
