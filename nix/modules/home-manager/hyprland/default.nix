@@ -124,6 +124,10 @@ in
         # color-scheme setting only reaches apps via the settings portal,
         # which isn't guaranteed for all GTK3 apps outside a GNOME session.
         "GTK_THEME,Adwaita:dark"
+        # xdg-user-dir doesn't know SCREENSHOTS (non-standard type) so it falls
+        # back to PICTURES. Export the var explicitly so grimblast saves to the
+        # right directory.
+        "XDG_SCREENSHOTS_DIR,${config.home.homeDirectory}/Pictures/Screenshots"
       ];
 
       "exec-once" = [
