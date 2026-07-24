@@ -120,9 +120,10 @@ in
         "${pkgs.hyprpolkitagent}/lib/hyprpolkitagent"
         # NetworkManager secrets agent — required for auto-connecting to saved
         # WiFi networks. Without this, NM can't retrieve passwords from the
-        # keyring and prompts interactively (or fails). The tray icon is an
-        # acceptable side effect; it uses Papirus-Dark and is not intrusive.
-        "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator"
+        # keyring and prompts interactively (or fails). No --indicator flag:
+        # on pure Wayland GtkStatusIcon is a no-op so no tray icon appears,
+        # but the D-Bus secrets agent still registers correctly.
+        "${pkgs.networkmanagerapplet}/bin/nm-applet"
         # Wallpaper daemon + initial wallpaper from profile.
         # awww wait blocks until the daemon socket is ready, preventing the
         # race condition where awww img fires before the daemon is up.
