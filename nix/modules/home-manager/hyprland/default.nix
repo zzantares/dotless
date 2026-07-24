@@ -67,9 +67,18 @@ in
     gtk3.extraConfig."gtk-application-prefer-dark-theme" = 1;
   };
 
-  # GTK4/libadwaita apps (Nautilus, etc.) switch to Adwaita Dark natively
-  # when color-scheme is set — no manual gtk-4.0/gtk.css override needed.
-  dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-dark";
+  # GTK4/libadwaita apps read color-scheme from the xdg-desktop-portal-gtk
+  # Settings portal. Set both color-scheme and gtk-theme explicitly so there
+  # is no ambiguity even if the portal has automatic day/night switching enabled
+  # (triggered by geoclue2 being available for gammastep).
+  dconf.settings."org/gnome/desktop/interface" = {
+    color-scheme = "prefer-dark";
+    gtk-theme = "Adwaita-dark";
+  };
+
+  # Propagate GTK_THEME to the systemd user environment so D-Bus-activated
+  # apps (not launched as Hyprland children) also get the dark variant.
+  systemd.user.sessionVariables.GTK_THEME = "Adwaita:dark";
 
   # gpg-agent handles GPG key operations; pinentry-gnome3 provides the
   # passphrase prompt and can persist the passphrase in gnome-keyring
