@@ -1,0 +1,31 @@
+name: Mirror to Codeberg
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+
+concurrency:
+  group: mirror-to-codeberg
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: nix
+    permissions:
+      contents: read
+    steps:
+      - name: Push full mirror to Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo_name="$(basename "${{ github.repository }}")"
+          git clone --mirror \
+            "https://x-token-auth:${GITEA_TOKEN}@git.gutimore.net/${{ github.repository }}.git" \
+            mirror.git
+          cd mirror.git
+          git push --mirror \
+            "https://x-token-auth:${CODEBERG_TOKEN}@codeberg.org/zzantares/${repo_name}.git"
