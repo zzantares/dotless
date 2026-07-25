@@ -101,6 +101,8 @@ in
     configType = "hyprlang";
 
     settings = {
+      ecosystem.no_update_news = true;
+
       input = {
         follow_mouse = 1;
         kb_layout = "us";
