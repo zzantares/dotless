@@ -12,7 +12,7 @@
   # - custom dictionary: spell-fu-directory (~/.config/emacs/.local/etc/spell-fu)
   programs.emacs = {
     enable = lib.mkDefault true;
-    package = pkgs.emacs;
+    package = lib.mkDefault pkgs.emacs;
     extraPackages =
       epkgs: with epkgs; [
         vterm
