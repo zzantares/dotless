@@ -356,6 +356,12 @@ in
           "on-timeout" = "hyprlock";
         }
         {
+          # Turn the display off shortly after locking (works on AC too, unlike suspend below).
+          timeout = 630;
+          "on-timeout" = "hyprctl dispatch dpms off";
+          "on-resume" = "hyprctl dispatch dpms on";
+        }
+        {
           # Suspend after 15 minutes — only when on battery (never on AC).
           timeout = 900;
           "on-timeout" = "grep -ql 1 /sys/class/power_supply/*/online || systemctl suspend";
