@@ -68,8 +68,9 @@ in
     #!/usr/bin/env bash
     if ${final.tmux}/bin/tmux -q has-session 2>/dev/null; then
       exec ${final.tmux}/bin/tmux attach-session -d
+    else
+      exec ${final.tmux}/bin/tmux new-session -s "$USER@$HOSTNAME"
     fi
-    exec ${final.tmux}/bin/tmux new-session -s "$USER@$HOSTNAME"
   '';
 
   # Creates a menu for tmux-fzf that exposes Claude Code sessions
