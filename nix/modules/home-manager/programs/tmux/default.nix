@@ -41,6 +41,8 @@ in
   # directory directly (no writeShellScriptBin wrapper needed once we keep the `t` name).
   home.sessionPath = [ "${t-plugin}/share/tmux-plugins/t/bin" ];
 
+  home.packages = [ pkgs.tux ];
+
   programs.tmux = {
     enable = lib.mkDefault true;
     mouse = lib.mkDefault true; # allows to use the wheel to scroll (one never knows)

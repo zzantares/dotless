@@ -62,6 +62,16 @@ in
     else
       inputs.opencode.packages.${system}.default;
 
+  # Attach to the tmux server's most-recently-used session if one exists,
+  # otherwise start a fresh one named after the current user and host.
+  tux = final.writeShellScriptBin "tux" ''
+    #!/usr/bin/env bash
+    if ${final.tmux}/bin/tmux -q has-session 2>/dev/null; then
+      exec ${final.tmux}/bin/tmux attach-session -d
+    fi
+    exec ${final.tmux}/bin/tmux new-session -s "$USER@$HOSTNAME"
+  '';
+
   # Creates a menu for tmux-fzf that exposes Claude Code sessions
   tmux-claude-picker = final.writeShellScriptBin "tmux-claude-picker" ''
     #!/usr/bin/env bash

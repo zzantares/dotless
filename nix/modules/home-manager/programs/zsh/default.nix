@@ -19,7 +19,6 @@
     ll = "ls -l";
     ls = "ls --color=tty";
     lt = "ls -thalr";
-    tux = "tmux -q has-session && exec tmux attach-session -d || exec tmux new-session -n$HOST";
     vim = "nvim";
     e = "emacsclient -c -n";
     lazyvim = "NVIM_APPNAME=lazyvim nvim";

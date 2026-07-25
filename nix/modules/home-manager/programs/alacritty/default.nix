@@ -9,19 +9,6 @@
 let
   themes = import ./colors.nix;
 
-  # Attach to the most recently active tmux session, if any exist; otherwise
-  # just fall through to an interactive shell without creating a new session.
-  # Login processing (-l) already happened in the outer zsh invocation that
-  # runs this via -c, so the fallback only needs -i, not another -l.
-  tmuxAttachScript = pkgs.writeShellScript "alacritty-tmux-attach" ''
-    if ${config.programs.tmux.package}/bin/tmux list-sessions >/dev/null 2>&1; then
-      last_session=$(${config.programs.tmux.package}/bin/tmux list-sessions -F '#{session_last_attached} #{session_name}' \
-        | sort -rn | head -n1 | cut -d' ' -f2-)
-      exec ${config.programs.tmux.package}/bin/tmux attach-session -d -t "$last_session"
-    fi
-    exec ${config.programs.zsh.package}/bin/zsh -i
-  '';
-
 in
 {
   programs.alacritty = {
@@ -30,11 +17,14 @@ in
 
     settings = {
       terminal.shell = {
+        # Login processing (-l) happens here; tux itself just decides whether
+        # to attach to an existing session or start a new one, same as when
+        # typed manually at an interactive prompt.
         program = "${config.programs.zsh.package}/bin/zsh";
         args = [
           "-l"
           "-c"
-          "${tmuxAttachScript}"
+          "${pkgs.tux}/bin/tux"
         ];
       };
 
