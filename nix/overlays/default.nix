@@ -22,6 +22,24 @@ in
 
   claude-code = final.callPackage ./../pkgs/claude-code { };
 
+  # v0.1.7 has a dbus screensaver-inhibit ref-counting bug (logs "BUG THIS:
+  # inhibit locks < 0: -1", triggered by apps like Firefox rapidly toggling
+  # inhibit during video playback). Once it fires, listener state gets
+  # corrupted and some timeout listeners — e.g. a "dpms off" rule shortly
+  # after a lock rule — silently stop firing for the rest of the session, so
+  # the screen locks but the display never turns off. Fixed upstream in
+  # hyprwm/hypridle#175 ("core: fix dbus inhibit lock counting"), merged
+  # 2025-11-01, not yet in a tagged release. Track main until v0.1.8 ships.
+  hypridle = prev.hypridle.overrideAttrs (_: {
+    version = "0.1.7-unstable-2026-07-25";
+    src = final.fetchFromGitHub {
+      owner = "hyprwm";
+      repo = "hypridle";
+      rev = "6c119c280e19522b61d28e74626ef2134acd39d5";
+      hash = "sha256-MbOcUbVyZ8bfhe5rKKzax2VVBgLXZOJJHlQnOXJKwhM=";
+    };
+  });
+
   # Bun standalone executables embed their JS bundle as a blob appended after
   # the ELF sections. This binary is non-PIE (type EXEC) with fixed virtual
   # addresses and uses Nix's ld-linux-x86-64.so.2 (glibc 2.42) as its
