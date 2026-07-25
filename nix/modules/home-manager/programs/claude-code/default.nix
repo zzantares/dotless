@@ -63,6 +63,19 @@ in
           autoUpdates = false;
           env = {
             "DISABLE_AUTOUPDATER" = "1";
+
+            # Attribute commits made by Claude Code (via its Bash tool, a child
+            # process of this settings' own claude process) to Claude instead of
+            # the human user — GIT_AUTHOR_*/GIT_COMMITTER_* env vars take
+            # precedence over git's user.name/user.email config. Generic,
+            # non-resolving defaults here since dotless is shared across
+            # profiles; consumers override the email via mkDefault-eligible
+            # plain definitions (e.g. dotfiles sets a real address tied to
+            # their own Forgejo instance).
+            "GIT_AUTHOR_NAME" = lib.mkDefault "Claude";
+            "GIT_AUTHOR_EMAIL" = lib.mkDefault "claude@dotless";
+            "GIT_COMMITTER_NAME" = lib.mkDefault "Claude";
+            "GIT_COMMITTER_EMAIL" = lib.mkDefault "claude@dotless";
           };
 
           hooks = {
