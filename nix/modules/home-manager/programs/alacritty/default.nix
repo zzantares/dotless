@@ -10,14 +10,16 @@ let
   themes = import ./colors.nix;
 
   # Attach to the most recently active tmux session, if any exist; otherwise
-  # just drop into a plain login shell without creating a new session.
+  # just fall through to an interactive shell without creating a new session.
+  # Login processing (-l) already happened in the outer zsh invocation that
+  # runs this via -c, so the fallback only needs -i, not another -l.
   tmuxAttachScript = pkgs.writeShellScript "alacritty-tmux-attach" ''
     if ${config.programs.tmux.package}/bin/tmux list-sessions >/dev/null 2>&1; then
       last_session=$(${config.programs.tmux.package}/bin/tmux list-sessions -F '#{session_last_attached} #{session_name}' \
         | sort -rn | head -n1 | cut -d' ' -f2-)
       exec ${config.programs.tmux.package}/bin/tmux attach-session -d -t "$last_session"
     fi
-    exec ${config.programs.zsh.package}/bin/zsh -l
+    exec ${config.programs.zsh.package}/bin/zsh -i
   '';
 
 in
@@ -28,8 +30,12 @@ in
 
     settings = {
       terminal.shell = {
-        program = "${tmuxAttachScript}";
-        args = [ ];
+        program = "${config.programs.zsh.package}/bin/zsh";
+        args = [
+          "-l"
+          "-c"
+          "${tmuxAttachScript}"
+        ];
       };
 
       window = {
