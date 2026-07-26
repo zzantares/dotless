@@ -342,6 +342,9 @@ in
         after_sleep_cmd = "hyprctl dispatch dpms on";
         ignore_dbus_inhibit = false;
         lock_cmd = "hyprlock";
+        # Without this, systemd-triggered suspends (e.g. lid close) skip
+        # hyprlock entirely and resume straight into the unlocked session.
+        before_sleep_cmd = "hyprlock";
       };
       listener = [
         {
