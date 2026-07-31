@@ -35,6 +35,11 @@ in
         private_browsing_allowed = true;
       };
     };
+    # Prevents disabling/removing via about:addons, so a schedule-blocking
+    # extension can't just be clicked off in the moment. See gutimore/dotfiles#36.
+    Extensions.Locked = [
+      "leechblockng@proginosko.com"
+    ];
   };
 
   profiles."${profile.login}" = {
@@ -217,6 +222,7 @@ in
       istilldontcareaboutcookies
       kagi-search
       languagetool
+      leechblock-ng
       link-cleaner # TODO switch to maintained fork link-cleaner-plus
       offline-qr-code-generator
       old-reddit-redirect
