@@ -22,6 +22,10 @@ in
 
   claude-code = final.callPackage ./../pkgs/claude-code { };
 
+  fj = final.callPackage ./../pkgs/fj { };
+
+  tea-dash = final.callPackage ./../pkgs/tea-dash { };
+
   # v0.1.7 has a dbus screensaver-inhibit ref-counting bug (logs "BUG THIS:
   # inhibit locks < 0: -1", triggered by apps like Firefox rapidly toggling
   # inhibit during video playback). Once it fires, listener state gets

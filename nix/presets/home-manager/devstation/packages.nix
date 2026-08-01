@@ -14,6 +14,7 @@
     [
       aspell-with-dicts
       entr
+      fj
       fonts
       fzf
       git
@@ -27,6 +28,7 @@
       pass # TODO check out bitwarden-cli?
       pre-commit
       tree-sitter
+      tea-dash
       tealdeer
       toolchains.android
       toolchains.lisp
