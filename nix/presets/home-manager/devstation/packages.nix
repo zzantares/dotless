@@ -14,8 +14,8 @@
     [
       aspell-with-dicts
       entr
-      fj
       fonts
+      forgejo-cli
       fzf
       git
       git-extras

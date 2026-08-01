@@ -22,8 +22,6 @@ in
 
   claude-code = final.callPackage ./../pkgs/claude-code { };
 
-  fj = final.callPackage ./../pkgs/fj { };
-
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
 
   # v0.1.7 has a dbus screensaver-inhibit ref-counting bug (logs "BUG THIS:
