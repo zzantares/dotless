@@ -16,6 +16,7 @@ let
   gnome-extensions = with pkgs.gnomeExtensions; [
     forge
     auto-move-windows # Pin apps to workspaces (sway `assign` equivalent)
+    clipboard-indicator # Clipboard history (cliphist + wofi equivalent)
     unite
     x11-gestures
   ];
@@ -270,6 +271,12 @@ in
       application-list = autoMoveList;
     };
 
+    # Clipboard history popup — mirrors Hyprland's cliphist + wofi bind.
+    "org/gnome/shell/extensions/clipboard-indicator" = {
+      enable-keybindings = true;
+      toggle-menu = [ "<Ctrl><Super>v" ];
+    };
+
     # See: https://nixos.wiki/wiki/Virt-manager
     "org/virt-manager/virt-manager/connections" = {
       autoconnect = [ "qemu:///system" ];
@@ -291,8 +298,15 @@ in
       workspace-names = workspaceNames;
     };
 
-    # Free <Super>1…9 (GNOME's "activate Nth favourite app") for workspaces.
-    "org/gnome/shell/keybindings" = clearAppSwitchBinds;
+    # Free <Super>1…9 (GNOME's "activate Nth favourite app") for workspaces,
+    # and put the app grid on <Super>space (Hyprland's launcher key) alongside
+    # the default <Super>a.
+    "org/gnome/shell/keybindings" = clearAppSwitchBinds // {
+      toggle-application-view = [
+        "<Super>a"
+        "<Super>space"
+      ];
+    };
 
     # Apparence > Dark
     "org/gnome/desktop/interface" = {
@@ -368,6 +382,17 @@ in
       # Freed for Forge: <Super>h focuses up (GNOME default = minimize).
       minimize = [ ];
 
+      # Close focused window — mirror Hyprland's <Super><Shift>Backspace killactive
+      # (keep the GNOME default <Alt>F4 too).
+      close = [
+        "<Alt>F4"
+        "<Super><Shift>BackSpace"
+      ];
+
+      # Free <Super>space (default input-source switch) for the app launcher
+      # below — single keyboard layout, so switching is unused.
+      switch-input-source = [ ];
+
       # Send the focused window to the external display (on the left), mirroring
       # the Hyprland/AeroSpace <Super><Shift>Tab "to other monitor" bind. GNOME
       # moves a window, not a whole workspace, and only by direction — keep the
@@ -391,9 +416,8 @@ in
     "org/gnome/settings-daemon/plugins/media-keys" = {
       terminal = [ ]; # Disables "Terminal Launcher" which opens gnome-terminal instead of Alacritty
 
-      # Freed for Forge: <Super>l focuses right (GNOME default = lock screen).
-      # Lock is still available via the power menu / suspend-on-lid.
-      screensaver = [ ];
+      # Lock moved off <Super>l (now Forge focus-right) to <Super><Shift>Escape.
+      screensaver = [ "<Super><Shift>Escape" ];
 
       custom-keybindings = customKeybindingPaths;
     };
