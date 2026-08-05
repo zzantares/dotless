@@ -27,25 +27,37 @@ let
   # as an extra switch accelerator, alongside the plain number.
   workspaceCount = 9;
 
-  # slot -> { key = extra "<Super>+key" accelerator; app = .desktop id to pin }.
-  # Mirrors the Hyprland windowrule class→workspace mapping.
+  # Single source of truth per app, mirroring how Hyprland co-locates a
+  # workspace, a windowrule, and an exec bind:
+  #   key  = letter for the "<Super>+key" workspace switch/move accelerators
+  #   app  = .desktop id to pin to this workspace (auto-move-windows)
+  #   cmd  = command launched by <Ctrl><Super>+key (Hyprland "SUPER CTRL" bind)
+  #   name = label for the launcher keybinding
   appSlots = {
     "1" = {
       key = "t";
-      app = "org.wezfurlong.wezterm.desktop";
-    }; # Terminal
+      app = "Alacritty.desktop";
+      cmd = "alacritty";
+      name = "Alacritty";
+    };
     "2" = {
       key = "e";
       app = "emacs.desktop";
-    }; # Emacs
+      cmd = "emacsclient -c -a emacs";
+      name = "Emacs";
+    };
     "3" = {
       key = "f";
       app = "firefox.desktop";
-    }; # Firefox
+      cmd = "firefox";
+      name = "Firefox";
+    };
     "4" = {
       key = "period";
       app = "org.gnome.Nautilus.desktop";
-    }; # Files
+      cmd = "nautilus";
+      name = "Files";
+    };
   };
 
   wsNumbers = lib.genList (i: i + 1) workspaceCount; # [ 1 … 9 ]
@@ -85,6 +97,39 @@ let
     "Files"
   ]
   ++ map toString (lib.range 5 workspaceCount);
+
+  # App launchers on <Ctrl><Super>+<letter>, mirroring Hyprland's "SUPER CTRL"
+  # exec binds. Derived from appSlots so each app's workspace, pin, and launch
+  # key all stay defined in one place.
+  appLaunchers = lib.mapAttrsToList (_: v: {
+    name = v.name;
+    command = v.cmd;
+    binding = "<Ctrl><Super>${v.key}";
+  }) appSlots;
+  # Non-app togglers keep their existing <Ctrl><Alt> binds.
+  extraKeybindings = [
+    {
+      name = "Large Text Toggler";
+      command = "${large-text-toggler}/bin/large-text-toggler";
+      binding = "<Ctrl><Alt>l";
+    }
+    {
+      name = "Dark Light Theme Toggler";
+      command = "${dark-light-theme-toggler}/bin/dark-light-theme-toggler";
+      binding = "<Ctrl><Alt>period";
+    }
+  ];
+  # Materialise as customN entries + the paths list GNOME expects to register.
+  customKeybindings = appLaunchers ++ extraKeybindings;
+  customKeybindingPaths = lib.imap0 (
+    i: _: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${toString i}/"
+  ) customKeybindings;
+  customKeybindingSettings = lib.listToAttrs (
+    lib.imap0 (
+      i: e:
+      lib.nameValuePair "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${toString i}" e
+    ) customKeybindings
+  );
 
   large-text-toggler = pkgs.writeShellScriptBin "large-text-toggler" ''
     #!/usr/bin/env bash
@@ -175,12 +220,19 @@ in
     # Forge tiling extension — behaviour
     "org/gnome/shell/extensions/forge" = {
       tiling-mode-enabled = true;
-      focus-border-toggle = true;
       window-gap-size = lib.gvariant.mkUint32 4;
       window-gap-hidden-on-single = true;
       auto-split-enabled = true;
       preview-hint-enabled = true;
       quick-settings-enabled = true;
+
+      # Focus indicator — a thin white-ish border on the focused window, like
+      # Hyprland (border_size = 2). Disable the extra split-direction border so
+      # there's a single, clean focus border.
+      focus-border-toggle = true;
+      focus-border-size = lib.gvariant.mkUint32 2;
+      focus-border-color = "rgba(235, 235, 235, 0.9)";
+      split-border-toggle = false;
     };
 
     # Forge keybindings — directions mirror the Hyprland config's rotated vim
@@ -206,9 +258,10 @@ in
       # workspace (matching Hyprland's "SUPER, period" → files workspace).
       prefs-open = [ "<Ctrl><Super>comma" ];
 
-      # Moved off <Shift><Super>t so that combo can move a window to the
-      # Terminal workspace (move-to-workspace-1) without colliding.
-      con-tabbed-layout-toggle = [ "<Ctrl><Super>t" ];
+      # Relocated to <Ctrl><Super>Tab (mnemonic: Tab → tabbed) so <Shift><Super>t
+      # is free to move a window to the Terminal workspace and <Ctrl><Super>t is
+      # free to launch the terminal.
+      con-tabbed-layout-toggle = [ "<Ctrl><Super>Tab" ];
     };
 
     # Pin apps to workspaces — the Hyprland windowrule (class → workspace)
@@ -321,7 +374,9 @@ in
       hotkey = "@as []";
     };
 
-    # Gnome custom keybindings
+    # Gnome custom keybindings — app launchers (<Ctrl><Super>+letter, mirroring
+    # Hyprland's SUPER CTRL exec binds) plus the theme/text togglers. The customN
+    # entries themselves are merged in below from customKeybindingSettings.
     "org/gnome/settings-daemon/plugins/media-keys" = {
       terminal = [ ]; # Disables "Terminal Launcher" which opens gnome-terminal instead of Alacritty
 
@@ -329,44 +384,8 @@ in
       # Lock is still available via the power menu / suspend-on-lid.
       screensaver = [ ];
 
-      # NOTE For every custom shortcut added the "path" to that shortcut must be added to this list
-      custom-keybindings = [
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/"
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/"
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3/"
-        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom4/"
-      ];
+      custom-keybindings = customKeybindingPaths;
     };
-
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
-      name = "WezTerm";
-      command = "wezterm";
-      binding = "<Ctrl><Alt>t";
-    };
-
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1" = {
-      name = "Firefox";
-      command = "firefox";
-      binding = "<Ctrl><Alt>f";
-    };
-
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2" = {
-      name = "Emacs";
-      command = "emacs";
-      binding = "<Ctrl><Alt>e";
-    };
-
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3" = {
-      name = "Large Text Toggler";
-      command = "${large-text-toggler}/bin/large-text-toggler";
-      binding = "<Ctrl><Alt>l";
-    };
-
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom4" = {
-      name = "Dark Light Theme Toggler";
-      command = "${dark-light-theme-toggler}/bin/dark-light-theme-toggler";
-      binding = "<Ctrl><Alt>.";
-    };
-  };
+  }
+  // customKeybindingSettings;
 }
