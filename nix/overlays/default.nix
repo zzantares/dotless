@@ -431,15 +431,6 @@ in
 }
 // prev.lib.optionalAttrs prev.stdenv.isLinux {
   gnomeExtensions = prev.gnomeExtensions // {
-    tiling-shell = prev.gnomeExtensions.tiling-shell.overrideAttrs (old: {
-      version = "42";
-      src = final.fetchzip {
-        url = "https://extensions.gnome.org/extension-data/tilingshellferrarodomenico.com.v42.shell-extension.zip";
-        sha256 = "sha256-CH55Q4gNi1uklDUyeW3lr1leDw+9l/sTUi41OCnHZzY=";
-        stripRoot = false;
-      };
-    });
-
     unite = prev.gnomeExtensions.unite.overrideAttrs (old: rec {
       version = "72";
       src = final.fetchFromGitHub {

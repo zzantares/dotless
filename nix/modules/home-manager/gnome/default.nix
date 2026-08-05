@@ -14,7 +14,7 @@ let
   # - x11-gestures
 
   gnome-extensions = with pkgs.gnomeExtensions; [
-    tiling-shell
+    forge
     unite
     x11-gestures
   ];
@@ -105,6 +105,37 @@ in
       reduce-panel-spacing = false;
     };
 
+    # Forge tiling extension — behaviour
+    "org/gnome/shell/extensions/forge" = {
+      tiling-mode-enabled = true;
+      focus-border-toggle = true;
+      window-gap-size = lib.gvariant.mkUint32 4;
+      window-gap-hidden-on-single = true;
+      auto-split-enabled = true;
+      preview-hint-enabled = true;
+      quick-settings-enabled = true;
+    };
+
+    # Forge keybindings — directions mirror the Hyprland config's rotated vim
+    # scheme (h=up, j=left, k=down, l=right) so muscle memory carries over.
+    # See nix/modules/home-manager/hyprland (movewindow binds).
+    "org/gnome/shell/extensions/forge/keybindings" = {
+      window-focus-up = [ "<Super>h" ];
+      window-focus-left = [ "<Super>j" ];
+      window-focus-down = [ "<Super>k" ];
+      window-focus-right = [ "<Super>l" ];
+
+      window-move-up = [ "<Shift><Super>h" ];
+      window-move-left = [ "<Shift><Super>j" ];
+      window-move-down = [ "<Shift><Super>k" ];
+      window-move-right = [ "<Shift><Super>l" ];
+
+      window-swap-up = [ "<Ctrl><Super>h" ];
+      window-swap-left = [ "<Ctrl><Super>j" ];
+      window-swap-down = [ "<Ctrl><Super>k" ];
+      window-swap-right = [ "<Ctrl><Super>l" ];
+    };
+
     # See: https://nixos.wiki/wiki/Virt-manager
     "org/virt-manager/virt-manager/connections" = {
       autoconnect = [ "qemu:///system" ];
@@ -185,6 +216,9 @@ in
       switch-applications-backward = [ "<Shift><Super>Tab" ];
       switch-windows = [ "<Alt>Tab" ];
       switch-windows-backward = [ "<Shift><Alt>Tab" ];
+
+      # Freed for Forge: <Super>h focuses up (GNOME default = minimize).
+      minimize = [ ];
     };
 
     "org/freedesktop/ibus/panel/emoji" = {
@@ -194,6 +228,10 @@ in
     # Gnome custom keybindings
     "org/gnome/settings-daemon/plugins/media-keys" = {
       terminal = [ ]; # Disables "Terminal Launcher" which opens gnome-terminal instead of Alacritty
+
+      # Freed for Forge: <Super>l focuses right (GNOME default = lock screen).
+      # Lock is still available via the power menu / suspend-on-lid.
+      screensaver = [ ];
 
       # NOTE For every custom shortcut added the "path" to that shortcut must be added to this list
       custom-keybindings = [
