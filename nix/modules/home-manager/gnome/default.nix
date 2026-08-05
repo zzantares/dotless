@@ -49,19 +49,27 @@ let
   };
 
   wsNumbers = lib.genList (i: i + 1) workspaceCount; # [ 1 … 9 ]
-  slotKey = n: lib.optional (appSlots ? ${toString n}) "<Super>${appSlots.${toString n}.key}";
+  # The pinned slot's app letter, prefixed with the given modifier (or [ ]).
+  slotKey = mods: n: lib.optional (appSlots ? ${toString n}) "${mods}${appSlots.${toString n}.key}";
 
   # Switch: <Super>N (+ the app letter for pinned slots).
   switchWorkspaceBinds = lib.listToAttrs (
     map (
-      n: lib.nameValuePair "switch-to-workspace-${toString n}" ([ "<Super>${toString n}" ] ++ slotKey n)
+      n:
+      lib.nameValuePair "switch-to-workspace-${toString n}" (
+        [ "<Super>${toString n}" ] ++ slotKey "<Super>" n
+      )
     ) wsNumbers
   );
-  # Move window to workspace: <Super><Shift>N only (letters kept for Forge's
-  # in-workspace stack/tab toggles, which live on <Super><Shift><letter>).
+  # Move window to workspace: <Super><Shift>N (+ the app letter), mirroring the
+  # Hyprland/AeroSpace "move to workspace" bind. Forge's tabbed-layout-toggle is
+  # relocated off <Shift><Super>t below so the Terminal letter is free here.
   moveWorkspaceBinds = lib.listToAttrs (
     map (
-      n: lib.nameValuePair "move-to-workspace-${toString n}" [ "<Super><Shift>${toString n}" ]
+      n:
+      lib.nameValuePair "move-to-workspace-${toString n}" (
+        [ "<Super><Shift>${toString n}" ] ++ slotKey "<Super><Shift>" n
+      )
     ) wsNumbers
   );
   # Free <Super>1…9 from GNOME's "activate Nth favourite app" shortcut.
@@ -197,6 +205,10 @@ in
       # Moved off the <Super>Period default so that key can drive the Files
       # workspace (matching Hyprland's "SUPER, period" → files workspace).
       prefs-open = [ "<Ctrl><Super>comma" ];
+
+      # Moved off <Shift><Super>t so that combo can move a window to the
+      # Terminal workspace (move-to-workspace-1) without colliding.
+      con-tabbed-layout-toggle = [ "<Ctrl><Super>t" ];
     };
 
     # Pin apps to workspaces — the Hyprland windowrule (class → workspace)
