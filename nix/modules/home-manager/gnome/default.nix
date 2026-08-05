@@ -359,12 +359,23 @@ in
     # Gnome default keybindings
     "org/gnome/desktop/wm/keybindings" = {
       switch-applications = [ "<Super>Tab" ];
-      switch-applications-backward = [ "<Shift><Super>Tab" ];
+      # <Shift><Super>Tab is repurposed below (send window to external monitor);
+      # the app switcher still reverses with Shift while its popup is open.
+      switch-applications-backward = [ ];
       switch-windows = [ "<Alt>Tab" ];
       switch-windows-backward = [ "<Shift><Alt>Tab" ];
 
       # Freed for Forge: <Super>h focuses up (GNOME default = minimize).
       minimize = [ ];
+
+      # Send the focused window to the external display (on the left), mirroring
+      # the Hyprland/AeroSpace <Super><Shift>Tab "to other monitor" bind. GNOME
+      # moves a window, not a whole workspace, and only by direction — keep the
+      # default <Super><Shift>Left too.
+      move-to-monitor-left = [
+        "<Super><Shift>Left"
+        "<Shift><Super>Tab"
+      ];
     }
     # <Super>N (+ app letter) to switch, <Super><Shift>N to move — see appSlots.
     // switchWorkspaceBinds
