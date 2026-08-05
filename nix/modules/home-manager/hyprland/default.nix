@@ -36,6 +36,35 @@ let
     l: "SUPER SHIFT, ${l}, movetoworkspace, name:${lib.toUpper l}"
   ) workspaceLetters;
 
+  # AeroSpace-accordion-style zoom. The focused window floats at this size,
+  # centered, so the surrounding tiles peek out at the edges (dimmed via the
+  # decoration block below) — a visual reminder that windows are stacked behind,
+  # unlike fullscreen which hides them entirely.
+  zoomWindow = ''dispatch resizeactive exact 95% 95% ; dispatch centerwindow'';
+
+  # SUPER+comma toggles the zoom on the focused window's current float state:
+  # float+size on the way in, back into the tile on the way out.
+  accordionZoom = pkgs.writeShellScript "hypr-accordion-zoom" ''
+    if [ "$(hyprctl activewindow -j | ${pkgs.jq}/bin/jq -r .floating)" = true ]; then
+      hyprctl dispatch togglefloating
+    else
+      hyprctl --batch "dispatch togglefloating ; ${zoomWindow}"
+    fi
+  '';
+
+  # Stack navigation while zoomed: drop the current window into the tile, move
+  # to the next/prev tiled window, and hand it the zoom — so the background app
+  # swaps into the big window. When not zoomed, fall back to geometric movefocus.
+  #   $1 = cyclenext flags ("tiled" forward, "prev tiled" back)
+  #   $2 = movefocus fallback direction (u/d/l/r)
+  accordionNav = pkgs.writeShellScript "hypr-accordion-nav" ''
+    if [ "$(hyprctl activewindow -j | ${pkgs.jq}/bin/jq -r .floating)" = true ]; then
+      hyprctl --batch "dispatch togglefloating ; dispatch cyclenext $1 ; dispatch togglefloating ; ${zoomWindow}"
+    else
+      hyprctl dispatch movefocus "$2"
+    fi
+  '';
+
 in
 {
   imports = [ ./waybar.nix ];
@@ -161,6 +190,10 @@ in
 
       decoration = {
         rounding = 10;
+        # Dim unfocused windows — makes the accordion zoom (SUPER+comma) read
+        # clearly, with the peeking tiles receding behind the focused window.
+        dim_inactive = true;
+        dim_strength = 0.2;
       };
 
       animations = {
@@ -175,7 +208,7 @@ in
       bind =
         [
           # ── Essentials ──
-          "SUPER, Return, exec, wezterm"
+          "SUPER, Return, fullscreen, 1" # zoom focused window fully, press again to restore
           "SUPER CTRL, t, exec, alacritty"
           "SUPER CTRL, e, exec, emacsclient -c -a emacs"
           "SUPER CTRL, f, exec, firefox"
@@ -184,11 +217,12 @@ in
           "SUPER SHIFT, backspace, killactive"
           "SUPER, space, exec, wofi --show drun"
 
-          # ── Focus (HJKL) ──
-          "SUPER, h, movefocus, u"
-          "SUPER, j, movefocus, l"
-          "SUPER, k, movefocus, d"
-          "SUPER, l, movefocus, r"
+          # ── Focus (HJKL) — flips through the accordion stack while zoomed,
+          #    otherwise normal geometric movefocus. k/l cycle forward, h/j back.
+          ''SUPER, h, exec, ${accordionNav} "prev tiled" u''
+          ''SUPER, j, exec, ${accordionNav} "prev tiled" l''
+          "SUPER, k, exec, ${accordionNav} tiled d"
+          "SUPER, l, exec, ${accordionNav} tiled r"
 
           # ── Move window ──
           "SUPER SHIFT, h, movewindow, u"
@@ -198,7 +232,7 @@ in
 
           # ── Layout ──
           "SUPER, slash, layoutmsg, togglesplit" # tiles horizontal ↔ vertical
-          "SUPER, comma, fullscreen, 1" # zoom focused window, press again to restore
+          "SUPER, comma, exec, ${accordionZoom}" # accordion zoom: 95% float, tiles peek behind
 
           # ── Resize ──
           "SUPER, minus, resizeactive, -50 -50"
