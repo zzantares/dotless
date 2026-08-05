@@ -15,9 +15,68 @@ let
 
   gnome-extensions = with pkgs.gnomeExtensions; [
     forge
+    auto-move-windows # Pin apps to workspaces (sway `assign` equivalent)
     unite
     x11-gestures
   ];
+
+  # ── i3/Hyprland-style fixed workspaces ────────────────────────────────────
+  # GNOME/Mutter has no named, on-demand workspaces like Hyprland; it only has
+  # a fixed numbered list. We approximate the Hyprland app-workspaces (E/T/F/·)
+  # by pinning each app to a fixed slot and giving that slot its Hyprland letter
+  # as an extra switch accelerator, alongside the plain number.
+  workspaceCount = 9;
+
+  # slot -> { key = extra "<Super>+key" accelerator; app = .desktop id to pin }.
+  # Mirrors the Hyprland windowrule class→workspace mapping.
+  appSlots = {
+    "1" = {
+      key = "t";
+      app = "org.wezfurlong.wezterm.desktop";
+    }; # Terminal
+    "2" = {
+      key = "e";
+      app = "emacs.desktop";
+    }; # Emacs
+    "3" = {
+      key = "f";
+      app = "firefox.desktop";
+    }; # Firefox
+    "4" = {
+      key = "period";
+      app = "org.gnome.Nautilus.desktop";
+    }; # Files
+  };
+
+  wsNumbers = lib.genList (i: i + 1) workspaceCount; # [ 1 … 9 ]
+  slotKey = n: lib.optional (appSlots ? ${toString n}) "<Super>${appSlots.${toString n}.key}";
+
+  # Switch: <Super>N (+ the app letter for pinned slots).
+  switchWorkspaceBinds = lib.listToAttrs (
+    map (
+      n: lib.nameValuePair "switch-to-workspace-${toString n}" ([ "<Super>${toString n}" ] ++ slotKey n)
+    ) wsNumbers
+  );
+  # Move window to workspace: <Super><Shift>N only (letters kept for Forge's
+  # in-workspace stack/tab toggles, which live on <Super><Shift><letter>).
+  moveWorkspaceBinds = lib.listToAttrs (
+    map (
+      n: lib.nameValuePair "move-to-workspace-${toString n}" [ "<Super><Shift>${toString n}" ]
+    ) wsNumbers
+  );
+  # Free <Super>1…9 from GNOME's "activate Nth favourite app" shortcut.
+  clearAppSwitchBinds = lib.listToAttrs (
+    map (n: lib.nameValuePair "switch-to-application-${toString n}" [ ]) wsNumbers
+  );
+
+  autoMoveList = lib.mapAttrsToList (slot: v: "${v.app}:${slot}") appSlots;
+  workspaceNames = [
+    "Terminal"
+    "Emacs"
+    "Firefox"
+    "Files"
+  ]
+  ++ map toString (lib.range 5 workspaceCount);
 
   large-text-toggler = pkgs.writeShellScriptBin "large-text-toggler" ''
     #!/usr/bin/env bash
@@ -134,6 +193,16 @@ in
       window-swap-left = [ "<Ctrl><Super>j" ];
       window-swap-down = [ "<Ctrl><Super>k" ];
       window-swap-right = [ "<Ctrl><Super>l" ];
+
+      # Moved off the <Super>Period default so that key can drive the Files
+      # workspace (matching Hyprland's "SUPER, period" → files workspace).
+      prefs-open = [ "<Ctrl><Super>comma" ];
+    };
+
+    # Pin apps to workspaces — the Hyprland windowrule (class → workspace)
+    # equivalent. Format is "<desktop-id>:<workspace-number>".
+    "org/gnome/shell/extensions/auto-move-windows" = {
+      application-list = autoMoveList;
     };
 
     # See: https://nixos.wiki/wiki/Virt-manager
@@ -142,11 +211,23 @@ in
       uris = [ "qemu:///system" ];
     };
 
-    # Multitasking
+    # Multitasking — fixed (not dynamic) workspaces so app pinning and the
+    # numbered/letter switch keys map onto stable slots (i3/Hyprland style).
     "org/gnome/mutter" = {
       workspaces-only-on-primary = false;
       experimental-features = [ "scale-monitor-framebuffer" ];
+      dynamic-workspaces = false;
     };
+
+    "org/gnome/desktop/wm/preferences" = {
+      num-workspaces = workspaceCount;
+      # Display names for the pinned slots; visibility depends on a workspace
+      # indicator (e.g. the switcher popup) — switching is still by index.
+      workspace-names = workspaceNames;
+    };
+
+    # Free <Super>1…9 (GNOME's "activate Nth favourite app") for workspaces.
+    "org/gnome/shell/keybindings" = clearAppSwitchBinds;
 
     # Apparence > Dark
     "org/gnome/desktop/interface" = {
@@ -219,7 +300,10 @@ in
 
       # Freed for Forge: <Super>h focuses up (GNOME default = minimize).
       minimize = [ ];
-    };
+    }
+    # <Super>N (+ app letter) to switch, <Super><Shift>N to move — see appSlots.
+    // switchWorkspaceBinds
+    // moveWorkspaceBinds;
 
     "org/freedesktop/ibus/panel/emoji" = {
       hotkey = "@as []";
