@@ -290,7 +290,7 @@ in
       # Hyprland 0.55: match properties use "match:prop regex" syntax.
       windowrule = [
         "workspace name:E, match:class (emacs|Emacs)"
-        "workspace name:T, match:class (org\\.wezfurlong\\.wezterm|Alacritty)"
+        "workspace name:T, match:class (Alacritty|alacritty)"
         "workspace name:F, match:class (firefox|Firefox)"
         "workspace name:., match:class (org\\.gnome\\.Nautilus|nautilus)"
       ];

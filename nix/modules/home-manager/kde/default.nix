@@ -185,10 +185,10 @@ in
     ];
 
     hotkeys.commands = {
-      "launch-wezterm" = {
-        name = "WezTerm";
+      "launch-alacritty" = {
+        name = "Alacritty";
         key = "Ctrl+Alt+T";
-        command = "wezterm";
+        command = "alacritty";
       };
       "launch-firefox" = {
         name = "Firefox";
