@@ -23,6 +23,16 @@
   services.emacs = lib.mkIf pkgs.stdenv.isLinux {
     enable = lib.mkDefault true;
     package = config.programs.emacs.package;
+
+    # Pin the daemon's user-emacs-directory to Doom's XDG dir. Emacs otherwise
+    # uses ~/.emacs.d as user-emacs-directory whenever that directory exists —
+    # and this daemon (WantedBy=default.target, so it starts at login) comes up
+    # before Doom is ever installed with `just emacs-install`, falls back to
+    # ~/.emacs.d and creates it. That empty dir then permanently shadows Doom at
+    # ~/.config/emacs, so emacsclient frames come up as stock Emacs. Passing
+    # --init-directory (Emacs 29+) makes the resolution explicit and independent
+    # of ~/.emacs.d's existence or daemon-vs-install start order.
+    extraOptions = [ "--init-directory=${config.xdg.configHome}/emacs" ];
   };
 
   systemd.user.services.emacs.Service.Environment = lib.mkIf pkgs.stdenv.isLinux [
