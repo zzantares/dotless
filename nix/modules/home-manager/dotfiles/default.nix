@@ -24,6 +24,16 @@
     fi
   '';
 
+  # Shared shell library sourced by the worktree-workspace scripts (git-wt,
+  # git-pr, task) in consuming repos. Store-based (not out-of-store) since it is
+  # dotless-owned and stable: consumers source it by the fixed path below rather
+  # than vendoring a copy. See ./worktree.sh.
+  home.file.worktree-lib = {
+    enable = lib.mkDefault true;
+    source = ./worktree.sh;
+    target = "${config.home.homeDirectory}/.local/lib/worktree.sh";
+  };
+
   # This is configured as a symlink to not have to re-build HM to change Emacs config
   home.file.doom = {
     enable = lib.mkDefault true;
