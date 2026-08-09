@@ -182,10 +182,13 @@ in
   # GNOME passphrase prompt.
   services.gpg-agent = {
     enableSshSupport = lib.mkDefault false;
-    # Normal priority (not mkDefault): this intentionally overrides the
-    # devstation preset's `mkDefault pinentry-curses` with GNOME's native
-    # prompt. Two mkDefaults would be a same-priority conflict.
-    pinentry.package = pkgs.pinentry-gnome3;
+    # "Stronger default": mkOverride 500 sits between normal (100) and mkDefault
+    # (1000). It's strong enough to override the devstation preset's
+    # `mkDefault pinentry-curses`, but still weaker than a normal-priority
+    # definition, so a downstream machine/user can override it with a plain
+    # value without a conflict. (A plain value here would instead tie with any
+    # such override; a second mkDefault would tie with the preset's.)
+    pinentry.package = lib.mkOverride 500 pkgs.pinentry-gnome3;
   };
 
   programs.gnome-shell = {
