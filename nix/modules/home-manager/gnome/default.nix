@@ -181,7 +181,10 @@ in
   # agent (mirrors the Hyprland module). pinentry-gnome3 gives GPG a native
   # GNOME passphrase prompt.
   services.gpg-agent = {
-    enableSshSupport = false;
+    enableSshSupport = lib.mkDefault false;
+    # Normal priority (not mkDefault): this intentionally overrides the
+    # devstation preset's `mkDefault pinentry-curses` with GNOME's native
+    # prompt. Two mkDefaults would be a same-priority conflict.
     pinentry.package = pkgs.pinentry-gnome3;
   };
 
