@@ -31,12 +31,10 @@
     overrideStrategy = "asDropin";
     after = [ "graphical-session.target" ];
     partOf = [ "graphical-session.target" ];
-    # mkForce (not mkDefault): the packaged unit ships `WantedBy=default.target`
-    # at normal priority. mkDefault here is silently dropped, leaving
-    # wantedBy = [ "default.target" ] and reintroducing the start-before-DISPLAY
-    # race. mkForce replaces it so only the graphical session pulls the agent up.
-    # The socket (wantedBy sockets.target) still sets SSH_AUTH_SOCK early and
-    # queues connections until the service starts.
+    # mkForce: the packaged unit ships `WantedBy=default.target` at normal
+    # priority, so mkDefault would be dropped (leaving the early-start race) and
+    # normal would just concatenate. Only mkForce replaces it, so the graphical
+    # session alone pulls the agent up. (The socket still sets SSH_AUTH_SOCK early.)
     wantedBy = lib.mkForce [ "graphical-session.target" ];
   };
 
