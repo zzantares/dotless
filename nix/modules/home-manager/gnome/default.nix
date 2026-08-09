@@ -239,7 +239,7 @@ in
       # Hyprland (border_size = 2). Disable the extra split-direction border so
       # there's a single, clean focus border.
       focus-border-toggle = true;
-      focus-border-size = lib.gvariant.mkUint32 2;
+      focus-border-size = lib.gvariant.mkUint32 1;
       focus-border-color = "rgba(235, 235, 235, 0.9)";
       split-border-toggle = false;
     };

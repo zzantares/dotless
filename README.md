@@ -4,6 +4,10 @@ A composable, opinionated Home Manager and NixOS distribution. Think of it as
 the [Doom Emacs](https://github.com/doomemacs/doomemacs) of dotfiles: batteries
 included, but designed to be extended with your own private layer.
 
+> [!WARNING]
+> this part of my personal dotfiles configuration, therefore expect this to be
+> opinionated, unstable, or broken at times.
+
 ## What it provides
 
 - **Home Manager presets** — composable role bundles (`base`, `devstation`, `workstation`, `server`)
