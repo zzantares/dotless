@@ -177,17 +177,13 @@ in
     Install.WantedBy = [ "multi-user.target" ];
   };
 
-  # GNOME's gcr-ssh-agent owns SSH, so gpg-agent must not also act as an SSH
-  # agent (mirrors the Hyprland module). pinentry-gnome3 gives GPG a native
-  # GNOME passphrase prompt.
+  # gcr-ssh-agent owns SSH, so gpg-agent isn't an SSH agent here (mirrors
+  # Hyprland); pinentry-gnome3 gives GPG a native GNOME prompt.
   services.gpg-agent = {
     enableSshSupport = lib.mkDefault false;
-    # "Stronger default": mkOverride 500 sits between normal (100) and mkDefault
-    # (1000). It's strong enough to override the devstation preset's
-    # `mkDefault pinentry-curses`, but still weaker than a normal-priority
-    # definition, so a downstream machine/user can override it with a plain
-    # value without a conflict. (A plain value here would instead tie with any
-    # such override; a second mkDefault would tie with the preset's.)
+    # Stronger default (mkOverride 500, between normal=100 and mkDefault=1000):
+    # overrides the devstation preset's `mkDefault pinentry-curses` while staying
+    # overridable by a downstream plain value without a conflict.
     pinentry.package = lib.mkOverride 500 pkgs.pinentry-gnome3;
   };
 

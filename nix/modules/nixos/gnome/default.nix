@@ -14,27 +14,20 @@
   services.gnome.gnome-settings-daemon.enable = lib.mkDefault true;
   programs.dconf.enable = lib.mkDefault true;
 
-  # SSH agent: GNOME ships its own (gcr-ssh-agent, part of gnome-keyring) and it
-  # owns SSH_AUTH_SOCK in the session. Don't also run gpg-agent as an SSH agent -
-  # two agents racing for SSH_AUTH_SOCK is a latent conflict that only ever
-  # confuses things. gpg-agent stays enabled for GPG; it just isn't the SSH one.
+  # GNOME's gcr-ssh-agent owns SSH_AUTH_SOCK; don't also run gpg-agent as a
+  # second SSH agent (it stays enabled for GPG).
   programs.gnupg.agent.enableSSHSupport = lib.mkDefault false;
 
-  # gcr-ssh-agent is socket-activated at sockets.target (early boot), before the
-  # GNOME session exports DISPLAY/WAYLAND into the systemd --user environment.
-  # Its passphrase prompt (gcr4-ssh-askpass) is a GUI dialog, so without those
-  # vars it cannot render and any operation that must unlock a passphrase-
-  # protected key (e.g. SSH-format git commit signing) hangs forever with no
-  # visible prompt. Tie the agent's start to the graphical session so it only
-  # comes up after that environment exists.
+  # gcr-ssh-agent starts early (sockets.target), before GNOME exports
+  # DISPLAY/WAYLAND, so its GUI askpass can't render and unlocking a passphrase-
+  # protected key (e.g. SSH commit signing) hangs. Start it after the graphical
+  # session so that environment exists.
   systemd.user.services.gcr-ssh-agent = {
     overrideStrategy = "asDropin";
     after = [ "graphical-session.target" ];
     partOf = [ "graphical-session.target" ];
-    # mkForce: the packaged unit ships `WantedBy=default.target` at normal
-    # priority, so mkDefault would be dropped (leaving the early-start race) and
-    # normal would just concatenate. Only mkForce replaces it, so the graphical
-    # session alone pulls the agent up. (The socket still sets SSH_AUTH_SOCK early.)
+    # mkForce: the packaged unit sets `WantedBy=default.target` at normal
+    # priority; only a force replaces it so the graphical session alone starts it.
     wantedBy = lib.mkForce [ "graphical-session.target" ];
   };
 
