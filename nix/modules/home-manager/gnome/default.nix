@@ -13,9 +13,24 @@ let
   # - desktop-icons-ng-ding
   # - x11-gestures
 
+  # auto-move-windows only *assigns* a window to its workspace: it moves the
+  # window but leaves you on the current one (i3 `assign`). Patch it to also
+  # activate the target workspace after the move, so focus follows the app to
+  # its slot (like Hyprland launching onto its bound workspace). Upstream exposes
+  # no gsetting for this — the move lives in WindowMover._moveWindow's
+  # change_workspace_by_index call.
+  auto-move-windows-follow = pkgs.gnomeExtensions.auto-move-windows.overrideAttrs (old: {
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace extension.js --replace-fail \
+        'window.change_workspace_by_index(workspaceNum, false);' \
+        'window.change_workspace_by_index(workspaceNum, false);
+              global.workspace_manager.get_workspace_by_index(workspaceNum).activate(global.get_current_time());'
+    '';
+  });
+
   gnome-extensions = with pkgs.gnomeExtensions; [
     forge
-    auto-move-windows # Pin apps to workspaces (sway `assign` equivalent)
+    auto-move-windows-follow # Pin apps to workspaces + follow focus there (i3 `assign`, Hyprland-style follow)
     clipboard-indicator # Clipboard history (cliphist + wofi equivalent)
     unite
     x11-gestures
