@@ -177,7 +177,13 @@ in
     Install.WantedBy = [ "multi-user.target" ];
   };
 
-  services.gpg-agent.pinentry.package = pkgs.pinentry-gnome3;
+  # GNOME's gcr-ssh-agent owns SSH, so gpg-agent must not also act as an SSH
+  # agent (mirrors the Hyprland module). pinentry-gnome3 gives GPG a native
+  # GNOME passphrase prompt.
+  services.gpg-agent = {
+    enableSshSupport = false;
+    pinentry.package = pkgs.pinentry-gnome3;
+  };
 
   programs.gnome-shell = {
     enable = lib.mkDefault true;
