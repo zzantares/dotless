@@ -284,10 +284,24 @@ in
       # workspace (matching Hyprland's "SUPER, period" → files workspace).
       prefs-open = [ "<Ctrl><Super>comma" ];
 
-      # Relocated to <Ctrl><Super>Tab (mnemonic: Tab → tabbed) so <Shift><Super>t
-      # is free to move a window to the Terminal workspace and <Ctrl><Super>t is
-      # free to launch the terminal.
-      con-tabbed-layout-toggle = [ "<Ctrl><Super>Tab" ];
+      # Tabbed zoom sibling to the stacked bind below: <Super>Return fills the
+      # focused window and lays the others out as a horizontal tab row, so the
+      # left/right focus keys (j=left / l=right) cycle which window is raised —
+      # the same cover-and-cycle flow as stacked, but along the other axis, to
+      # try both feels. <Ctrl><Super>Tab (mnemonic: Tab → tabbed) is kept too.
+      con-tabbed-layout-toggle = [
+        "<Ctrl><Super>Tab"
+        "<Super>Return"
+      ];
+
+      # Monocle/zoom for the focused tile, mirroring the Hyprland/AeroSpace
+      # SUPER+comma "zoom in" bind. Forge has no true zoom, but stacked layout
+      # renders the focused window at full container size with the others
+      # collapsed to peeking title-bar slivers — so the tile covers its
+      # siblings, and the window-focus keys (h=up/k=down) cycle which window is
+      # raised to full size (A big → focus → B big, A hidden), matching the
+      # Hyprland accordion-nav flow. Toggle again to return to normal tiling.
+      con-stacked-layout-toggle = [ "<Super>comma" ];
     };
 
     # Pin apps to workspaces — the Hyprland windowrule (class → workspace)
