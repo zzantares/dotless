@@ -188,6 +188,13 @@ in
     pinentry.package = lib.mkOverride 500 pkgs.pinentry-gnome3;
   };
 
+  # Forge draws its tiling/focus borders from this stylesheet, not from dconf.
+  # Ship a themed copy: byte-faithful to Forge 50.1's default except for the
+  # `.tiled` / `.window-tiled-border` classes, which get a thin (2px) soft-white
+  # border instead of the fat (3px) red default. Kept stable by the pinned
+  # `css-last-update` in dconf below.
+  xdg.configFile."forge/stylesheet/forge/stylesheet.css".source = ./forge-stylesheet.css;
+
   programs.gnome-shell = {
     enable = lib.mkDefault true;
     extensions = map (x: {
@@ -236,13 +243,22 @@ in
       preview-hint-enabled = true;
       quick-settings-enabled = true;
 
-      # Focus indicator — a thin white-ish border on the focused window, like
-      # Hyprland (border_size = 2). Disable the extra split-direction border so
-      # there's a single, clean focus border.
+      # Focus indicator: a thin soft-white border on the focused window, like
+      # Hyprland. The toggle is honoured, but Forge 50.x draws the actual border
+      # from its CSS stylesheet (class `.window-tiled-border`), NOT from dconf -
+      # the old `focus-border-color`/`focus-border-size` keys were dropped from
+      # the schema and are silent no-ops. We ship a themed stylesheet (thin
+      # soft-white instead of the fat red default) via xdg.configFile below.
+      # Disable the extra split-direction border so there's one clean border.
       focus-border-toggle = true;
-      focus-border-size = lib.gvariant.mkUint32 1;
-      focus-border-color = "rgba(235, 235, 235, 0.9)";
       split-border-toggle = false;
+
+      # Must equal the extension's hardcoded `cssTag` (lib/shared/theme.js).
+      # Forge only regenerates the config stylesheet when this differs from the
+      # tag, so pinning it to the current value stops Forge from overwriting our
+      # themed copy. If a Forge bump makes the border revert to red, re-copy the
+      # new default stylesheet, re-apply the overrides, and update this number.
+      css-last-update = lib.gvariant.mkUint32 37;
     };
 
     # Forge keybindings — directions mirror the Hyprland config's rotated vim
