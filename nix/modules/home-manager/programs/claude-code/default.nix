@@ -1,4 +1,5 @@
 {
+  inputs,
   profile,
   config,
   lib,
@@ -51,7 +52,21 @@ in
     # skills: if the consumer ships config/claude/skills/, the live symlink (see the
     # home.file block below) owns ~/.claude/skills; empty here so the upstream module
     # writes nothing for that path and there is no double-owner collision.
-    skills = if hasUserItem "skills" then lib.mkForce { } else ./skills;
+    #
+    # Attrset form (not the bare ./skills path) so dotless's own baked skills coexist
+    # with skills sourced from external flake inputs. Each subdir of ./skills is one
+    # skill; simple-english comes from the pinned SimpleEnglish input (ASD-STE100
+    # Simplified Technical English), its skills/simple-english/ dir carrying SKILL.md
+    # plus references/.
+    skills =
+      if hasUserItem "skills" then
+        lib.mkForce { }
+      else
+        {
+          changelog = ./skills/changelog;
+          explain = ./skills/explain;
+          simple-english = "${inputs.simple-english}/skills/simple-english";
+        };
 
     # settings.json: if the consumer ships config/claude/settings.json, empty here so the
     # upstream module writes no settings.json, leaving the path free for the live symlink.

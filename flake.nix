@@ -33,6 +33,12 @@
     t.url = "github:joshmedeski/t-smart-tmux-session-manager?ref=v2.11.1";
     t.flake = false;
 
+    # ASD-STE100 (Simplified Technical English) agent skill, wired into
+    # programs.claude-code.skills. Source-only (not a flake); pinned via
+    # flake.lock. Consumers mirror it with `simple-english.follows`.
+    simple-english.url = "github:AminBlg/SimpleEnglish";
+    simple-english.flake = false;
+
     zed-editor.url = "github:zed-industries/zed?ref=v1.9.0";
     zed-editor.inputs.nixpkgs.follows = "nixpkgs";
 

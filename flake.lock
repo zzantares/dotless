@@ -302,6 +302,7 @@
         "opencode": "opencode",
         "plasma-manager": "plasma-manager",
         "rust-overlay": "rust-overlay",
+        "simple-english": "simple-english",
         "sops-nix": "sops-nix",
         "t": "t",
         "zed-editor": "zed-editor",
@@ -344,6 +345,22 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "simple-english": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786113268,
+        "narHash": "sha256-QmlV9OZ4CNxI+pV7jDcn4n3Zet1+9W7h5oTNCUQ/vrY=",
+        "owner": "AminBlg",
+        "repo": "SimpleEnglish",
+        "rev": "59bf6702197a5aadc96d197ea17f290d8d50dcd3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "AminBlg",
+        "repo": "SimpleEnglish",
         "type": "github"
       }
     },
