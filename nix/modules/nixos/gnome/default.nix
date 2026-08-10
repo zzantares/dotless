@@ -14,10 +14,15 @@
   services.gnome.gnome-settings-daemon.enable = lib.mkDefault true;
   programs.dconf.enable = lib.mkDefault true;
 
-  # GNOME's gcr-ssh-agent owns SSH_AUTH_SOCK; don't also run gpg-agent as a
-  # second SSH agent (it stays enabled for GPG).
-  programs.gnupg.agent.enableSSHSupport = lib.mkDefault false;
+  # gcr-ssh-agent is disabled: its ssh-add helper spins in a busy loop with
+  # ED25519 keys (upstream gcr bug), accumulating runaway ssh-add processes at
+  # 80-90% CPU. gpg-agent serves SSH instead (see the home-manager gnome module).
+  # mkOverride 500 (stronger than mkDefault): nixpkgs' GNOME desktop module
+  # enables it via mkDefault true, so a plain mkDefault false would conflict;
+  # this beats that while staying overridable by a downstream plain value.
+  services.gnome.gcr-ssh-agent.enable = lib.mkOverride 500 false;
 
+  # The ordering fix below is kept inert for anyone who re-enables gcr-ssh-agent:
   # gcr-ssh-agent starts early (sockets.target), before GNOME exports
   # DISPLAY/WAYLAND, so its GUI askpass can't render and unlocking a passphrase-
   # protected key (e.g. SSH commit signing) hangs. Start it after the graphical

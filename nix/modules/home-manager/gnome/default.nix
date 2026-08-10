@@ -177,10 +177,11 @@ in
     Install.WantedBy = [ "multi-user.target" ];
   };
 
-  # gcr-ssh-agent owns SSH, so gpg-agent isn't an SSH agent here (mirrors
-  # Hyprland); pinentry-gnome3 gives GPG a native GNOME prompt.
+  # gpg-agent serves SSH here: GNOME's gcr-ssh-agent is disabled (its ssh-add
+  # helper busy-loops with ED25519 keys), so gpg-agent owns SSH_AUTH_SOCK.
+  # pinentry-gnome3 gives both GPG and the SSH key unlock a native GNOME prompt.
   services.gpg-agent = {
-    enableSshSupport = lib.mkDefault false;
+    enableSshSupport = lib.mkDefault true;
     # Stronger default (mkOverride 500, between normal=100 and mkDefault=1000):
     # overrides the devstation preset's `mkDefault pinentry-curses` while staying
     # overridable by a downstream plain value without a conflict.
