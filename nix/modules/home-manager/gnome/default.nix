@@ -431,8 +431,18 @@ in
     // switchWorkspaceBinds
     // moveWorkspaceBinds;
 
-    "org/freedesktop/ibus/panel/emoji" = {
-      hotkey = "@as []";
+    # Disable IBus's emoji/unicode input hotkeys. Their compiled-in defaults are
+    # Ctrl+. / Ctrl+; (emoji) and Ctrl+Shift+U (unicode); the Ctrl+. binding
+    # shadows the <Ctrl><Super>Period "Files" launcher whenever a text field has
+    # an IBus input context focused (e.g. a terminal prompt), swallowing the key
+    # into an emoji-annotation preedit instead of letting the global shortcut run.
+    # NOTE the dconf path is /desktop/ibus/... (the schema id is
+    # org.freedesktop.ibus.panel.emoji, but its path is non-standard); writing to
+    # org/freedesktop/... lands somewhere IBus never reads. The value must be a
+    # typed empty array, not the string "@as []".
+    "desktop/ibus/panel/emoji" = {
+      hotkey = lib.gvariant.mkEmptyArray lib.gvariant.type.string;
+      unicode-hotkey = lib.gvariant.mkEmptyArray lib.gvariant.type.string;
     };
 
     # Gnome custom keybindings — app launchers (<Ctrl><Super>+letter, mirroring
