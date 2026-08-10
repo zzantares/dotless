@@ -440,6 +440,21 @@ in
         hash = "sha256-7MHd9iBOtW/ukciQ5ADfKwcu8afv/3GBjHi5FTMp1QA=";
       };
     });
+
+    # auto-move-windows only *assigns* a window to its workspace: it moves the
+    # window but leaves you on the current one (i3 `assign`). Patch it to also
+    # activate the target workspace after the move, so focus follows the app to
+    # its slot (like Hyprland launching onto its bound workspace). Upstream exposes
+    # no gsetting for this — the move lives in WindowMover._moveWindow's
+    # change_workspace_by_index call.
+    auto-move-windows-follow = prev.gnomeExtensions.auto-move-windows.overrideAttrs (old: {
+      postPatch = (old.postPatch or "") + ''
+        substituteInPlace extension.js --replace-fail \
+          'window.change_workspace_by_index(workspaceNum, false);' \
+          'window.change_workspace_by_index(workspaceNum, false);
+                global.workspace_manager.get_workspace_by_index(workspaceNum).activate(global.get_current_time());'
+      '';
+    });
   };
 
   firefox = prev.firefox.override {
