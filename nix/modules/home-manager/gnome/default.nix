@@ -284,24 +284,10 @@ in
       # workspace (matching Hyprland's "SUPER, period" → files workspace).
       prefs-open = [ "<Ctrl><Super>comma" ];
 
-      # Tabbed zoom sibling to the stacked bind below: <Super>Return fills the
-      # focused window and lays the others out as a horizontal tab row, so the
-      # left/right focus keys (j=left / l=right) cycle which window is raised —
-      # the same cover-and-cycle flow as stacked, but along the other axis, to
-      # try both feels. <Ctrl><Super>Tab (mnemonic: Tab → tabbed) is kept too.
-      con-tabbed-layout-toggle = [
-        "<Ctrl><Super>Tab"
-        "<Super>Return"
-      ];
-
-      # Monocle/zoom for the focused tile, mirroring the Hyprland/AeroSpace
-      # SUPER+comma "zoom in" bind. Forge has no true zoom, but stacked layout
-      # renders the focused window at full container size with the others
-      # collapsed to peeking title-bar slivers — so the tile covers its
-      # siblings, and the window-focus keys (h=up/k=down) cycle which window is
-      # raised to full size (A big → focus → B big, A hidden), matching the
-      # Hyprland accordion-nav flow. Toggle again to return to normal tiling.
-      con-stacked-layout-toggle = [ "<Super>comma" ];
+      # Relocated to <Ctrl><Super>Tab (mnemonic: Tab → tabbed) so <Shift><Super>t
+      # is free to move a window to the Terminal workspace and <Ctrl><Super>t is
+      # free to launch the terminal.
+      con-tabbed-layout-toggle = [ "<Ctrl><Super>Tab" ];
     };
 
     # Pin apps to workspaces — the Hyprland windowrule (class → workspace)
@@ -420,6 +406,23 @@ in
 
       # Freed for Forge: <Super>h focuses up (GNOME default = minimize).
       minimize = [ ];
+
+      # Monocle/zoom for the focused tile, mirroring the Hyprland/AeroSpace
+      # SUPER+comma "zoom in" bind. Forge has no zoom action of its own (its
+      # stacked/tabbed layouts only group windows that already share a
+      # container, so they can't cover sibling monitor-level tiles), but it
+      # un-tiles a maximized/fullscreen window and restores its tile when
+      # toggled back. So the native Mutter toggles reliably cover the other
+      # tiles regardless of tree shape:
+      #   <Super>comma  → maximize (fills the work area, top bar kept)
+      #   <Super>Return → fullscreen (covers the top bar too, i3/sway monocle)
+      # Second press restores the tile. These don't cycle to the covered tiles
+      # (Forge can't do zoom-follows-focus on Wayland); <Alt>F10 is kept too.
+      toggle-maximized = [
+        "<Alt>F10"
+        "<Super>comma"
+      ];
+      toggle-fullscreen = [ "<Super>Return" ];
 
       # Close focused window — mirror Hyprland's <Super><Shift>Backspace killactive
       # (keep the GNOME default <Alt>F4 too).
