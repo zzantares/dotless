@@ -326,6 +326,8 @@ in
       paths = with final; [
         discount
         markdownlint-cli
+        mdbook
+        mdbook-mermaid
       ];
     };
 

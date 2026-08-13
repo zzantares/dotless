@@ -21,7 +21,6 @@
       git-extras
       git-lfs
       just
-      mdbook
       man-pages-posix
       latex-with-packages # needed for org-export commands in emacs
       libfaketime
