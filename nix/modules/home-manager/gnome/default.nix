@@ -330,6 +330,15 @@ in
       # is free to move a window to the Terminal workspace and <Ctrl><Super>t is
       # free to launch the terminal.
       con-tabbed-layout-toggle = [ "<Ctrl><Super>Tab" ];
+
+      # Free the <Super>w / <Shift><Super>w keys for the Librewolf workspace
+      # (appSlots slot 5, key `w`). Forge grabs both by default and its global
+      # grab shadows the plain workspace accelerator, so <Super>w toggled tiling
+      # instead of switching workspaces. Same treatment as prefs-open and
+      # con-tabbed-layout-toggle above, which free <Super>Period and <Shift><Super>t
+      # for the Files/Terminal slots.
+      prefs-tiling-toggle = [ ];
+      workspace-active-tile-toggle = [ ];
     };
 
     # Pin apps to workspaces — the Hyprland windowrule (class → workspace)
