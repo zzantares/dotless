@@ -19,6 +19,8 @@ let
     clipboard-indicator # Clipboard history (cliphist + wofi equivalent)
     unite
     blur-my-shell # Aesthetic gaussian blur on the panel, overview, and app grid
+    appindicator # Legacy tray/status icons for background apps (Discord, Slack, …)
+    vitals # System resource metrics (CPU, memory, temperature, network) in the panel
     x11-gestures
   ];
 
@@ -256,6 +258,23 @@ in
     # Per-window blur off on purpose: it composites poorly with Forge's tiled,
     # edge-to-edge windows and is the extension's most glitch-prone feature.
     "org/gnome/shell/extensions/blur-my-shell/applications".blur = false;
+
+    # Vitals — system resource readout in the top bar. Panel shows CPU %,
+    # memory %, and network download; the dropdown still exposes the rest
+    # (temperature, storage, load, …), which stay on by default. Machine-
+    # independent sensor ids only, so this works across hosts (temperature
+    # sensor ids are hwmon-specific and would show nothing on some machines).
+    "org/gnome/shell/extensions/vitals" = {
+      hot-sensors = [
+        "_processor_usage_"
+        "_memory_usage_"
+        "__network-rx_max__"
+      ];
+      hide-zeros = true; # drop sensors reading 0 from the panel
+    };
+
+    # AppIndicator needs no configuration; enabling it (via the extension list
+    # above) restores the legacy tray icons GNOME dropped.
 
     # Forge tiling extension — behaviour
     "org/gnome/shell/extensions/forge" = {
