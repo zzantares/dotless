@@ -389,6 +389,13 @@ in
       workspaces-only-on-primary = false;
       experimental-features = [ "scale-monitor-framebuffer" ];
       dynamic-workspaces = false;
+
+      # A plain <Super> tap no longer opens the Activities overview. <Super> is
+      # a modifier in a lot of our binds (workspaces, Forge focus, …), so a
+      # bare tap triggering the overview was mostly accidental. The overview
+      # now lives on <Super><Space> (toggle-overview below); an empty string
+      # disables the overlay-key entirely.
+      overlay-key = "";
     };
 
     "org/gnome/desktop/wm/preferences" = {
@@ -398,14 +405,13 @@ in
       workspace-names = workspaceNames;
     };
 
-    # Free <Super>1…9 (GNOME's "activate Nth favourite app") for workspaces,
-    # and put the app grid on <Super>space (Hyprland's launcher key) alongside
-    # the default <Super>a.
+    # Free <Super>1…9 (GNOME's "activate Nth favourite app") for workspaces.
+    # <Super><Space> now opens the Activities overview (the windows/desktop
+    # view that a bare <Super> used to trigger via overlay-key, now disabled).
+    # The app grid keeps its default <Super>a.
     "org/gnome/shell/keybindings" = clearAppSwitchBinds // {
-      toggle-application-view = [
-        "<Super>a"
-        "<Super>space"
-      ];
+      toggle-overview = [ "<Super>space" ];
+      toggle-application-view = [ "<Super>a" ];
     };
 
     # Apparence > Dark
