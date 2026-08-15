@@ -22,6 +22,14 @@ let
     appindicator # Legacy tray/status icons for background apps (Discord, Slack, …)
     vitals # System resource metrics (CPU, memory, temperature, network) in the panel
     x11-gestures
+    # GNOME slides the viewport left/right on workspace switch, which fakes a
+    # linear ordering that's misleading with our fixed, app-pinned slots (you
+    # jump around by <Super>+letter, not along a row). GNOME has no dconf key to
+    # swap the slide for a Hyprland-style fade, so drop the slide entirely: this
+    # extension makes the switch an instant cut while leaving every other
+    # animation (overview zoom, dialog fades) intact. uuid
+    # instantworkspaceswitcher@amalantony.net; supports GNOME 45-50.
+    disable-workspace-switch-animation-for-gnome-40
   ];
 
   # ── i3/Hyprland-style fixed workspaces ────────────────────────────────────
