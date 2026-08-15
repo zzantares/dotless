@@ -59,6 +59,12 @@ let
       cmd = "nautilus";
       name = "Files";
     };
+    "5" = {
+      key = "w";
+      app = "librewolf.desktop";
+      cmd = "librewolf";
+      name = "Librewolf";
+    };
   };
 
   wsNumbers = lib.genList (i: i + 1) workspaceCount; # [ 1 … 9 ]
@@ -96,8 +102,9 @@ let
     "Emacs"
     "Firefox"
     "Files"
+    "Librewolf"
   ]
-  ++ map toString (lib.range 5 workspaceCount);
+  ++ map toString (lib.range 6 workspaceCount);
 
   # App launchers on <Ctrl><Super>+<letter>, mirroring Hyprland's "SUPER CTRL"
   # exec binds. Derived from appSlots so each app's workspace, pin, and launch
