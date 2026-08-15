@@ -18,6 +18,7 @@ let
     auto-move-windows-follow # Pin apps to workspaces + follow focus there (i3 `assign`, Hyprland-style follow)
     clipboard-indicator # Clipboard history (cliphist + wofi equivalent)
     unite
+    blur-my-shell # Aesthetic gaussian blur on the panel, overview, and app grid
     x11-gestures
   ];
 
@@ -240,6 +241,21 @@ in
       hide-app-menu-icon = true;
       reduce-panel-spacing = false;
     };
+
+    # Blur my Shell — aesthetic gaussian blur. Upstream's own defaults already
+    # suit a tiling setup (panel + overview + app-grid blur on, per-window blur
+    # off), so we only pin the choices we care about so a future bump can't flip
+    # them silently.
+    "org/gnome/shell/extensions/blur-my-shell/panel" = {
+      blur = true;
+      static-blur = true; # blur the wallpaper region, cheaper than live compositing
+      unblur-in-overview = true;
+    };
+    "org/gnome/shell/extensions/blur-my-shell/overview".blur = true;
+    "org/gnome/shell/extensions/blur-my-shell/appfolder".blur = true;
+    # Per-window blur off on purpose: it composites poorly with Forge's tiled,
+    # edge-to-edge windows and is the extension's most glitch-prone feature.
+    "org/gnome/shell/extensions/blur-my-shell/applications".blur = false;
 
     # Forge tiling extension — behaviour
     "org/gnome/shell/extensions/forge" = {
