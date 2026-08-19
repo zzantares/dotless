@@ -266,6 +266,19 @@ in
       hide-activities-button = "auto";
       hide-app-menu-icon = true;
       reduce-panel-spacing = false;
+
+      # Strip server-side title bars for a seamless, tiling-native look. Only
+      # SSD windows are affected (XWayland/X11 apps like todoist-electron, which
+      # otherwise get mutter's gray titlebar showing the current view name);
+      # native GNOME apps draw their own client-side headerbar, which is app
+      # content, not a separate bar, so they're untouched. Value is "always"
+      # rather than "tiled"/"maximized" on purpose: those modes key off mutter's
+      # own tiled/maximized state, but Forge tiles by resizing/repositioning
+      # windows in the "normal" state, so it never sets those flags - "both"
+      # would miss every Forge-tiled window. We drive windows from the keyboard
+      # (Forge focus/move, <Super><Shift>BackSpace to close), so losing the
+      # titlebar's drag/close buttons costs nothing.
+      hide-window-titlebars = "always";
     };
 
     # Blur my Shell — aesthetic gaussian blur. Upstream's own defaults already
