@@ -309,6 +309,15 @@ in
       preview-hint-enabled = true;
       quick-settings-enabled = true;
 
+      # Keep tiling on for every workspace. `workspace-skip-tile` is Forge's
+      # per-workspace "tiling off" list, toggled by workspace-active-tile-toggle
+      # (which we leave unbound below). It is stateful runtime dconf, so a stray
+      # value survives across sessions and silently disables tiling on that
+      # workspace - a window maximized there with <Super>comma then un-maximizes
+      # into a small floating rect (its stale restore geometry) instead of
+      # snapping back to a tile. Pin it empty so drift can't disable tiling.
+      workspace-skip-tile = "";
+
       # Focus indicator: a thin soft-white border on the focused window, like
       # Hyprland. The toggle is honoured, but Forge 50.x draws the actual border
       # from its CSS stylesheet (class `.window-tiled-border`), NOT from dconf -
