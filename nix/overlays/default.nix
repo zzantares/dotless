@@ -433,16 +433,6 @@ in
 }
 // prev.lib.optionalAttrs prev.stdenv.isLinux {
   gnomeExtensions = prev.gnomeExtensions // {
-    unite = prev.gnomeExtensions.unite.overrideAttrs (old: rec {
-      version = "72";
-      src = final.fetchFromGitHub {
-        owner = "hardpixel";
-        repo = "unite-shell";
-        rev = "v${version}";
-        hash = "sha256-7MHd9iBOtW/ukciQ5ADfKwcu8afv/3GBjHi5FTMp1QA=";
-      };
-    });
-
     # auto-move-windows only *assigns* a window to its workspace: it moves the
     # window but leaves you on the current one (i3 `assign`). Patch it to also
     # activate the target workspace after the move, so focus follows the app to
