@@ -14,7 +14,6 @@
     element-desktop
     gimp
     languagetool
-    ladybird
     slack
     spotify
     xournalpp
