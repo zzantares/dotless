@@ -37,7 +37,13 @@ in
         padding.y = 0;
 
         decorations = "none";
-        startup_mode = "Maximized";
+        # Leave the startup mode at Alacritty's default ("Windowed"). Forge only
+        # tiles windows in mutter's "normal" state; a window that starts
+        # "Maximized" (or "Fullscreen") stays in mutter's maximized state and
+        # Forge won't manage it - it just fills the work area and covers the
+        # other tiles, so Alacritty could never share a workspace. Keep windowed
+        # so Forge tiles it alongside siblings on launch.
+        # startup_mode = "Maximized";
         # startup_mode = "Fullscreen";
       };
 
