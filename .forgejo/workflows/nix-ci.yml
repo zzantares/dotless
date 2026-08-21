@@ -50,12 +50,26 @@ jobs:
   # dotfiles' own `warnings` job (which evaluates homeConfigurations.antares)
   # is that integration gate, and it fires on the PR that bumps dotless. See
   # issue #45 to add a preset smoke-test config here for source-level coverage.
+  #
+  # One matrix leg per package (fail-fast: false) so a warning in one package
+  # fails only its own leg and still reports the rest — the overall check goes
+  # red (blocking merge) while pointing at exactly which package is offending.
   warnings:
-    name: eval warnings
+    name: Warnings ${{ matrix.pkg }}
     needs: fmt
     runs-on: nix
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - claude-code
+          - opencode
+          - fonts
+          - wallpapers
+          - linear-cli
+          - zed-editor
     steps:
       - name: Checkout
         run: |
@@ -64,19 +78,8 @@ jobs:
           git fetch -q --depth 1 origin "$GITHUB_SHA"
           git checkout -q FETCH_HEAD
 
-      - name: Evaluate overlay packages, fail on any warning
-        run: |
-          set -euo pipefail
-          pkgs=(
-            claude-code
-            opencode
-            fonts
-            wallpapers
-            linear-cli
-            zed-editor
-          )
-          for p in "${pkgs[@]}"; do
-            echo "==> eval $p"
-            nix eval --impure --raw ".#packages.x86_64-linux.$p.drvPath" \
-              --option abort-on-warn true >/dev/null
-          done
+      - name: Evaluate ${{ matrix.pkg }}, fail on any warning
+        run: >-
+          nix eval --impure --raw
+          ".#packages.x86_64-linux.${{ matrix.pkg }}.drvPath"
+          --option abort-on-warn true >/dev/null
