@@ -212,6 +212,7 @@ in
           "SUPER CTRL, t, exec, alacritty"
           "SUPER CTRL, e, exec, emacsclient -c -a emacs"
           "SUPER CTRL, f, exec, firefox"
+          "SUPER CTRL, w, exec, librewolf"
           "SUPER CTRL, period, exec, nautilus"
           "SUPER CTRL, v, exec, cliphist list | wofi --dmenu | cliphist decode | wl-copy"
           "SUPER SHIFT, backspace, killactive"
@@ -292,6 +293,7 @@ in
         "workspace name:E, match:class (emacs|Emacs)"
         "workspace name:T, match:class (Alacritty|alacritty)"
         "workspace name:F, match:class (firefox|Firefox)"
+        "workspace name:W, match:class (librewolf|LibreWolf)"
         "workspace name:., match:class (org\\.gnome\\.Nautilus|nautilus)"
       ];
     };
