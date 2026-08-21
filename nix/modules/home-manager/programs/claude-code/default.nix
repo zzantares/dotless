@@ -172,6 +172,12 @@ in
     };
   };
 
+  # Claude Code's Read tool renders PDF pages to images by shelling out to
+  # `pdftoppm` (from poppler-utils); without it, reading a PDF fails with
+  # "pdftoppm is not installed". Ship it here, next to where Claude Code is
+  # enabled, so PDF reading works out of the box for every dotless consumer.
+  home.packages = lib.optional config.programs.claude-code.enable pkgs.poppler-utils;
+
   # Consumer-provided config items → live out-of-store symlinks (per-item; the wezterm /
   # doom pattern). Items the consumer doesn't ship fall back to dotless's declarative
   # defaults above (or to nothing, for items dotless doesn't set). liveItem yields {} for
