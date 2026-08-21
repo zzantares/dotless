@@ -7,12 +7,15 @@
 }:
 
 let
-  # Convention: if the consumer places config/hypr/local.lua in their flake root,
-  # symlink it out-of-store (live-editable, auto-reloads on change, no rebuild needed).
+  # Convention: if the consumer sets profile.liveOverrides.hyprland, symlink their
+  # config/hypr/local.lua out-of-store (live-editable, auto-reloads, no rebuild).
   # Otherwise create an empty placeholder so the dofile loader below finds a file.
-  # Evaluated at switch time under --impure.
+  #
+  # DECLARED, not detected: this used to probe local.lua with builtins.pathExists,
+  # which is impure (needs --impure) and aborts eval in CI where the runner can't read
+  # the user's home. TODO(dotless#48): pure, shared live-override mechanism.
   userDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/hypr";
-  hasUserConfig = builtins.pathExists "${userDir}/local.lua";
+  hasUserConfig = profile.liveOverrides.hyprland or false;
 
   # Behavior (startup, keybinds, service submap) lives in behavior.lua and calls
   # bare command names. Anything that needs a Nix store path is a named wrapper

@@ -8,34 +8,23 @@
 }:
 
 let
-  # Per-item live-override convention (mirrors the wezterm module). For each known
-  # Claude config item, if the consumer ships it under their flake's config/claude/,
-  # symlink that item live (out-of-store → editable, no rebuild) AND turn off dotless's
-  # declarative version of it below, so there's no double-owner collision on the path.
-  # Anything the consumer doesn't provide keeps dotless's baked-in default.
+  # Per-item live-override convention (mirrors wezterm/hyprland). For each item the
+  # consumer lists in profile.liveOverrides.claude-code, symlink that item live
+  # (out-of-store → editable, no rebuild) AND turn off dotless's baked version below,
+  # so there's no double-owner collision on the path. Unlisted items keep the baked
+  # default. Overriding an item fully REPLACES it (no merge with dotless's version).
   #
-  # Detection keys on each ITEM's own path (not the bare config/claude dir), so items
-  # can be overridden piecemeal and a stray empty dir can't silently wipe the defaults
-  # (same rationale as the wezterm module's wezterm.lua entrypoint check). Overriding an
-  # item fully REPLACES it — there is no merge with dotless's version (matches wezterm).
+  # DECLARED, not detected: this used to probe the live tree with builtins.pathExists,
+  # which is impure (needs --impure) and aborts eval in CI where the runner can't read
+  # the user's home. TODO(dotless#48): replace this profile-level list with a
+  # first-class, pure live-override mechanism shared across modules.
   #
   # NB: ~/.claude is a MIXED directory — config plus a lot of mutable runtime state
   # (history, sessions, projects, telemetry, …). Never symlink the whole dir; only the
-  # individual config items enumerated here. Evaluated at switch time under --impure.
+  # individual config items listed by the consumer.
   claudeDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/claude";
 
-  overridableItems = [
-    "settings.json"
-    "skills"
-    "agents"
-    "commands"
-    "rules"
-    "hooks"
-    "CLAUDE.md"
-    "output-styles"
-  ];
-
-  hasUserItem = rel: builtins.pathExists "${claudeDir}/${rel}";
+  hasUserItem = rel: builtins.elem rel (profile.liveOverrides.claude-code or [ ]);
 
   liveItem =
     rel:
@@ -178,11 +167,10 @@ in
   # enabled, so PDF reading works out of the box for every dotless consumer.
   home.packages = lib.optional config.programs.claude-code.enable pkgs.poppler-utils;
 
-  # Consumer-provided config items → live out-of-store symlinks (per-item; the wezterm /
-  # doom pattern). Items the consumer doesn't ship fall back to dotless's declarative
-  # defaults above (or to nothing, for items dotless doesn't set). liveItem yields {} for
-  # absent items, so this merges down to only the paths the consumer actually provides.
-  home.file = lib.mkMerge (map liveItem overridableItems);
+  # Declared items → live out-of-store symlinks (per-item; the wezterm / doom pattern).
+  # Items the consumer does not list fall back to dotless's declarative defaults above
+  # (or to nothing, for items dotless doesn't set).
+  home.file = lib.mkMerge (map liveItem (profile.liveOverrides.claude-code or [ ]));
 
   programs.opencode = {
     enable = lib.mkDefault true;

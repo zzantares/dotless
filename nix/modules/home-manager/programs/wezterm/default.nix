@@ -7,13 +7,15 @@
 }:
 
 let
-  # Convention: if the consumer provides their own wezterm config dir in their flake
-  # repo, symlink the WHOLE directory live (out-of-store → editable, auto-reloads, no
-  # rebuild, and split-into-multiple-lua-files works). Otherwise bake dotless's bundled
-  # config into the store. Detection keys on the wezterm.lua entrypoint so a stray empty
-  # dir doesn't silently disable the config. Evaluated at switch time under --impure.
+  # Convention: if the consumer sets profile.liveOverrides.wezterm, symlink their whole
+  # config dir live (out-of-store → editable, auto-reloads, no rebuild, and split-into-
+  # multiple-lua-files works). Otherwise bake dotless's bundled config into the store.
+  #
+  # DECLARED, not detected: this used to probe wezterm.lua with builtins.pathExists,
+  # which is impure (needs --impure) and aborts eval in CI where the runner can't read
+  # the user's home. TODO(dotless#48): pure, shared live-override mechanism.
   userDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/wezterm";
-  hasUserConfig = builtins.pathExists "${userDir}/wezterm.lua";
+  hasUserConfig = profile.liveOverrides.wezterm or false;
 in
 {
   programs.wezterm = {
