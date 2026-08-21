@@ -78,7 +78,7 @@
   home.shellAliases = { } // (profile.shellAliases or { });
 
   # A systemd service to update tldr cache
-  systemd.user.services.tldr-cache-update = lib.mkIf pkgs.stdenv.isLinux {
+  systemd.user.services.tldr-cache-update = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     Unit = {
       Description = "Update tldr cache.";
       After = [ "network.target" ];
@@ -101,7 +101,7 @@
   };
 
   # A systemd timer to constantly trigger the service that updates the tldr cache
-  systemd.user.timers.tldr-cache-update = lib.mkIf pkgs.stdenv.isLinux {
+  systemd.user.timers.tldr-cache-update = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     Unit.Description = "Keep tldr cache fresh.";
     Timer.OnCalendar = "12:30";
     Install.WantedBy = [ "timers.target" ];
@@ -114,8 +114,8 @@
     maxCacheTtl = 14400;
     defaultCacheTtl = 1200;
     enableZshIntegration = true;
-    grabKeyboardAndMouse = lib.mkIf pkgs.stdenv.isLinux true;
-    pinentry.package = lib.mkDefault (if pkgs.stdenv.isDarwin then pkgs.pinentry_mac else pkgs.pinentry-curses);
+    grabKeyboardAndMouse = lib.mkIf pkgs.stdenv.hostPlatform.isLinux true;
+    pinentry.package = lib.mkDefault (if pkgs.stdenv.hostPlatform.isDarwin then pkgs.pinentry_mac else pkgs.pinentry-curses);
   };
 
   programs.zellij = {
@@ -126,7 +126,7 @@
       default_shell = "${config.programs.zsh.package}/bin/zsh";
       mouse_mode = false;
       scroll_buffer_size = 10000;
-      copy_command = lib.mkIf pkgs.stdenv.isLinux "xclip -selection clipboard";
+      copy_command = lib.mkIf pkgs.stdenv.hostPlatform.isLinux "xclip -selection clipboard";
 
       # pane_frames = true;
       theme = "one-half-dark";
@@ -153,7 +153,7 @@
     };
   };
 
-  systemd.user.services.hoogle = lib.mkIf pkgs.stdenv.isLinux {
+  systemd.user.services.hoogle = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     Unit = {
       Description = "Start a local Hoggle server.";
       After = [ "network.target" ];
@@ -171,7 +171,7 @@
     Install.WantedBy = [ "default.target" ];
   };
 
-  systemd.user.timers.hoogle = lib.mkIf pkgs.stdenv.isLinux {
+  systemd.user.timers.hoogle = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     Unit.Description = "Keep Hoogle database up to date.";
     Timer.OnCalendar = "weekly";
   };
@@ -192,7 +192,7 @@
   };
 
   # Workaround for: https://github.com/Mic92/sops-nix/issues/687
-  systemd.user.services.sops-nix-starter = lib.mkIf pkgs.stdenv.isLinux {
+  systemd.user.services.sops-nix-starter = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     Unit = {
       Description = "Trigger sops-nix after login (decryption at startup workaround)";
       After = [ "default.target" ];

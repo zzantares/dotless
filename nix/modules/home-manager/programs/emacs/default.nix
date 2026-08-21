@@ -20,7 +20,7 @@
       ];
   };
 
-  services.emacs = lib.mkIf pkgs.stdenv.isLinux {
+  services.emacs = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     enable = lib.mkDefault true;
     package = config.programs.emacs.package;
 
@@ -35,12 +35,12 @@
     extraOptions = [ "--init-directory=${config.xdg.configHome}/emacs" ];
   };
 
-  systemd.user.services.emacs.Service.Environment = lib.mkIf pkgs.stdenv.isLinux [
+  systemd.user.services.emacs.Service.Environment = lib.mkIf pkgs.stdenv.hostPlatform.isLinux [
     "DOTFILES_FLAKE_ROOT=${config.home.homeDirectory}/${profile.flakeRoot}"
   ];
 
   # Add our own desktop entry in order to use Emacs Doom icon
-  xdg.desktopEntries.emacs = lib.mkIf pkgs.stdenv.isLinux {
+  xdg.desktopEntries.emacs = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     name = "Emacs";
     genericName = "Text Editor";
     comment = "An extensible, customizable, free/libre text editor";

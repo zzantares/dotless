@@ -26,7 +26,7 @@
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home.homeDirectory =
-    if pkgs.stdenv.isDarwin then "/Users/${config.home.username}" else "/home/${config.home.username}";
+    if pkgs.stdenv.hostPlatform.isDarwin then "/Users/${config.home.username}" else "/home/${config.home.username}";
   home.sessionVariables = {
     EDITOR = lib.mkDefault "nvim";
     COLORTERM = lib.mkDefault "truecolor";

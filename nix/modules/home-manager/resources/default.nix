@@ -47,7 +47,7 @@
 
   # macOS doesn't use fontconfig to discover fonts from the Nix profile;
   # copy them into ~/Library/Fonts/Nix so the system font registry picks them up.
-  home.activation.copyNixFonts = lib.mkIf pkgs.stdenv.isDarwin (
+  home.activation.copyNixFonts = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       fontsDir="${config.home.homeDirectory}/Library/Fonts/Nix"
       mkdir -p "$fontsDir"

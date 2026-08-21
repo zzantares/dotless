@@ -10,7 +10,7 @@
     enable = lib.mkDefault true;
 
     package =
-      if pkgs.stdenv.isDarwin then pkgs.google-chrome else config.lib.nixGL.wrap pkgs.google-chrome;
+      if pkgs.stdenv.hostPlatform.isDarwin then pkgs.google-chrome else config.lib.nixGL.wrap pkgs.google-chrome;
     # commandLineArgs = []; # strings get it from ps -o cmd
 
     dictionaries = with pkgs.hunspellDictsChromium; [

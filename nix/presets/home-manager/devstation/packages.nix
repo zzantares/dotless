@@ -42,7 +42,7 @@
       toolchains.web
       yq
     ]
-    ++ lib.optionals stdenv.isLinux [
+    ++ lib.optionals stdenv.hostPlatform.isLinux [
       linux-manual
       man-pages
       wikiman # TODO see how to install it with additional sources (tldr, arch)

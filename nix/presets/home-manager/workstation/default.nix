@@ -16,7 +16,7 @@
 
   # Default applications
   xdg.configFile."mimeapps.list".force = true;
-  xdg.mimeApps = lib.mkIf pkgs.stdenv.isLinux {
+  xdg.mimeApps = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     enable = true;
     defaultApplications = {
       "x-scheme-handler/http" = "firefox.desktop";

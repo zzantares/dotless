@@ -55,7 +55,7 @@ in
   # Build-time checks (smoke test, shell completions, version check) also run
   # the binary and segfault in the Nix sandbox for the same reason — skip them.
   opencode =
-    if prev.stdenv.isLinux then
+    if prev.stdenv.hostPlatform.isLinux then
       (inputs.opencode.packages.${system}.default).overrideAttrs (old: {
         postPatch = (old.postPatch or "") + ''
           substituteInPlace packages/opencode/script/build.ts \
@@ -147,7 +147,7 @@ in
 
     android = final.buildEnv {
       name = "android-toolchain";
-      paths = prev.lib.optionals prev.stdenv.isLinux (
+      paths = prev.lib.optionals prev.stdenv.hostPlatform.isLinux (
         with final;
         [
           (symlinkJoin {
@@ -243,7 +243,7 @@ in
           hclfmt
           atlas
         ]
-        ++ prev.lib.optionals prev.stdenv.isLinux [
+        ++ prev.lib.optionals prev.stdenv.hostPlatform.isLinux [
           # CGO_ENABLED=1 builds — require Linux/Darwin SDK; primarily server-side daemons
           nomad
           consul
@@ -263,7 +263,7 @@ in
           iperf
           nmap
         ]
-        ++ prev.lib.optionals prev.stdenv.isLinux [
+        ++ prev.lib.optionals prev.stdenv.hostPlatform.isLinux [
           iproute2
           wirelesstools
           aircrack-ng
@@ -431,7 +431,7 @@ in
     ]
   );
 }
-// prev.lib.optionalAttrs prev.stdenv.isLinux {
+// prev.lib.optionalAttrs prev.stdenv.hostPlatform.isLinux {
   gnomeExtensions = prev.gnomeExtensions // {
     # auto-move-windows only *assigns* a window to its workspace: it moves the
     # window but leaves you on the current one (i3 `assign`). Patch it to also
