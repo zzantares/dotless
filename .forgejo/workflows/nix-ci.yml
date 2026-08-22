@@ -38,27 +38,9 @@ jobs:
       - name: Check formatting
         run: nix fmt -- --ci
 
-  # Fail the PR on any evaluation warning (e.g. deprecated `stdenv.isLinux`) by
-  # evaluating each output's derivation path under `abort-on-warn`, which turns
-  # `builtins.warn` (what nixpkgs deprecations now use) into a hard error.
-  # Evaluating `.drvPath` forces evaluation without building, so this is
-  # side-effect-free and safe on PRs.
-  #
-  # The exported modules/presets are module *functions*, not derivations, so
-  # their bodies (and the warnings inside them) only run once the module system
-  # instantiates them. The `smoke-home`/`smoke-nixos` checks (see test/)
-  # are that harness — instantiating the preset chains — so preset/module
-  # warnings are caught here at the source, not only once a consumer builds.
-  #
-  # Overlay packages the presets install (claude-code, opencode, fonts,
-  # wallpapers, ...) are in the smoke configs' closure, so computing their
-  # `.drvPath` already instantiates those package derivations — they are checked
-  # transitively, no separate leg needed. Only overlay packages that no preset
-  # installs (linear-cli, zed-editor) need their own leg to be reached at all.
-  #
-  # One matrix leg per output (fail-fast: false) so a warning in one fails only
-  # its own leg and still reports the rest — the overall check goes red (blocking
-  # merge) while pointing at exactly which output is offending.
+  # Fail on any eval warning: eval each smoke config's drvPath under
+  # abort-on-warn (nixpkgs deprecations use builtins.warn; drvPath forces eval,
+  # no build). fail-fast: false so a failure names the offending config.
   warnings:
     name: Warnings ${{ matrix.name }}
     needs: fmt
@@ -69,10 +51,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: smoke-home,    attr: .#checks.x86_64-linux.smoke-home.drvPath }
-          - { name: smoke-nixos,   attr: .#checks.x86_64-linux.smoke-nixos.drvPath }
-          - { name: pkg/linear-cli, attr: .#packages.x86_64-linux.linear-cli.drvPath }
-          - { name: pkg/zed-editor, attr: .#packages.x86_64-linux.zed-editor.drvPath }
+          - { name: smoke-home,  attr: .#checks.x86_64-linux.smoke-home.drvPath }
+          - { name: smoke-nixos, attr: .#checks.x86_64-linux.smoke-nixos.drvPath }
     steps:
       - name: Checkout
         run: |

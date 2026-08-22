@@ -1,10 +1,5 @@
-# Placeholder `profile` for the CI smoke configs.
-#
-# Real consumers pass their own `profile` via specialArgs; this is a
-# type-correct dummy that lets the preset modules evaluate. Fields the modules
-# guard with `profile ? x` (e.g. fontsPath/iconsPath/wallpapersPath) are omitted
-# on purpose; `wallpaper` is included because the gnome module interpolates it
-# unconditionally.
+# Placeholder profile so the preset modules evaluate in CI. Fields guarded by
+# `profile ? x` are omitted; `wallpaper` is required (gnome interpolates it).
 {
   name = "CI User";
   user = "ci";

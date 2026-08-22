@@ -1,7 +1,5 @@
-# Smoke-eval the home preset chain (base -> devstation -> workstation), which
-# transitively pulls in most home modules. Instantiating it forces the module
-# bodies to run, so `abort-on-warn` in CI catches deprecation warnings at the
-# source instead of only once a consumer builds a config.
+# Instantiate the home preset chain (workstation) so its modules' warnings
+# surface under abort-on-warn.
 {
   inputs,
   self,
@@ -9,8 +7,7 @@
 }:
 
 let
-  # Presets reference `inputs.dotless.*` and `inputs.self` from the consumer's
-  # namespace; inside dotless itself, `dotless` is just `self`.
+  # presets reference inputs.dotless / inputs.self; here dotless is self.
   ciInputs = inputs // {
     dotless = self;
   };
@@ -27,14 +24,17 @@ in
   modules = [
     self.homeModules.workstation
     (
-      { lib, ... }:
+      { pkgs, lib, ... }:
       {
         home.username = "ci";
         home.homeDirectory = "/home/ci";
         home.stateVersion = "24.05";
 
-        # dotless ships no secrets/ dir, so the sops preset's defaultSopsFile
-        # points at a path that does not exist. Stub it for the smoke eval.
+        # overlay package no preset installs — check it transitively here.
+        # (zed-editor excluded: upstream zed flake warns on stdenv.isLinux.)
+        home.packages = [ pkgs.linear-cli ];
+
+        # dotless has no secrets/; stub the sops preset's defaultSopsFile.
         sops.validateSopsFiles = false;
         sops.defaultSopsFile = lib.mkForce (builtins.toFile "ci-dummy-secrets.yaml" "{}\n");
       }

@@ -1,7 +1,5 @@
-# Smoke-eval the nixos preset chain (base -> bare-metal -> desktop), which pulls
-# in the nixos modules those presets use. Instantiating it forces the module
-# bodies to run, so `abort-on-warn` in CI catches deprecation warnings at the
-# source instead of only once a consumer builds a system.
+# Instantiate the nixos preset chain (desktop) so its modules' warnings surface
+# under abort-on-warn.
 {
   inputs,
   self,
@@ -9,8 +7,7 @@
 }:
 
 let
-  # Presets reference `inputs.dotless.*` from the consumer's namespace; inside
-  # dotless itself, `dotless` is just `self`.
+  # presets reference inputs.dotless; here dotless is self.
   ciInputs = inputs // {
     dotless = self;
   };
@@ -27,8 +24,7 @@ in
   modules = [
     self.nixosModules.desktop
     {
-      # Minimal hardware so `toplevel` evaluates. bare-metal already enables
-      # systemd-boot; provide the mounts the boot loader assertions expect.
+      # minimal hardware so toplevel evaluates (bare-metal enables systemd-boot).
       fileSystems."/" = {
         device = "/dev/disk/by-label/nixos";
         fsType = "ext4";
