@@ -14,55 +14,20 @@ let
   userDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/hypr";
   hasUserConfig = builtins.pathExists "${userDir}/local.lua";
 
-  # Direction mapping (standard HJKL):
-  #   h = up, j = left, k = down, l = right
-  navKeys = [
-    "h"
-    "j"
-    "k"
-    "l"
-  ];
-
-  # Letter workspaces: all lowercase letters excluding navigation keys.
-  # Workspace name matches the Colemak keysym - press the key you see, go to
-  # the workspace with that letter.
-  workspaceLetters = lib.filter (l: !(builtins.elem l navKeys)) (
-    lib.stringToCharacters "abcdefghijklmnopqrstuvwxyz"
-  );
-
-  mkLuaInline = lib.generators.mkLuaInline;
-
-  # A keybind in Lua form: a "MOD + key" string plus a raw-Lua dispatcher.
-  # e.g. mkBind "SUPER + Return" ''hl.dsp.window.fullscreen({ mode = "maximized" })''
-  mkBind = keys: dispatcher: {
-    _args = [
-      keys
-      (mkLuaInline dispatcher)
-    ];
-  };
-
-  # An exec keybind. The command is wrapped in a Lua long-bracket string ([[..]])
-  # so embedded double quotes and pipes need no escaping.
-  mkExec = keys: cmd: mkBind keys "hl.dsp.exec_cmd([[${cmd}]])";
-
-  mkWorkspaceBinds = map (
-    l: mkBind "SUPER + ${l}" ''hl.dsp.focus({ workspace = "name:${lib.toUpper l}" })''
-  ) workspaceLetters;
-
-  mkMoveToWorkspaceBinds = map (
-    l:
-    mkBind "SUPER + SHIFT + ${l}" ''hl.dsp.window.move({ workspace = "name:${lib.toUpper l}", follow = true })''
-  ) workspaceLetters;
+  # Behavior (startup, keybinds, service submap) lives in behavior.lua and calls
+  # bare command names. Anything that needs a Nix store path is a named wrapper
+  # installed on PATH below, so the Lua file stays static - lintable and
+  # syntax-highlighted, with no Nix interpolation.
 
   # AeroSpace-accordion-style zoom. The focused window floats at this size,
   # centered, so the surrounding tiles peek out at the edges (dimmed via the
-  # decoration block below) — a visual reminder that windows are stacked behind,
+  # decoration block below) - a visual reminder that windows are stacked behind,
   # unlike fullscreen which hides them entirely.
   zoomWindow = "dispatch resizeactive exact 95% 95% ; dispatch centerwindow";
 
   # SUPER+comma toggles the zoom on the focused window's current float state:
   # float+size on the way in, back into the tile on the way out.
-  accordionZoom = pkgs.writeShellScript "hypr-accordion-zoom" ''
+  accordionZoom = pkgs.writeShellScriptBin "hypr-accordion-zoom" ''
     if [ "$(hyprctl activewindow -j | ${pkgs.jq}/bin/jq -r .floating)" = true ]; then
       hyprctl dispatch togglefloating
     else
@@ -71,16 +36,33 @@ let
   '';
 
   # Stack navigation while zoomed: drop the current window into the tile, move
-  # to the next/prev tiled window, and hand it the zoom — so the background app
+  # to the next/prev tiled window, and hand it the zoom - so the background app
   # swaps into the big window. When not zoomed, fall back to geometric movefocus.
   #   $1 = cyclenext flags ("tiled" forward, "prev tiled" back)
   #   $2 = movefocus fallback direction (u/d/l/r)
-  accordionNav = pkgs.writeShellScript "hypr-accordion-nav" ''
+  accordionNav = pkgs.writeShellScriptBin "hypr-accordion-nav" ''
     if [ "$(hyprctl activewindow -j | ${pkgs.jq}/bin/jq -r .floating)" = true ]; then
       hyprctl --batch "dispatch togglefloating ; dispatch cyclenext $1 ; dispatch togglefloating ; ${zoomWindow}"
     else
       hyprctl dispatch movefocus "$2"
     fi
+  '';
+
+  # Volume-change feedback sound (freedesktop theme, played via PipeWire).
+  playSound = pkgs.writeShellScriptBin "hypr-play-sound" ''
+    exec ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga
+  '';
+
+  # Polkit authentication agent (privilege-escalation dialogs). It ships under
+  # /lib, so wrap it to get a PATH-resolvable name for the startup sequence.
+  polkitAgent = pkgs.writeShellScriptBin "hypr-polkit-agent" ''
+    exec ${pkgs.hyprpolkitagent}/lib/hyprpolkitagent
+  '';
+
+  # Initial wallpaper from the profile. awww wait blocks until the daemon socket
+  # is ready so awww img doesn't race ahead of it.
+  setWallpaper = pkgs.writeShellScriptBin "hypr-set-wallpaper" ''
+    ${pkgs.awww}/bin/awww wait && exec ${pkgs.awww}/bin/awww img ${profile.wallpaper}
   '';
 
 in
@@ -222,110 +204,6 @@ in
         }
       ];
 
-      # exec-once has no Lua equivalent; run startup commands from the
-      # hyprland.start event so they fire once per session, not on every reload.
-      on = {
-        _args = [
-          "hyprland.start"
-          (mkLuaInline ''
-            function()
-              -- Propagate compositor env to the systemd user session (portals, services).
-              hl.exec_cmd([[dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=Hyprland]])
-              -- Polkit authentication agent (privilege escalation dialogs).
-              hl.exec_cmd([[${pkgs.hyprpolkitagent}/lib/hyprpolkitagent]])
-              -- Wallpaper daemon + initial wallpaper. awww wait blocks until the
-              -- daemon socket is ready so awww img doesn't race ahead of it.
-              -- (Package is named awww, a fork of swww; binaries are awww/awww-daemon.)
-              hl.exec_cmd([[${pkgs.awww}/bin/awww-daemon]])
-              hl.exec_cmd([[${pkgs.awww}/bin/awww wait && ${pkgs.awww}/bin/awww img ${profile.wallpaper}]])
-              -- Clipboard history - watch both text and image events.
-              hl.exec_cmd([[wl-paste --type text --watch cliphist store]])
-              hl.exec_cmd([[wl-paste --type image --watch cliphist store]])
-            end
-          '')
-        ];
-      };
-
-      bind = [
-        # ── Essentials ──
-        (mkBind "SUPER + Return" ''hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })'') # zoom focused window fully, press again to restore
-        (mkExec "SUPER + CTRL + t" "alacritty")
-        (mkExec "SUPER + CTRL + e" "emacsclient -c -a emacs")
-        (mkExec "SUPER + CTRL + f" "firefox")
-        (mkExec "SUPER + CTRL + w" "librewolf")
-        (mkExec "SUPER + CTRL + period" "nautilus")
-        (mkExec "SUPER + CTRL + v" "cliphist list | wofi --dmenu | cliphist decode | wl-copy")
-        (mkBind "SUPER + SHIFT + backspace" "hl.dsp.window.close()")
-        (mkExec "SUPER + space" "wofi --show drun")
-
-        # ── Focus (HJKL) - flips through the accordion stack while zoomed,
-        #    otherwise normal geometric movefocus. k/l cycle forward, h/j back.
-        (mkExec "SUPER + h" ''${accordionNav} "prev tiled" u'')
-        (mkExec "SUPER + j" ''${accordionNav} "prev tiled" l'')
-        (mkExec "SUPER + k" "${accordionNav} tiled d")
-        (mkExec "SUPER + l" "${accordionNav} tiled r")
-
-        # ── Move window ── (h = up, j = left, k = down, l = right)
-        (mkBind "SUPER + SHIFT + h" ''hl.dsp.window.move({ direction = "up" })'')
-        (mkBind "SUPER + SHIFT + j" ''hl.dsp.window.move({ direction = "left" })'')
-        (mkBind "SUPER + SHIFT + k" ''hl.dsp.window.move({ direction = "down" })'')
-        (mkBind "SUPER + SHIFT + l" ''hl.dsp.window.move({ direction = "right" })'')
-
-        # ── Layout ──
-        (mkBind "SUPER + slash" ''hl.dsp.layout("togglesplit")'') # tiles horizontal / vertical
-        (mkExec "SUPER + comma" "${accordionZoom}") # accordion zoom: 95% float, tiles peek behind
-
-        # ── Resize ── (relative deltas, matching resizeactive)
-        (mkBind "SUPER + minus" "hl.dsp.window.resize({ x = -50, y = -50, relative = true })")
-        (mkBind "SUPER + equal" "hl.dsp.window.resize({ x = 50, y = 50, relative = true })")
-
-        # ── Numbered workspaces ──
-        (mkBind "SUPER + 1" ''hl.dsp.focus({ workspace = "1" })'')
-        (mkBind "SUPER + 2" ''hl.dsp.focus({ workspace = "2" })'')
-        (mkBind "SUPER + 3" ''hl.dsp.focus({ workspace = "3" })'')
-        (mkBind "SUPER + 4" ''hl.dsp.focus({ workspace = "4" })'')
-        (mkBind "SUPER + 5" ''hl.dsp.focus({ workspace = "5" })'')
-        (mkBind "SUPER + 6" ''hl.dsp.focus({ workspace = "6" })'')
-        (mkBind "SUPER + 7" ''hl.dsp.focus({ workspace = "7" })'')
-        (mkBind "SUPER + 8" ''hl.dsp.focus({ workspace = "8" })'')
-        (mkBind "SUPER + 9" ''hl.dsp.focus({ workspace = "9" })'')
-
-        (mkBind "SUPER + SHIFT + 1" ''hl.dsp.window.move({ workspace = "1", follow = true })'')
-        (mkBind "SUPER + SHIFT + 2" ''hl.dsp.window.move({ workspace = "2", follow = true })'')
-        (mkBind "SUPER + SHIFT + 3" ''hl.dsp.window.move({ workspace = "3", follow = true })'')
-        (mkBind "SUPER + SHIFT + 4" ''hl.dsp.window.move({ workspace = "4", follow = true })'')
-        (mkBind "SUPER + SHIFT + 5" ''hl.dsp.window.move({ workspace = "5", follow = true })'')
-        (mkBind "SUPER + SHIFT + 6" ''hl.dsp.window.move({ workspace = "6", follow = true })'')
-        (mkBind "SUPER + SHIFT + 7" ''hl.dsp.window.move({ workspace = "7", follow = true })'')
-        (mkBind "SUPER + SHIFT + 8" ''hl.dsp.window.move({ workspace = "8", follow = true })'')
-        (mkBind "SUPER + SHIFT + 9" ''hl.dsp.window.move({ workspace = "9", follow = true })'')
-
-        # ── Workspace navigation ──
-        (mkBind "SUPER + tab" ''hl.dsp.focus({ workspace = "previous" })'') # back-and-forth
-        (mkBind "SUPER + SHIFT + tab" ''hl.dsp.workspace.move({ monitor = "+1" })'')
-
-        # ── Media / hardware keys ──
-        # Brightness: backlight device names vary per machine; add via local.lua:
-        #   hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd([[swayosd-client --brightness raise --device <dev>]]), { locked = true })
-        (mkExec "XF86AudioRaiseVolume" "${pkgs.swayosd}/bin/swayosd-client --output-volume raise; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga")
-        (mkExec "XF86AudioLowerVolume" "${pkgs.swayosd}/bin/swayosd-client --output-volume lower; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga")
-        (mkExec "XF86AudioMute" "${pkgs.swayosd}/bin/swayosd-client --output-volume mute-toggle; ${pkgs.pipewire}/bin/pw-play ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/audio-volume-change.oga")
-
-        # ── Screenshots (grimblast: copy + save to ~/Pictures/Screenshots) ──
-        (mkExec "Print" "grimblast --notify copysave screen")
-        (mkExec "SHIFT + Print" "grimblast --notify copysave area")
-        (mkExec "SUPER + Print" "grimblast --notify copysave active")
-
-        # ── Service submap (physical ; -> Colemak O) ──
-        (mkBind "SUPER + SHIFT + o" ''hl.dsp.submap("service")'')
-
-        # ── Files workspace ──
-        (mkBind "SUPER + period" ''hl.dsp.focus({ workspace = "name:." })'')
-        (mkBind "SUPER + SHIFT + period" ''hl.dsp.window.move({ workspace = "name:.", follow = true })'')
-      ]
-      ++ mkWorkspaceBinds
-      ++ mkMoveToWorkspaceBinds;
-
       # ── Window auto-placement ── (assign matching windows to a workspace)
       window_rule = [
         {
@@ -351,23 +229,14 @@ in
       ];
     };
 
-    # Service submap (modal keybindings, like AeroSpace's service mode).
-    # Keys are mnemonic (f = float) using Colemak characters. onDispatch = "reset"
-    # returns to the default submap after any bind fires (a one-shot menu).
-    submaps.service = {
-      onDispatch = "reset";
-      settings.bind = [
-        (mkBind "escape" ''hl.dsp.submap("reset")'')
-        (mkExec "f" ''hyprctl --batch "dispatch togglefloating ; dispatch submap reset"'')
-        (mkExec "r" ''hyprctl reload && hyprctl dispatch submap reset && notify-send -u low -t 2000 "Hyprland" "Config reloaded"'')
-        (mkExec "l" "hyprlock")
-      ];
-    };
-
-    # Per-consumer overrides, sourced last so they can override anything above.
-    # Create config/hypr/local.lua in your flake root to customise without a
-    # rebuild (out-of-store symlink, live-editable). pcall guards a missing file.
+    # Behavioral config (startup, keybinds, service submap) is written as real
+    # Lua in behavior.lua and spliced in verbatim - syntax-highlighted and
+    # luacheck-able, with generation as Lua loops instead of Nix `map`. It calls
+    # the bare command names the wrappers above put on PATH. The declarative
+    # config/env/window_rule stay above as Nix settings (per-consumer override
+    # points). local.lua is sourced last so it can override anything.
     extraConfig = ''
+      ${builtins.readFile ./behavior.lua}
       pcall(dofile, os.getenv("HOME") .. "/.config/hypr/local.lua")
     '';
   };
@@ -606,6 +475,13 @@ in
     libnotify
     swayosd
     awww
+
+    # Behavior-script wrappers, called by their bare names from behavior.lua.
+    accordionNav
+    accordionZoom
+    playSound
+    polkitAgent
+    setWallpaper
   ];
 
   # Automatic display profile switching on monitor connect/disconnect.
