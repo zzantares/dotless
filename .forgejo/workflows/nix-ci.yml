@@ -49,7 +49,12 @@ jobs:
   # instantiates them. The `smoke-home`/`smoke-nixos` checks (see nix/checks)
   # are that harness — instantiating the preset chains — so preset/module
   # warnings are caught here at the source, not only once a consumer builds.
-  # The `pkg/*` legs cover the overlay packages, which are ordinary derivations.
+  #
+  # Overlay packages the presets install (claude-code, opencode, fonts,
+  # wallpapers, ...) are in the smoke configs' closure, so computing their
+  # `.drvPath` already instantiates those package derivations — they are checked
+  # transitively, no separate leg needed. Only overlay packages that no preset
+  # installs (linear-cli, zed-editor) need their own leg to be reached at all.
   #
   # One matrix leg per output (fail-fast: false) so a warning in one fails only
   # its own leg and still reports the rest — the overall check goes red (blocking
@@ -64,14 +69,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: smoke-home,     attr: .#checks.x86_64-linux.smoke-home.drvPath }
-          - { name: smoke-nixos,    attr: .#checks.x86_64-linux.smoke-nixos.drvPath }
-          - { name: pkg/claude-code, attr: .#packages.x86_64-linux.claude-code.drvPath }
-          - { name: pkg/opencode,    attr: .#packages.x86_64-linux.opencode.drvPath }
-          - { name: pkg/fonts,       attr: .#packages.x86_64-linux.fonts.drvPath }
-          - { name: pkg/wallpapers,  attr: .#packages.x86_64-linux.wallpapers.drvPath }
-          - { name: pkg/linear-cli,  attr: .#packages.x86_64-linux.linear-cli.drvPath }
-          - { name: pkg/zed-editor,  attr: .#packages.x86_64-linux.zed-editor.drvPath }
+          - { name: smoke-home,    attr: .#checks.x86_64-linux.smoke-home.drvPath }
+          - { name: smoke-nixos,   attr: .#checks.x86_64-linux.smoke-nixos.drvPath }
+          - { name: pkg/linear-cli, attr: .#packages.x86_64-linux.linear-cli.drvPath }
+          - { name: pkg/zed-editor, attr: .#packages.x86_64-linux.zed-editor.drvPath }
     steps:
       - name: Checkout
         run: |
