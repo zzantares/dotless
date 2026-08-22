@@ -38,24 +38,24 @@ jobs:
       - name: Check formatting
         run: nix fmt -- --ci
 
-  # dotless is a library flake (modules, presets, overlays), so it exposes no
-  # full homeConfigurations to evaluate. We still gate the outputs we can:
-  # evaluate every overlay package's derivation path with `abort-on-warn`,
-  # which turns `builtins.warn` (what nixpkgs deprecations now use) into a hard
-  # error. Evaluating `.drvPath` forces evaluation without building, so this is
+  # Fail the PR on any evaluation warning (e.g. deprecated `stdenv.isLinux`) by
+  # evaluating each output's derivation path under `abort-on-warn`, which turns
+  # `builtins.warn` (what nixpkgs deprecations now use) into a hard error.
+  # Evaluating `.drvPath` forces evaluation without building, so this is
   # side-effect-free and safe on PRs.
   #
-  # This covers the overlay and pkgs/ warnings at the source. The preset and
-  # module warnings only surface once a consumer instantiates a full config —
-  # dotfiles' own `warnings` job (which evaluates homeConfigurations.antares)
-  # is that integration gate, and it fires on the PR that bumps dotless. See
-  # issue #45 to add a preset smoke-test config here for source-level coverage.
+  # The exported modules/presets are module *functions*, not derivations, so
+  # their bodies (and the warnings inside them) only run once the module system
+  # instantiates them. The `smoke-home`/`smoke-nixos` checks (see nix/checks)
+  # are that harness — instantiating the preset chains — so preset/module
+  # warnings are caught here at the source, not only once a consumer builds.
+  # The `pkg/*` legs cover the overlay packages, which are ordinary derivations.
   #
-  # One matrix leg per package (fail-fast: false) so a warning in one package
-  # fails only its own leg and still reports the rest — the overall check goes
-  # red (blocking merge) while pointing at exactly which package is offending.
+  # One matrix leg per output (fail-fast: false) so a warning in one fails only
+  # its own leg and still reports the rest — the overall check goes red (blocking
+  # merge) while pointing at exactly which output is offending.
   warnings:
-    name: Warnings ${{ matrix.pkg }}
+    name: Warnings ${{ matrix.name }}
     needs: fmt
     runs-on: nix
     permissions:
@@ -63,13 +63,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pkg:
-          - claude-code
-          - opencode
-          - fonts
-          - wallpapers
-          - linear-cli
-          - zed-editor
+        include:
+          - { name: smoke-home,     attr: .#checks.x86_64-linux.smoke-home.drvPath }
+          - { name: smoke-nixos,    attr: .#checks.x86_64-linux.smoke-nixos.drvPath }
+          - { name: pkg/claude-code, attr: .#packages.x86_64-linux.claude-code.drvPath }
+          - { name: pkg/opencode,    attr: .#packages.x86_64-linux.opencode.drvPath }
+          - { name: pkg/fonts,       attr: .#packages.x86_64-linux.fonts.drvPath }
+          - { name: pkg/wallpapers,  attr: .#packages.x86_64-linux.wallpapers.drvPath }
+          - { name: pkg/linear-cli,  attr: .#packages.x86_64-linux.linear-cli.drvPath }
+          - { name: pkg/zed-editor,  attr: .#packages.x86_64-linux.zed-editor.drvPath }
     steps:
       - name: Checkout
         run: |
@@ -78,8 +80,5 @@ jobs:
           git fetch -q --depth 1 origin "$GITHUB_SHA"
           git checkout -q FETCH_HEAD
 
-      - name: Evaluate ${{ matrix.pkg }}, fail on any warning
-        run: >-
-          nix eval --impure --raw
-          ".#packages.x86_64-linux.${{ matrix.pkg }}.drvPath"
-          --option abort-on-warn true >/dev/null
+      - name: Evaluate ${{ matrix.name }}, fail on any warning
+        run: nix eval --impure --raw ${{ matrix.attr }} --option abort-on-warn true >/dev/null

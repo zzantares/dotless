@@ -163,6 +163,19 @@
                 zed-editor
                 ;
             };
+
+            # CI smoke configs — instantiate the presets so module/preset
+            # warnings fail CI at the source. x86_64-linux only (see nix/checks).
+            checks = lib.optionalAttrs (system == "x86_64-linux") (
+              import ./nix/checks {
+                inherit
+                  inputs
+                  self
+                  pkgs
+                  system
+                  ;
+              }
+            );
           }
         );
 }
