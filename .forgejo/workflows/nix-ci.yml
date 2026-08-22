@@ -46,7 +46,7 @@ jobs:
   #
   # The exported modules/presets are module *functions*, not derivations, so
   # their bodies (and the warnings inside them) only run once the module system
-  # instantiates them. The `smoke-home`/`smoke-nixos` checks (see nix/checks)
+  # instantiates them. The `smoke-home`/`smoke-nixos` checks (see test/)
   # are that harness — instantiating the preset chains — so preset/module
   # warnings are caught here at the source, not only once a consumer builds.
   #

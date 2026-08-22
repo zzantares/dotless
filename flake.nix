@@ -165,9 +165,9 @@
             };
 
             # CI smoke configs — instantiate the presets so module/preset
-            # warnings fail CI at the source. x86_64-linux only (see nix/checks).
+            # warnings fail CI at the source. x86_64-linux only (see test/).
             checks = lib.optionalAttrs (system == "x86_64-linux") (
-              import ./nix/checks {
+              import ./test {
                 inherit
                   inputs
                   self
