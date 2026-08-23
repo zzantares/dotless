@@ -323,22 +323,83 @@ in
   # correct scale. Only applies if the consumer has enabled programs.emacs.
   programs.emacs.package = lib.mkIf config.programs.emacs.enable pkgs.emacs-pgtk;
 
-  services.mako = {
+  # Notifications + a GNOME-style quick-settings panel (toggle: SUPER+CTRL+n).
+  # Replaces mako - both claim org.freedesktop.Notifications, so only one can
+  # run. Palette ported from the old mako theme.
+  services.swaync = {
     enable = true;
     settings = {
-      font = "Overpass 12";
-      "background-color" = "#1d1c19ee";
-      "text-color" = "#c5c9c5";
-      "border-color" = "#8ba4b0";
-      "border-radius" = 8;
-      "border-size" = 2;
-      "default-timeout" = 5000;
-      padding = "12";
-      width = 320;
-      height = 100;
-      "max-icon-size" = 32;
+      positionX = "right";
+      positionY = "top";
       layer = "overlay";
+      control-center-width = 380;
+      notification-window-width = 340;
+      timeout = 5;
+      timeout-low = 3;
+      timeout-critical = 0;
+      fit-to-screen = true;
+      widgets = [
+        "title"
+        "dnd"
+        "volume"
+        "mpris"
+        "notifications"
+      ];
+      widget-config = {
+        title = {
+          text = "Notifications";
+          clear-all-button = true;
+          button-text = "Clear all";
+        };
+        dnd.text = "Do not disturb";
+        mpris = {
+          image-size = 96;
+          image-radius = 8;
+        };
+      };
     };
+    style = ''
+      * {
+        font-family: "Overpass", sans-serif;
+        font-size: 12px;
+      }
+
+      .control-center {
+        background-color: #1d1c19;
+        color: #c5c9c5;
+        border: 2px solid #8ba4b0;
+        border-radius: 8px;
+        padding: 8px;
+      }
+
+      .widget-title { color: #c5c9c5; margin: 8px; font-size: 14px; }
+      .widget-title > button {
+        background-color: #1d1c19;
+        color: #c5c9c5;
+        border: 1px solid #8ba4b0;
+        border-radius: 8px;
+        padding: 4px 8px;
+      }
+      .widget-title > button:hover { background-color: #8ba4b0; color: #1d1c19; }
+
+      .notification-row .notification-background .notification {
+        background-color: #1d1c19;
+        color: #c5c9c5;
+        border: 2px solid #8ba4b0;
+        border-radius: 8px;
+        margin: 6px;
+        padding: 12px;
+      }
+      .notification-content { color: #c5c9c5; }
+      .notification.critical { border-color: #c4746e; }
+
+      .close-button {
+        background-color: transparent;
+        color: #c5c9c5;
+        border-radius: 8px;
+      }
+      .close-button:hover { background-color: #8ba4b0; color: #1d1c19; }
+    '';
   };
 
   # Run nm-applet under a virtual framebuffer so its tray icon lands on an
@@ -401,7 +462,7 @@ in
       Install.WantedBy = [ "graphical-session.target" ];
     };
 
-  # Removable media automounter — no tray icon; mako notifications handle feedback.
+  # Removable media automounter - no tray icon; swaync shows feedback.
   # Depends on udisks2, which is already running via services.gvfs at the NixOS level.
   systemd.user.services.udiskie = {
     Unit = {
