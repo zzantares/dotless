@@ -4,11 +4,54 @@
 -- Declarative config (input/general/decoration, env, window rules) stays in
 -- Nix (settings.*); this is the imperative half. Commands are bare names on
 -- PATH; anything needing a Nix store path is a named wrapper the module installs
--- (hypr-accordion-nav/-zoom, hypr-play-sound, hypr-polkit-agent,
--- hypr-set-wallpaper), so this file needs no interpolation and stays static.
+-- (hypr-play-sound, hypr-polkit-agent, hypr-set-wallpaper), so this file needs
+-- no interpolation and stays static.
 --
 -- luacheck: globals hl
 -- luacheck: no max line length
+
+-- Accordion zoom/nav in native hl calls. hyprctl's classic "dispatch <name>"
+-- string is parsed as Lua under the new config format, so shelling out to it
+-- (the old wrapper scripts) no longer dispatches - it errors.
+
+-- Float the focused window at 95% of the monitor, centered, so tiles peek
+-- behind. Monitor size is physical; divide by scale for the logical geometry
+-- hl.window.resize expects.
+local function zoom_window()
+  local m = hl.get_active_monitor()
+  hl.dispatch(hl.dsp.window.float())
+  hl.dispatch(hl.dsp.window.resize({
+    x = math.floor(m.width / m.scale * 0.95),
+    y = math.floor(m.height / m.scale * 0.95),
+  }))
+  hl.dispatch(hl.dsp.window.center())
+end
+
+-- SUPER+comma toggles the zoom: float+size on the way in, back into the tile
+-- (float again) on the way out.
+local function accordion_zoom()
+  local w = hl.get_active_window()
+  if w and w.floating then
+    hl.dispatch(hl.dsp.window.float())
+  else
+    zoom_window()
+  end
+end
+
+-- Focus nav. While zoomed (floating) swap the big window for the next tiled
+-- one: drop the current back into the tile, cycle, hand the newcomer the zoom.
+-- When tiled, plain geometric focus move.
+--   previous: cycle backwards; direction: focus move when tiled
+local function accordion_nav(previous, direction)
+  local w = hl.get_active_window()
+  if w and w.floating then
+    hl.dispatch(hl.dsp.window.float())
+    hl.dispatch(hl.dsp.window.cycle_next({ tiled = true, previous = previous }))
+    zoom_window()
+  else
+    hl.dispatch(hl.dsp.focus({ direction = direction }))
+  end
+end
 
 -- ── Startup (fires once per session, not on reload) ─────────────────────────
 hl.on("hyprland.start", function()
@@ -35,10 +78,10 @@ hl.bind("SUPER + space", hl.dsp.exec_cmd([[wofi --show drun]]))
 
 -- ── Focus (HJKL): accordion stack while zoomed, else geometric movefocus.
 --    k/l cycle forward, h/j back. ──────────────────────────────────────────
-hl.bind("SUPER + h", hl.dsp.exec_cmd([[hypr-accordion-nav "prev tiled" u]]))
-hl.bind("SUPER + j", hl.dsp.exec_cmd([[hypr-accordion-nav "prev tiled" l]]))
-hl.bind("SUPER + k", hl.dsp.exec_cmd([[hypr-accordion-nav tiled d]]))
-hl.bind("SUPER + l", hl.dsp.exec_cmd([[hypr-accordion-nav tiled r]]))
+hl.bind("SUPER + h", function() accordion_nav(true, "up") end)
+hl.bind("SUPER + j", function() accordion_nav(true, "left") end)
+hl.bind("SUPER + k", function() accordion_nav(false, "down") end)
+hl.bind("SUPER + l", function() accordion_nav(false, "right") end)
 
 -- ── Move window (h = up, j = left, k = down, l = right) ─────────────────────
 hl.bind("SUPER + SHIFT + h", hl.dsp.window.move({ direction = "up" }))
@@ -48,7 +91,7 @@ hl.bind("SUPER + SHIFT + l", hl.dsp.window.move({ direction = "right" }))
 
 -- ── Layout ──────────────────────────────────────────────────────────────────
 hl.bind("SUPER + slash", hl.dsp.layout("togglesplit")) -- tiles horizontal / vertical
-hl.bind("SUPER + comma", hl.dsp.exec_cmd([[hypr-accordion-zoom]])) -- 95% float, tiles peek behind
+hl.bind("SUPER + comma", accordion_zoom) -- 95% float, tiles peek behind
 
 -- ── Resize (relative deltas, matching resizeactive) ─────────────────────────
 hl.bind("SUPER + minus", hl.dsp.window.resize({ x = -50, y = -50, relative = true }))
@@ -90,7 +133,14 @@ hl.bind("SUPER + SHIFT + period", hl.dsp.window.move({ workspace = "name:.", fol
 hl.bind("SUPER + SHIFT + o", hl.dsp.submap("service"))
 hl.define_submap("service", "reset", function()
   hl.bind("escape", hl.dsp.submap("reset"))
-  hl.bind("f", hl.dsp.exec_cmd([[hyprctl --batch "dispatch togglefloating ; dispatch submap reset"]]))
-  hl.bind("r", hl.dsp.exec_cmd([[hyprctl reload && hyprctl dispatch submap reset && notify-send -u low -t 2000 "Hyprland" "Config reloaded"]]))
+  hl.bind("f", function()
+    hl.dispatch(hl.dsp.window.float())
+    hl.dispatch(hl.dsp.submap("reset"))
+  end)
+  hl.bind("r", function()
+    hl.dispatch(hl.dsp.exec_cmd([[hyprctl reload]]))
+    hl.dispatch(hl.dsp.exec_cmd([[notify-send -u low -t 2000 "Hyprland" "Config reloaded"]]))
+    hl.dispatch(hl.dsp.submap("reset"))
+  end)
   hl.bind("l", hl.dsp.exec_cmd([[hyprlock]]))
 end)

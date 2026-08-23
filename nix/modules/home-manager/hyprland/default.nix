@@ -22,34 +22,9 @@ let
   # installed on PATH below, so the Lua file stays static - lintable and
   # syntax-highlighted, with no Nix interpolation.
 
-  # AeroSpace-accordion-style zoom. The focused window floats at this size,
-  # centered, so the surrounding tiles peek out at the edges (dimmed via the
-  # decoration block below) - a visual reminder that windows are stacked behind,
-  # unlike fullscreen which hides them entirely.
-  zoomWindow = "dispatch resizeactive exact 95% 95% ; dispatch centerwindow";
-
-  # SUPER+comma toggles the zoom on the focused window's current float state:
-  # float+size on the way in, back into the tile on the way out.
-  accordionZoom = pkgs.writeShellScriptBin "hypr-accordion-zoom" ''
-    if [ "$(hyprctl activewindow -j | ${pkgs.jq}/bin/jq -r .floating)" = true ]; then
-      hyprctl dispatch togglefloating
-    else
-      hyprctl --batch "dispatch togglefloating ; ${zoomWindow}"
-    fi
-  '';
-
-  # Stack navigation while zoomed: drop the current window into the tile, move
-  # to the next/prev tiled window, and hand it the zoom - so the background app
-  # swaps into the big window. When not zoomed, fall back to geometric movefocus.
-  #   $1 = cyclenext flags ("tiled" forward, "prev tiled" back)
-  #   $2 = movefocus fallback direction (u/d/l/r)
-  accordionNav = pkgs.writeShellScriptBin "hypr-accordion-nav" ''
-    if [ "$(hyprctl activewindow -j | ${pkgs.jq}/bin/jq -r .floating)" = true ]; then
-      hyprctl --batch "dispatch togglefloating ; dispatch cyclenext $1 ; dispatch togglefloating ; ${zoomWindow}"
-    else
-      hyprctl dispatch movefocus "$2"
-    fi
-  '';
+  # AeroSpace-accordion zoom/nav live in behavior.lua as native hl calls. They
+  # used to be shell wrappers, but hyprctl's classic "dispatch <name>" is Lua
+  # under the new config format, so shelling out to it stopped working.
 
   # Volume-change feedback sound (freedesktop theme, played via PipeWire).
   playSound = pkgs.writeShellScriptBin "hypr-play-sound" ''
@@ -480,8 +455,6 @@ in
     awww
 
     # Behavior-script wrappers, called by their bare names from behavior.lua.
-    accordionNav
-    accordionZoom
     playSound
     polkitAgent
     setWallpaper
