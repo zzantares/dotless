@@ -75,6 +75,7 @@ hl.bind("SUPER + CTRL + w", hl.dsp.exec_cmd([[librewolf]]))
 hl.bind("SUPER + CTRL + period", hl.dsp.exec_cmd([[nautilus]]))
 hl.bind("SUPER + CTRL + v", hl.dsp.exec_cmd([[cliphist list | wofi --dmenu | cliphist decode | wl-copy]]))
 hl.bind("SUPER + CTRL + n", hl.dsp.exec_cmd([[swaync-client -t -sw]])) -- toggle notification/quick-settings panel
+hl.bind("SUPER + CTRL + d", hl.dsp.exec_cmd([[nwg-displays]])) -- display arrangement GUI
 hl.bind("SUPER + SHIFT + backspace", hl.dsp.window.close())
 hl.bind("SUPER + Delete", hl.dsp.window.close()) -- alias for close
 hl.bind("SUPER + space", hl.dsp.exec_cmd([[wofi --show drun]]))

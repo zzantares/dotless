@@ -182,6 +182,26 @@ in
         }
       ];
 
+      # ── Displays ── Pin the laptop panel; the wildcard rule gives every other
+      # output (dock, conference projector) its own preferred (supported) mode,
+      # auto-placed - so a beamer negotiates a mode it can actually show instead
+      # of a hardcoded one. Fine-tune live with nwg-displays (SUPER+CTRL+d).
+      # Wildcard first so the named eDP-1 rule wins for the laptop.
+      monitor = [
+        {
+          output = "";
+          mode = "preferred";
+          position = "auto";
+          scale = 1;
+        }
+        {
+          output = "eDP-1";
+          mode = "2880x1800@120";
+          position = "0x0";
+          scale = 1.5;
+        }
+      ];
+
       # ── Window auto-placement ── (assign matching windows to a workspace)
       window_rule = [
         {
@@ -544,15 +564,16 @@ in
     # drive Hyprland (use nwg-displays) and Night Light would fight gammastep.
     gnome-control-center
 
+    # Interactive display arrangement GUI (Hyprland-aware): resolution, scale,
+    # position, rotation. Applies live via hyprctl - the click-to-arrange tool
+    # for docks/projectors. Bound to SUPER+CTRL+d.
+    nwg-displays
+
     # Behavior-script wrappers, called by their bare names from behavior.lua.
     playSound
     polkitAgent
     setWallpaper
   ];
-
-  # Automatic display profile switching on monitor connect/disconnect.
-  # Profiles are machine-specific and defined at the configuration level.
-  services.kanshi.enable = true;
 
   # Blue light filter — warms color temperature at night using geoclue2 for
   # automatic sunrise/sunset times (geoclue2 is enabled at the NixOS level).
