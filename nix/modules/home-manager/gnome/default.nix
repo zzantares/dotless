@@ -528,10 +528,11 @@ in
       toggle-fullscreen = [ "<Super>Return" ];
 
       # Close focused window — mirror Hyprland's <Super><Shift>Backspace killactive
-      # (keep the GNOME default <Alt>F4 too).
+      # plus the <Super>Delete alias (keep the GNOME default <Alt>F4 too).
       close = [
         "<Alt>F4"
         "<Super><Shift>BackSpace"
+        "<Super>Delete"
       ];
 
       # Free <Super>space (default input-source switch) for the app launcher

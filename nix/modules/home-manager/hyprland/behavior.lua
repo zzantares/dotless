@@ -75,6 +75,7 @@ hl.bind("SUPER + CTRL + w", hl.dsp.exec_cmd([[librewolf]]))
 hl.bind("SUPER + CTRL + period", hl.dsp.exec_cmd([[nautilus]]))
 hl.bind("SUPER + CTRL + v", hl.dsp.exec_cmd([[cliphist list | wofi --dmenu | cliphist decode | wl-copy]]))
 hl.bind("SUPER + SHIFT + backspace", hl.dsp.window.close())
+hl.bind("SUPER + Delete", hl.dsp.window.close()) -- alias for close
 hl.bind("SUPER + space", hl.dsp.exec_cmd([[wofi --show drun]]))
 
 -- ── Focus (HJKL): accordion stack while zoomed, else geometric movefocus.
