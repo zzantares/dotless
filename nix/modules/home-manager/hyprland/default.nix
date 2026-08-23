@@ -454,6 +454,11 @@ in
     swayosd
     awww
 
+    # Unified settings panel (GNOME-parity) for Network/Bluetooth/Sound/Region.
+    # Runs standalone on Hyprland via existing daemons; the Displays panel can't
+    # drive Hyprland (use nwg-displays) and Night Light would fight gammastep.
+    gnome-control-center
+
     # Behavior-script wrappers, called by their bare names from behavior.lua.
     playSound
     polkitAgent
