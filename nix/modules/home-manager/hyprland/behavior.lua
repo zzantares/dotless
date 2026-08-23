@@ -67,6 +67,7 @@ end)
 
 -- ── Essentials ──────────────────────────────────────────────────────────────
 hl.bind("SUPER + Return", hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })) -- zoom, press again to restore
+hl.bind("SUPER + SHIFT + Return", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })) -- true fullscreen
 hl.bind("SUPER + CTRL + t", hl.dsp.exec_cmd([[alacritty]]))
 hl.bind("SUPER + CTRL + e", hl.dsp.exec_cmd([[emacsclient -c -a emacs]]))
 hl.bind("SUPER + CTRL + f", hl.dsp.exec_cmd([[firefox]]))
