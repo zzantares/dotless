@@ -477,12 +477,12 @@ in
     Install.WantedBy = [ "graphical-session.target" ];
   };
 
-  # Bluetooth pairing agent + auto-reconnect + tray. services.blueman.enable
-  # (NixOS) only provides the D-Bus service; the applet is what registers the
-  # pairing agent, so without it new-device pairing has no confirm/PIN dialog.
+  # Bluetooth pairing agent + auto-reconnect. services.blueman.enable (NixOS)
+  # only provides the D-Bus service; the applet is what registers the pairing
+  # agent, so without it new-device pairing has no confirm/PIN dialog.
   systemd.user.services.blueman-applet = {
     Unit = {
-      Description = "Blueman applet (bluetooth pairing agent + tray)";
+      Description = "Blueman applet (bluetooth pairing agent)";
       PartOf = [ "graphical-session.target" ];
       After = [ "graphical-session.target" ];
     };
@@ -492,6 +492,14 @@ in
     };
     Install.WantedBy = [ "graphical-session.target" ];
   };
+
+  # The applet's tray-icon plugins would duplicate waybar's native bluetooth
+  # module (same reason nm-applet's tray is hidden). Disable just those; the
+  # AuthAgent (pairing dialog) and AutoConnect plugins keep working.
+  dconf.settings."org/blueman/general".plugin-list = [
+    "!StatusNotifierItem"
+    "!StatusIcon"
+  ];
 
   # swayosd-server as a systemd user service so it starts with the session
   # and restarts on crash — more robust than exec-once.
