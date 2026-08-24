@@ -251,15 +251,19 @@ in
       ];
 
       # ── Layer blur ── frost the swaync panel and notification popups so the
-      # translucent background reads as glass over the desktop.
+      # translucent background reads as glass over the desktop. ignore_alpha
+      # skips the transparent parts of these full-screen layers, so only the
+      # panel body blurs - not the whole desktop behind it.
       layer_rule = [
         {
           match.namespace = "swaync-control-center";
           blur = true;
+          ignore_alpha = 0.5;
         }
         {
           match.namespace = "swaync-notification-window";
           blur = true;
+          ignore_alpha = 0.5;
         }
       ];
     };
