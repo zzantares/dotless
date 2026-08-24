@@ -43,6 +43,30 @@ let
     ${pkgs.awww}/bin/awww wait && exec ${pkgs.awww}/bin/awww img ${profile.wallpaper}
   '';
 
+  # Wallpaper picker for the swaync panel: pick an image (wofi) and set it live.
+  # Reads the resources module's install dir (~/.local/share/wallpapers).
+  wallpaperPicker = pkgs.writeShellScriptBin "hypr-wallpaper-picker" ''
+    dir="${config.xdg.dataHome}/wallpapers"
+    img=$(${pkgs.findutils}/bin/find -L "$dir" -type f \
+      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null \
+      | ${pkgs.wofi}/bin/wofi --dmenu --insensitive --prompt Wallpaper)
+    [ -n "$img" ] && exec ${pkgs.awww}/bin/awww img "$img"
+  '';
+
+  # Power menu for the swaync panel. loginctl logout dodges hyprctl dispatch,
+  # which errors under the Lua config. condition-before-command per wofi line.
+  powerMenu = pkgs.writeShellScriptBin "hypr-power-menu" ''
+    choice=$(printf ' Lock\n Logout\n Suspend\n Reboot\n Shutdown\n' \
+      | ${pkgs.wofi}/bin/wofi --dmenu --prompt Power | ${pkgs.gawk}/bin/awk '{print $2}')
+    case "$choice" in
+      Lock)     exec ${pkgs.hyprlock}/bin/hyprlock ;;
+      Logout)   exec ${pkgs.systemd}/bin/loginctl terminate-user "$(${pkgs.coreutils}/bin/id -un)" ;;
+      Suspend)  exec ${pkgs.systemd}/bin/systemctl suspend ;;
+      Reboot)   exec ${pkgs.systemd}/bin/systemctl reboot ;;
+      Shutdown) exec ${pkgs.systemd}/bin/systemctl poweroff ;;
+    esac
+  '';
+
 in
 {
   imports = [ ./waybar.nix ];
@@ -358,7 +382,7 @@ in
 
   # Notifications + a GNOME-style quick-settings panel (toggle: SUPER+CTRL+n).
   # Replaces mako - both claim org.freedesktop.Notifications, so only one can
-  # run. Palette ported from the old mako theme.
+  # run. Android-style hub, Kanagawa palette.
   services.swaync = {
     enable = true;
     settings = {
@@ -366,182 +390,298 @@ in
       positionY = "top";
       layer = "overlay";
       control-center-width = 380;
-      notification-window-width = 340;
+      notification-window-width = 400;
+      notification-icon-size = 48;
       timeout = 5;
       timeout-low = 3;
       timeout-critical = 0;
-      fit-to-screen = true;
+      # Content-sized floating panel with rounded corners, not full-height.
+      fit-to-screen = false;
+      image-visibility = "when-available";
+      # Media on top, quick toggles, sliders, dnd, then the notification list -
+      # the GNOME/Android control-center order.
       widgets = [
-        "title"
-        "dnd"
+        "mpris"
         "buttons-grid"
         "volume"
         "backlight"
-        "mpris"
+        "dnd"
+        "title"
         "notifications"
       ];
       widget-config = {
         title = {
           text = "Notifications";
           clear-all-button = true;
-          button-text = "Clear all";
+          button-text = "Clear All";
         };
         dnd.text = "Do not disturb";
-        # Round GNOME-style launchers. Each closes the panel first (toggle), then
-        # opens the relevant GUI. Full store paths - swaync's service PATH is
-        # minimal, like waybar's on-click handlers. Icons are Nerd Font glyphs.
+        mpris = {
+          image-size = 96;
+          show-album-art = "when-available";
+          autohide = true;
+          blacklist = [
+            "firefox"
+            "librewolf"
+            "chromium"
+            "brave"
+            "mpv"
+            "playerctl"
+          ];
+        };
+        volume.label = "󰕾";
+        backlight = {
+          label = "󰃠";
+          subsystem = "backlight";
+          device = "amdgpu_bl1"; # laptop panel; override per machine
+          min = 5;
+        };
+        # Two-row quick-toggle grid (8 actions wrap at control-center-width).
+        # Audio/mic are stateful mute toggles (wpctl -> .active class); the rest
+        # close the panel then launch a GUI/picker. Full store paths - swaync's
+        # service PATH is minimal, like waybar's. Labels are Nerd Font glyphs.
         "buttons-grid".actions =
           let
-            swayncClient = "${config.services.swaync.package}/bin/swaync-client";
-            close = "${swayncClient} -t -sw";
+            wpctl = "${pkgs.wireplumber}/bin/wpctl";
+            close = "${config.services.swaync.package}/bin/swaync-client -t -sw";
+            muted = node: "sh -c '${wpctl} get-volume ${node} | grep -q MUTED && echo true || echo false'";
           in
           [
+            {
+              label = "󰋋";
+              type = "toggle";
+              command = "${wpctl} set-mute @DEFAULT_AUDIO_SINK@ toggle";
+              update-command = muted "@DEFAULT_AUDIO_SINK@";
+            }
+            {
+              label = "󰍬";
+              type = "toggle";
+              command = "${wpctl} set-mute @DEFAULT_AUDIO_SOURCE@ toggle";
+              update-command = muted "@DEFAULT_AUDIO_SOURCE@";
+            }
+            {
+              label = "󰤨";
+              command = "sh -c '${close}; ${pkgs.networkmanagerapplet}/bin/nm-connection-editor'";
+            }
             {
               label = "󰂯";
               command = "sh -c '${close}; ${pkgs.blueman}/bin/blueman-manager'";
             }
             {
-              label = "󰖩";
-              command = "sh -c '${close}; ${pkgs.networkmanagerapplet}/bin/nm-connection-editor'";
+              label = "󰏘";
+              command = "sh -c '${close}; sleep 0.2; ${pkgs.hyprpicker}/bin/hyprpicker -a'";
             }
             {
-              label = "󰆞";
+              label = "󰋩";
+              command = "sh -c '${close}; ${wallpaperPicker}/bin/hypr-wallpaper-picker'";
+            }
+            {
+              label = "󰄄";
               command = "sh -c '${close}; sleep 0.3; ${pkgs.grimblast}/bin/grimblast --notify copysave area'";
             }
             {
-              label = "󰒓";
-              command = "sh -c '${close}; ${pkgs.gnome-control-center}/bin/gnome-control-center'";
+              label = "󰐥";
+              command = "sh -c '${close}; ${powerMenu}/bin/hypr-power-menu'";
             }
           ];
-        volume.label = "󰕾";
-        backlight = {
-          label = "󰃟";
-          subsystem = "backlight";
-          device = "amdgpu_bl1"; # laptop panel; override per machine
-          min = 5;
-        };
-        mpris = {
-          image-size = 96;
-          image-radius = 8;
-        };
       };
     };
+    # Kanagawa Dragon palette. Structure adapted from OlyAhamed's Android/Windows
+    # style; matugen dynamic colors swapped for our fixed hexes.
     style = ''
+      @define-color text   #c5c9c5;
+      @define-color accent #8ba4b0;
+      @define-color hover  #a6bcc4;
+      @define-color urgent #c4746e;
+
       * {
-        font-family: "Overpass Nerd Font", "Overpass", sans-serif;
-        font-size: 13px;
+        color: @text;
+        all: unset;
+        font-size: 14px;
+        font-family: "JetBrainsMono Nerd Font", monospace;
+        transition: all 250ms cubic-bezier(0.4, 0.0, 0.2, 1);
       }
+
+      .blank-window { background: transparent; }
 
       /* Panel shell - frosted; Hyprland blurs the swaync-control-center layer. */
       .control-center {
-        background-color: rgba(24, 22, 22, 0.72);
-        color: #c5c9c5;
-        border: 1px solid rgba(139, 164, 176, 0.2);
-        border-radius: 16px;
-        padding: 14px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        background: rgba(24, 22, 22, 0.82);
+        border-radius: 20px;
+        border: 1px solid alpha(@text, 0.08);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        margin: 12px;
+        padding: 0;
       }
       .control-center-list { background: transparent; }
 
-      /* Title / clear-all */
-      .widget-title { color: #c5c9c5; margin: 4px 4px 10px 4px; font-size: 16px; font-weight: bold; }
-      .widget-title > button {
-        color: #c5c9c5;
-        background-color: rgba(40, 39, 39, 0.7);
-        border: 1px solid rgba(139, 164, 176, 0.25);
-        border-radius: 10px;
-        padding: 4px 12px;
+      /* Media player (MPRIS) - top of the panel */
+      .widget-mpris { padding: 12px 12px 0 12px; }
+      .widget-mpris-player {
+        background: alpha(@text, 0.05);
+        border: 1px solid alpha(@text, 0.08);
+        border-radius: 16px;
+        padding: 14px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
       }
-      .widget-title > button:hover { background-color: #8ba4b0; color: #1d1c19; }
-
-      /* Do-not-disturb toggle */
-      .widget-dnd { color: #c5c9c5; margin: 4px; }
-      .widget-dnd > switch {
-        background-color: rgba(40, 39, 39, 0.8);
-        border: 1px solid rgba(139, 164, 176, 0.25);
-        border-radius: 999px;
+      .widget-mpris .widget-mpris-player .mpris-background {
+        filter: blur(30px) brightness(0.6);
+        opacity: 0.5;
+        border-radius: 16px;
       }
-      .widget-dnd > switch:checked { background-color: #8ba4b0; }
-      .widget-dnd > switch slider { background-color: #c5c9c5; border-radius: 999px; }
+      .widget-mpris-album-art {
+        border-radius: 12px;
+        border: 1px solid alpha(@text, 0.12);
+        margin: 0 12px 8px 0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      }
+      .widget-mpris-title { font-weight: bold; font-size: 1.1rem; color: @text; }
+      .widget-mpris-subtitle { font-size: 0.9rem; opacity: 0.7; }
+      .widget-mpris button {
+        color: @text;
+        opacity: 0.75;
+        margin: 10px 6px 0 6px;
+        min-width: 40px;
+        min-height: 40px;
+        border-radius: 50%;
+        background: alpha(@text, 0.08);
+      }
+      .widget-mpris button:hover { background: alpha(@hover, 0.2); }
+      .widget-mpris button:nth-child(3) {
+        min-width: 48px;
+        min-height: 48px;
+        background: alpha(@accent, 0.18);
+      }
+      .widget-mpris button:nth-child(3):hover { background: alpha(@accent, 0.28); }
 
-      /* Quick-toggle buttons - round GNOME-style launchers */
-      .widget-buttons-grid { padding: 6px 4px; }
+      /* Quick-toggle grid - round buttons, two rows */
+      .widget-buttons-grid { padding: 12px; }
       .widget-buttons-grid > flowbox > flowboxchild > button {
-        color: #c5c9c5;
-        background-color: rgba(40, 39, 39, 0.75);
-        border: 1px solid rgba(139, 164, 176, 0.18);
-        border-radius: 999px;
         margin: 4px;
-        padding: 12px;
-        font-size: 18px;
-        min-width: 44px;
-        min-height: 44px;
+        background: alpha(@text, 0.06);
+        border: 1px solid alpha(@text, 0.08);
+        border-radius: 16px;
+        min-width: 64px;
+        min-height: 64px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+      }
+      .widget-buttons-grid > flowbox > flowboxchild > button label {
+        font-size: 20px;
+        opacity: 0.8;
       }
       .widget-buttons-grid > flowbox > flowboxchild > button:hover {
-        background-color: #8ba4b0;
-        color: #1d1c19;
+        background: alpha(@hover, 0.15);
+        border-color: alpha(@hover, 0.25);
+      }
+      .widget-buttons-grid > flowbox > flowboxchild > button.active {
+        background: alpha(@accent, 0.2);
+        border-color: alpha(@accent, 0.4);
+        color: @accent;
       }
 
-      /* Sliders (volume, backlight) */
-      .widget-volume, .widget-backlight {
-        color: #c5c9c5;
-        background-color: rgba(40, 39, 39, 0.55);
-        border-radius: 12px;
-        margin: 4px;
-        padding: 8px 12px;
-      }
+      /* Sliders (volume, backlight) - glowing highlight, circular handle */
+      .widget-volume { padding: 12px 20px 2px 20px; }
+      .widget-backlight { padding: 2px 20px 12px 20px; }
       .widget-volume trough, .widget-backlight trough {
-        background-color: rgba(115, 112, 101, 0.4);
-        border-radius: 999px;
+        background: alpha(@text, 0.1);
+        border-radius: 12px;
         min-height: 8px;
       }
       .widget-volume highlight, .widget-backlight highlight {
-        background-color: #8ba4b0;
-        border-radius: 999px;
+        background: linear-gradient(90deg, @accent 0%, alpha(@accent, 0.8) 100%);
+        border-radius: 12px;
+        box-shadow: 0 0 8px alpha(@accent, 0.4);
+      }
+      .widget-volume label, .widget-backlight label {
+        font-size: 22px;
+        opacity: 0.75;
+        margin: 0 14px 0 6px;
       }
       .widget-volume slider, .widget-backlight slider {
-        background-color: #c5c9c5;
-        border-radius: 999px;
-        min-width: 14px;
-        min-height: 14px;
+        background: #ffffff;
+        border-radius: 50%;
+        min-width: 16px;
+        min-height: 16px;
+        margin: -5px 0;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 0 2px @accent;
+      }
+      .widget-volume slider:hover, .widget-backlight slider:hover {
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3), 0 0 0 3px @accent;
       }
 
-      /* Media player (MPRIS) */
-      .widget-mpris { margin: 4px; }
-      .widget-mpris-player {
-        background-color: rgba(40, 39, 39, 0.6);
-        border-radius: 14px;
-        padding: 10px;
+      /* Do-not-disturb toggle */
+      .widget-dnd {
+        padding: 14px 20px 6px 20px;
+        font-size: 1.05rem;
+        border-top: 1px solid alpha(@text, 0.06);
       }
-      .widget-mpris-title { color: #c5c9c5; font-weight: bold; }
-      .widget-mpris-subtitle { color: #a09e9c; }
-      .widget-mpris button { color: #c5c9c5; }
-      .widget-mpris button:hover { color: #8ba4b0; }
+      .widget-dnd > switch {
+        background: alpha(@text, 0.2);
+        border: 1px solid alpha(@text, 0.1);
+        border-radius: 24px;
+        min-width: 48px;
+        min-height: 28px;
+        padding: 3px;
+      }
+      .widget-dnd > switch:checked {
+        background: @accent;
+        box-shadow: 0 0 8px alpha(@accent, 0.4);
+      }
+      .widget-dnd > switch slider {
+        background: #ffffff;
+        border-radius: 50%;
+        min-width: 22px;
+        min-height: 22px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      /* Title / Clear All - header above the notification list */
+      .widget-title {
+        padding: 16px 20px 8px 20px;
+        font-size: 1.2em;
+        font-weight: bold;
+        border-top: 1px solid alpha(@text, 0.06);
+      }
+      .widget-title > button {
+        background: alpha(@text, 0.12);
+        border: 1px solid alpha(@text, 0.08);
+        border-radius: 10px;
+        padding: 6px 12px;
+      }
+      .widget-title > button:hover { background: alpha(@hover, 0.2); }
 
       /* Notification cards */
-      .notification-row .notification-background .notification {
-        background-color: rgba(40, 39, 39, 0.85);
-        color: #c5c9c5;
-        border: 1px solid rgba(139, 164, 176, 0.25);
-        border-radius: 12px;
-        margin: 6px 4px;
-        padding: 12px;
+      .control-center .notification-row .notification-background {
+        border-radius: 14px;
+        margin: 4px 12px;
       }
-      .notification-content { color: #c5c9c5; }
-      .notification.critical { border-color: #c4746e; }
-      .notification .text-button {
-        background-color: rgba(139, 164, 176, 0.2);
-        color: #c5c9c5;
-        border-radius: 8px;
+      .control-center .notification-row .notification-background .notification {
+        background: alpha(@text, 0.06);
+        border: 1px solid alpha(@text, 0.06);
+        border-radius: 14px;
+        padding: 4px;
       }
-      .notification .text-button:hover { background-color: #8ba4b0; color: #1d1c19; }
+      .control-center .notification-row .notification-background .notification:hover {
+        background: alpha(@text, 0.1);
+      }
+      .notification-content { padding: 10px; }
+      .notification.critical { border-left: 3px solid @urgent; }
+      .notification-action {
+        background: alpha(@accent, 0.2);
+        color: @accent;
+        border-radius: 10px;
+        margin: 4px;
+        padding: 8px 16px;
+      }
+      .notification-action:hover { background: alpha(@accent, 0.3); }
 
       .close-button {
-        background-color: transparent;
-        color: #c5c9c5;
-        border-radius: 999px;
+        background: transparent;
+        border-radius: 50%;
+        margin: 6px;
+        padding: 2px;
       }
-      .close-button:hover { background-color: #c4746e; color: #1d1c19; }
+      .close-button:hover { background: @urgent; color: #1d1c19; }
     '';
   };
 
@@ -681,6 +821,7 @@ in
     libnotify
     swayosd
     awww
+    hyprpicker # color picker (swaync panel button)
 
     # Unified settings panel (GNOME-parity) for Network/Bluetooth/Sound/Region.
     # Runs standalone on Hyprland via existing daemons; the Displays panel can't
@@ -696,6 +837,8 @@ in
     playSound
     polkitAgent
     setWallpaper
+    wallpaperPicker
+    powerMenu
   ];
 
   # Blue light filter — warms color temperature at night using geoclue2 for
