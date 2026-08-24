@@ -497,6 +497,7 @@ in
       @define-color accent #8ba4b0;
       @define-color hover  #a6bcc4;
       @define-color urgent #c4746e;
+      @define-color card   #282727;
 
       * {
         color: @text;
@@ -662,16 +663,21 @@ in
       .control-center .notification-row .notification-background {
         border-radius: 14px;
       }
+      /* Cards are opaque, not translucent: swaync stacks same-app notifications
+         into a collapsed deck, and a see-through card lets every card behind
+         bleed through, piling all the summaries on top of each other. */
       .control-center .notification-row .notification-background .notification {
-        background: alpha(@text, 0.06);
-        border: 1px solid alpha(@text, 0.06);
+        background: @card;
+        border: 1px solid alpha(@text, 0.08);
         border-radius: 14px;
       }
+      .notification-group.collapsed .notification-row .notification { background: @card; }
+      .notification-group.collapsed:hover .notification-row .notification { background: #2f2e2e; }
       .notification-default-action {
         padding: 6px;
         border-radius: 14px;
       }
-      .notification-default-action:hover { background: alpha(@text, 0.06); }
+      .notification-default-action:hover { background: alpha(@text, 0.08); }
       .notification-content { padding: 10px 14px; }
       .notification-content .text-box .summary { font-size: 1rem; font-weight: bold; }
       .notification-content .text-box .time {
