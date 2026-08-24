@@ -675,6 +675,14 @@ in
       }
       .notification-group.collapsed .notification-row .notification { background: @card; }
       .notification-group.collapsed:hover .notification-row .notification { background: #2f2e2e; }
+      /* Floating popups (toasts shown when the panel is hidden) need the same
+         opaque card - otherwise all:unset leaves them see-through and whatever
+         is on screen behind bleeds through, making them unreadable. */
+      .floating-notifications .notification-background .notification {
+        background: @card;
+        border: 1px solid alpha(@text, 0.08);
+        border-radius: 14px;
+      }
       .notification-default-action {
         padding: 6px;
         border-radius: 14px;
