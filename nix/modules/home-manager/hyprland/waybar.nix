@@ -18,7 +18,10 @@
         height = 36;
         spacing = 4;
 
-        "modules-left" = [ "hyprland/workspaces" "hyprland/submap" ];
+        "modules-left" = [
+          "hyprland/workspaces"
+          "hyprland/submap"
+        ];
         "modules-center" = [ "clock" ];
         "modules-right" = [
           "network"
@@ -84,7 +87,11 @@
           format = "{icon} {volume}%";
           "format-muted" = "󰝟";
           "format-icons" = {
-            default = [ "󰕿" "󰖀" "󰕾" ];
+            default = [
+              "󰕿"
+              "󰖀"
+              "󰕾"
+            ];
           };
           "on-click" = "${pkgs.pavucontrol}/bin/pavucontrol";
           "scroll-step" = 5;
@@ -98,7 +105,19 @@
           format = "{icon} {capacity}%";
           "format-charging" = "󰂄 {capacity}%";
           "format-plugged" = "󰚥 {capacity}%";
-          "format-icons" = [ "󰂎" "󰁺" "󰁻" "󰁼" "󰁽" "󰁾" "󰁿" "󰂀" "󰂁" "󰂂" "󰁹" ];
+          "format-icons" = [
+            "󰂎"
+            "󰁺"
+            "󰁻"
+            "󰁼"
+            "󰁽"
+            "󰁾"
+            "󰁿"
+            "󰂀"
+            "󰂁"
+            "󰂂"
+            "󰁹"
+          ];
           "tooltip-format" = "{timeTo}\nDraw: {power}W";
         };
 

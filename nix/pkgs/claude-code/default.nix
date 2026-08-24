@@ -40,7 +40,9 @@ stdenvNoCC.mkDerivation {
     hash = platformSrc.hash;
   };
 
-  nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ] ++ [ makeWrapper ];
+  nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ] ++ [
+    makeWrapper
+  ];
 
   # The Linux binary dynamically links against glibc and libstdc++
   buildInputs = lib.optionals stdenv.hostPlatform.isLinux [ stdenv.cc.cc.lib ];

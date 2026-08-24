@@ -20,16 +20,18 @@ in
 {
   programs.wezterm = {
     enable = lib.mkDefault true;
-    package = if pkgs.stdenv.hostPlatform.isDarwin then pkgs.wezterm else config.lib.nixGL.wrap pkgs.wezterm;
+    package =
+      if pkgs.stdenv.hostPlatform.isDarwin then pkgs.wezterm else config.lib.nixGL.wrap pkgs.wezterm;
 
     enableZshIntegration = lib.mkDefault true;
 
     # Empty ⇒ the home-manager wezterm module writes no file, leaving ~/.config/wezterm
     # free for the directory symlink below (no collision).
     extraConfig =
-      if hasUserConfig
-      then ""
-      else lib.mkDefault (builtins.readFile ./../../../../../config/wezterm/wezterm.lua);
+      if hasUserConfig then
+        ""
+      else
+        lib.mkDefault (builtins.readFile ./../../../../../config/wezterm/wezterm.lua);
   };
 
   # Consumer-provided config dir → live out-of-store symlink (the doom pattern).

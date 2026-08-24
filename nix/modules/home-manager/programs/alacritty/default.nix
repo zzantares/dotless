@@ -13,7 +13,8 @@ in
 {
   programs.alacritty = {
     enable = lib.mkDefault true;
-    package = if pkgs.stdenv.hostPlatform.isDarwin then pkgs.alacritty else config.lib.nixGL.wrap pkgs.alacritty;
+    package =
+      if pkgs.stdenv.hostPlatform.isDarwin then pkgs.alacritty else config.lib.nixGL.wrap pkgs.alacritty;
 
     settings = {
       terminal.shell = {
