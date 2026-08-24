@@ -316,7 +316,9 @@ in
     # Forge tiling extension — behaviour
     "org/gnome/shell/extensions/forge" = {
       tiling-mode-enabled = true;
-      window-gap-size = lib.gvariant.mkUint32 4;
+      # 10px matches Hyprland's gaps_in/gaps_out on zephyrus. Forge uses one
+      # value for both between-tile spacing and the single-tile edge inset.
+      window-gap-size = lib.gvariant.mkUint32 10;
       # Keep the gap around a lone tile too, so the wallpaper peeks around the
       # edges like Hyprland's outer gap. When true, a single tile fills the
       # screen edge-to-edge and only 2+ tiles show spacing; false insets the
