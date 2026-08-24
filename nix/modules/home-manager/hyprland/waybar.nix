@@ -28,6 +28,7 @@
           "battery"
           "bluetooth"
           "tray"
+          "custom/notification"
         ];
 
         "hyprland/submap" = {
@@ -104,6 +105,28 @@
         tray = {
           "icon-size" = 18;
           spacing = 8;
+        };
+
+        # Notification bell - dot when unread. Left-click toggles the swaync
+        # panel (same as SUPER+CTRL+n), right-click toggles do-not-disturb.
+        "custom/notification" = {
+          tooltip = false;
+          format = "{icon}";
+          "format-icons" = {
+            notification = "󰂚";
+            none = "󰂜";
+            "dnd-notification" = "󰂛";
+            "dnd-none" = "󰪑";
+            "inhibited-notification" = "󰂚";
+            "inhibited-none" = "󰂜";
+            "dnd-inhibited-notification" = "󰂛";
+            "dnd-inhibited-none" = "󰪑";
+          };
+          "return-type" = "json";
+          exec = "${pkgs.swaynotificationcenter}/bin/swaync-client -swb";
+          "on-click" = "${pkgs.swaynotificationcenter}/bin/swaync-client -t -sw";
+          "on-click-right" = "${pkgs.swaynotificationcenter}/bin/swaync-client -d -sw";
+          escape = true;
         };
       };
     };
@@ -184,6 +207,9 @@
       #bluetooth.connected { color: #87a987; }
       #bluetooth.disabled, #bluetooth.off { color: #625e5a; }
       #tray { padding: 0 6px; }
+      #custom-notification { color: #c5c9c5; padding: 0 6px; }
+      #custom-notification.notification,
+      #custom-notification.dnd-notification { color: #c4b28a; }
 
       /* ── Tooltips ── */
       tooltip {

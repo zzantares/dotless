@@ -225,6 +225,19 @@ in
           match.class = "org\\.gnome\\.Nautilus|nautilus";
         }
       ];
+
+      # ── Layer blur ── frost the swaync panel and notification popups so the
+      # translucent background reads as glass over the desktop.
+      layer_rule = [
+        {
+          match.namespace = "swaync-control-center";
+          blur = true;
+        }
+        {
+          match.namespace = "swaync-notification-window";
+          blur = true;
+        }
+      ];
     };
 
     # Behavioral config (startup, keybinds, service submap) is written as real
@@ -361,7 +374,9 @@ in
       widgets = [
         "title"
         "dnd"
+        "buttons-grid"
         "volume"
+        "backlight"
         "mpris"
         "notifications"
       ];
@@ -372,6 +387,39 @@ in
           button-text = "Clear all";
         };
         dnd.text = "Do not disturb";
+        # Round GNOME-style launchers. Each closes the panel first (toggle), then
+        # opens the relevant GUI. Full store paths - swaync's service PATH is
+        # minimal, like waybar's on-click handlers. Icons are Nerd Font glyphs.
+        "buttons-grid".actions =
+          let
+            swayncClient = "${config.services.swaync.package}/bin/swaync-client";
+            close = "${swayncClient} -t -sw";
+          in
+          [
+            {
+              label = "󰂯";
+              command = "sh -c '${close}; ${pkgs.blueman}/bin/blueman-manager'";
+            }
+            {
+              label = "󰖩";
+              command = "sh -c '${close}; ${pkgs.networkmanagerapplet}/bin/nm-connection-editor'";
+            }
+            {
+              label = "󰆞";
+              command = "sh -c '${close}; sleep 0.3; ${pkgs.grimblast}/bin/grimblast --notify copysave area'";
+            }
+            {
+              label = "󰒓";
+              command = "sh -c '${close}; ${pkgs.gnome-control-center}/bin/gnome-control-center'";
+            }
+          ];
+        volume.label = "󰕾";
+        backlight = {
+          label = "󰃟";
+          subsystem = "backlight";
+          device = "amdgpu_bl1"; # laptop panel; override per machine
+          min = 5;
+        };
         mpris = {
           image-size = 96;
           image-radius = 8;
@@ -380,45 +428,120 @@ in
     };
     style = ''
       * {
-        font-family: "Overpass", sans-serif;
-        font-size: 12px;
+        font-family: "Overpass Nerd Font", "Overpass", sans-serif;
+        font-size: 13px;
       }
 
+      /* Panel shell - frosted; Hyprland blurs the swaync-control-center layer. */
       .control-center {
-        background-color: #1d1c19;
+        background-color: rgba(24, 22, 22, 0.72);
         color: #c5c9c5;
-        border: 2px solid #8ba4b0;
-        border-radius: 8px;
-        padding: 8px;
+        border: 1px solid rgba(139, 164, 176, 0.2);
+        border-radius: 16px;
+        padding: 14px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
       }
+      .control-center-list { background: transparent; }
 
-      .widget-title { color: #c5c9c5; margin: 8px; font-size: 14px; }
+      /* Title / clear-all */
+      .widget-title { color: #c5c9c5; margin: 4px 4px 10px 4px; font-size: 16px; font-weight: bold; }
       .widget-title > button {
-        background-color: #1d1c19;
         color: #c5c9c5;
-        border: 1px solid #8ba4b0;
-        border-radius: 8px;
-        padding: 4px 8px;
+        background-color: rgba(40, 39, 39, 0.7);
+        border: 1px solid rgba(139, 164, 176, 0.25);
+        border-radius: 10px;
+        padding: 4px 12px;
       }
       .widget-title > button:hover { background-color: #8ba4b0; color: #1d1c19; }
 
-      .notification-row .notification-background .notification {
-        background-color: #1d1c19;
+      /* Do-not-disturb toggle */
+      .widget-dnd { color: #c5c9c5; margin: 4px; }
+      .widget-dnd > switch {
+        background-color: rgba(40, 39, 39, 0.8);
+        border: 1px solid rgba(139, 164, 176, 0.25);
+        border-radius: 999px;
+      }
+      .widget-dnd > switch:checked { background-color: #8ba4b0; }
+      .widget-dnd > switch slider { background-color: #c5c9c5; border-radius: 999px; }
+
+      /* Quick-toggle buttons - round GNOME-style launchers */
+      .widget-buttons-grid { padding: 6px 4px; }
+      .widget-buttons-grid > flowbox > flowboxchild > button {
         color: #c5c9c5;
-        border: 2px solid #8ba4b0;
-        border-radius: 8px;
-        margin: 6px;
+        background-color: rgba(40, 39, 39, 0.75);
+        border: 1px solid rgba(139, 164, 176, 0.18);
+        border-radius: 999px;
+        margin: 4px;
+        padding: 12px;
+        font-size: 18px;
+        min-width: 44px;
+        min-height: 44px;
+      }
+      .widget-buttons-grid > flowbox > flowboxchild > button:hover {
+        background-color: #8ba4b0;
+        color: #1d1c19;
+      }
+
+      /* Sliders (volume, backlight) */
+      .widget-volume, .widget-backlight {
+        color: #c5c9c5;
+        background-color: rgba(40, 39, 39, 0.55);
+        border-radius: 12px;
+        margin: 4px;
+        padding: 8px 12px;
+      }
+      .widget-volume trough, .widget-backlight trough {
+        background-color: rgba(115, 112, 101, 0.4);
+        border-radius: 999px;
+        min-height: 8px;
+      }
+      .widget-volume highlight, .widget-backlight highlight {
+        background-color: #8ba4b0;
+        border-radius: 999px;
+      }
+      .widget-volume slider, .widget-backlight slider {
+        background-color: #c5c9c5;
+        border-radius: 999px;
+        min-width: 14px;
+        min-height: 14px;
+      }
+
+      /* Media player (MPRIS) */
+      .widget-mpris { margin: 4px; }
+      .widget-mpris-player {
+        background-color: rgba(40, 39, 39, 0.6);
+        border-radius: 14px;
+        padding: 10px;
+      }
+      .widget-mpris-title { color: #c5c9c5; font-weight: bold; }
+      .widget-mpris-subtitle { color: #a09e9c; }
+      .widget-mpris button { color: #c5c9c5; }
+      .widget-mpris button:hover { color: #8ba4b0; }
+
+      /* Notification cards */
+      .notification-row .notification-background .notification {
+        background-color: rgba(40, 39, 39, 0.85);
+        color: #c5c9c5;
+        border: 1px solid rgba(139, 164, 176, 0.25);
+        border-radius: 12px;
+        margin: 6px 4px;
         padding: 12px;
       }
       .notification-content { color: #c5c9c5; }
       .notification.critical { border-color: #c4746e; }
+      .notification .text-button {
+        background-color: rgba(139, 164, 176, 0.2);
+        color: #c5c9c5;
+        border-radius: 8px;
+      }
+      .notification .text-button:hover { background-color: #8ba4b0; color: #1d1c19; }
 
       .close-button {
         background-color: transparent;
         color: #c5c9c5;
-        border-radius: 8px;
+        border-radius: 999px;
       }
-      .close-button:hover { background-color: #8ba4b0; color: #1d1c19; }
+      .close-button:hover { background-color: #c4746e; color: #1d1c19; }
     '';
   };
 
