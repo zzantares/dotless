@@ -317,7 +317,11 @@ in
     "org/gnome/shell/extensions/forge" = {
       tiling-mode-enabled = true;
       window-gap-size = lib.gvariant.mkUint32 4;
-      window-gap-hidden-on-single = true;
+      # Keep the gap around a lone tile too, so the wallpaper peeks around the
+      # edges like Hyprland's outer gap. When true, a single tile fills the
+      # screen edge-to-edge and only 2+ tiles show spacing; false insets the
+      # single tile as well.
+      window-gap-hidden-on-single = false;
       auto-split-enabled = true;
       preview-hint-enabled = true;
       quick-settings-enabled = true;
