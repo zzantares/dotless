@@ -654,21 +654,37 @@ in
       }
       .widget-title > button:hover { background: alpha(@hover, 0.2); }
 
-      /* Notification cards */
+      /* Notification cards. all:unset above wipes swaync's default spacing, so
+         the card gap, action padding, and summary/time/body layout are all
+         restored explicitly here - otherwise adjacent cards and their text
+         collapse into each other. */
+      .control-center .notification-row { padding: 5px 10px; }
       .control-center .notification-row .notification-background {
         border-radius: 14px;
-        margin: 4px 12px;
       }
       .control-center .notification-row .notification-background .notification {
         background: alpha(@text, 0.06);
         border: 1px solid alpha(@text, 0.06);
         border-radius: 14px;
-        padding: 4px;
       }
-      .control-center .notification-row .notification-background .notification:hover {
-        background: alpha(@text, 0.1);
+      .notification-default-action {
+        padding: 6px;
+        border-radius: 14px;
       }
-      .notification-content { padding: 10px; }
+      .notification-default-action:hover { background: alpha(@text, 0.06); }
+      .notification-content { padding: 10px 14px; }
+      .notification-content .text-box .summary { font-size: 1rem; font-weight: bold; }
+      .notification-content .text-box .time {
+        font-size: 0.85rem;
+        opacity: 0.6;
+        margin-right: 24px;
+      }
+      .notification-content .text-box .body {
+        font-size: 0.92rem;
+        opacity: 0.8;
+        padding-top: 6px;
+        line-height: 1.4;
+      }
       .notification.critical { border-left: 3px solid @urgent; }
       .notification-action {
         background: alpha(@accent, 0.2);
