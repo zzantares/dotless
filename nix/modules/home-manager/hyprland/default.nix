@@ -394,12 +394,14 @@ in
       positionY = "top";
       layer = "overlay";
       control-center-width = 380;
+      # ~62% of the laptop's 1200px logical height; override per machine.
+      control-center-height = 744;
       notification-window-width = 400;
       notification-icon-size = 48;
       timeout = 5;
       timeout-low = 3;
       timeout-critical = 0;
-      # Content-sized floating panel with rounded corners, not full-height.
+      # Floating rounded panel at a fixed height, not full-height.
       fit-to-screen = false;
       image-visibility = "when-available";
       # Media on top, quick toggles, sliders, dnd, then the notification list -
