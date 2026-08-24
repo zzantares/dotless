@@ -675,11 +675,12 @@ in
       }
       .notification-group.collapsed .notification-row .notification { background: @card; }
       .notification-group.collapsed:hover .notification-row .notification { background: #2f2e2e; }
-      /* Floating popups (toasts shown when the panel is hidden) need the same
-         opaque card - otherwise all:unset leaves them see-through and whatever
-         is on screen behind bleeds through, making them unreadable. */
+      /* Floating popups (toasts shown when the panel is hidden) get the panel's
+         frosted-glass background - same rgba as .control-center, blurred by the
+         swaync-notification-window layer rule - so they match the panel and stay
+         readable over screen content (all:unset would otherwise leave them bare). */
       .floating-notifications .notification-background .notification {
-        background: @card;
+        background: rgba(24, 22, 22, 0.82);
         border: 1px solid alpha(@text, 0.08);
         border-radius: 14px;
       }
