@@ -62,6 +62,25 @@ in
          exception is necessary. Only proceed if they approve.
     '';
 
+    # Global (no `paths:`): every project. Nudges Claude toward blunt, concise
+    # answers instead of long-winded prose.
+    rules.brevity = ''
+      # Answer Style: Brevity
+
+      Default to short, direct answers. Lead with the answer, then only the
+      detail that earns its place. Blunt beats polished.
+
+      - Cut preamble, filler, and hedging. Don't restate the question, don't
+        open with "great question", don't summarize what you are about to say.
+      - Prefer fragments and lists over prose paragraphs.
+      - Match length to the task. A simple question gets a line or two, not a
+        paragraph. Don't pad with options or caveats the user didn't ask for;
+        one clear recommendation beats a survey.
+
+      Brevity means cutting filler, not substance. Keep the facts, numbers, and
+      caveats that change what the user does - just drop the words around them.
+    '';
+
     # skills: if the consumer ships config/claude/skills/, the live symlink (see the
     # home.file block below) owns ~/.claude/skills; empty here so the upstream module
     # writes nothing for that path and there is no double-owner collision.
