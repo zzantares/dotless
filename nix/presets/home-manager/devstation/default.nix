@@ -20,6 +20,7 @@
     ./../../../modules/home-manager/programs/emacs
     ./../../../modules/home-manager/programs/fourmolu
     ./../../../modules/home-manager/programs/claude-code
+    ./../../../modules/home-manager/programs/opencode
     ./clojure.nix
     ./packages.nix
     ./secrets.nix

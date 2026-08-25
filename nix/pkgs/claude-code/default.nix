@@ -9,21 +9,21 @@
 
 let
   # Run `nix/pkgs/claude-code/update.sh` to get a new version + hashes
-  version = "2.1.211";
-  gcs = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
+  version = "2.1.245";
+  baseUrl = "https://downloads.claude.ai/claude-code-releases";
 
   srcs = {
     "x86_64-linux" = {
       urlPlatform = "linux-x64";
-      hash = "sha256-gnLIpHSsnqG8NfGbn3x+fcTcTrbVrT5ISxkzWsckRrI=";
+      hash = "sha256-Fq0rlN6veymr7ZZtmByZkaR68EIPW+jtSj+Dvqn2eLw=";
     };
     "aarch64-darwin" = {
       urlPlatform = "darwin-arm64";
-      hash = "sha256-WnKKdhmLbsp/PHzb/0O6tEt3tIwhCPejEH2Il3M4Jik=";
+      hash = "sha256-n3wiYCUXZaGNCzUZhmnazBkS9ugSmjsB9rWNkzZf8fE=";
     };
     "x86_64-darwin" = {
       urlPlatform = "darwin-x64";
-      hash = "sha256-MwSesUz0cCuZK37aQewHf8bnZTn3/QRubTJTh1cjXaQ=";
+      hash = "sha256-3gRLtUPoJjUvMVh6dDVuGy2ulNwbnJYKNi2fB9+Wwqc=";
     };
   };
 
@@ -36,7 +36,7 @@ stdenvNoCC.mkDerivation {
   inherit version;
 
   src = fetchurl {
-    url = "${gcs}/${version}/${platformSrc.urlPlatform}/claude";
+    url = "${baseUrl}/${version}/${platformSrc.urlPlatform}/claude";
     hash = platformSrc.hash;
   };
 

@@ -196,28 +196,6 @@ in
   # (or to nothing, for items dotless doesn't set).
   home.file = lib.mkMerge (map liveItem (profile.liveOverrides.claude-code or [ ]));
 
-  programs.opencode = {
-    enable = lib.mkDefault true;
-    package = pkgs.opencode;
-    enableMcpIntegration = true;
-    settings = {
-      autoupdate = false;
-      instructions = [ "CLAUDE.md" ]; # Compatibility with claude-code
-      model = "anthropic/claude-opus-4-5";
-      # github-agent = {
-      #   description = "Handles github.com tasks";
-      #   mode = "subagent";
-      #   tools = {
-      #     "github*" = true;
-      #   };
-      # };
-    };
-    # themes = {};
-    # agents = {};
-    # commands = {};
-    # rules = {};
-  };
-
   # programs.mcp = {
   #   enable = true;
 
