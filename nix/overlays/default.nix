@@ -22,6 +22,28 @@ in
 
   claude-code = final.callPackage ./../pkgs/claude-code { };
 
+  # diffnav ships hardcoded vim keybindings (pkg/ui/keys.go) with no config
+  # hook, so the only way to get the Colemak nav scheme used elsewhere in this
+  # config (h=up, k=down, j=left, l=right; cf. gh-dash, aerospace) is to rewrite
+  # the key strings at build time.
+  diffnav = prev.diffnav.overrideAttrs (old: {
+    # `--replace-fail` makes the build fail loudly if upstream reworks these lines
+    # on a `nix flake update` — the signal to re-sync this patch — rather than
+    # silently reverting to vim defaults.
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace pkg/ui/keys.go \
+        --replace-fail 'key.WithKeys("up", "k"),' 'key.WithKeys("up", "h"),' \
+        --replace-fail 'key.WithKeys("down", "j"),' 'key.WithKeys("down", "k"),' \
+        --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
+        --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
+        --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),' \
+        --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
+      substituteInPlace pkg/ui/panes/filetree/keys.go \
+        --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
+        --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
+    '';
+  });
+
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
 
   # v0.1.7 has a dbus screensaver-inhibit ref-counting bug (logs "BUG THIS:

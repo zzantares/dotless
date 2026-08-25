@@ -78,6 +78,93 @@
 
   home.shellAliases = { } // (profile.shellAliases or { });
 
+  programs.gh-dash.enable = true;
+  programs.gh-dash.settings = {
+    # Render the `d` diff view through diffnav: a GitHub-style pager with a file
+    # tree for navigating large PRs per-file/per-directory. diffnav renders the diff
+    # through delta under the hood, so `[delta]` git config styling still applies.
+    # (Its keybindings are patched to Colemak via nix/overlays/private.nix, matching
+    # the universal keys below.) Swap back to `delta` for a plain scrolling diff.
+    pager.diff = "diffnav";
+
+    # Colemak-flavored navigation (cf. the aerospace workspace bindings):
+    #   h = up, k = down, j = left (prev section), l = right (next section).
+    # gh-dash rebinds a builtin by *replacing* its key list, so these four form a
+    # clean permutation of the defaults. Trade-off: only one key per builtin is
+    # settable, so the arrow-key fallback for these actions is dropped.
+    keybindings.universal = [
+      {
+        key = "h";
+        builtin = "up";
+      }
+      {
+        key = "k";
+        builtin = "down";
+      }
+      {
+        key = "j";
+        builtin = "prevSection";
+      }
+      {
+        key = "l";
+        builtin = "nextSection";
+      }
+    ];
+
+    # PR-only bindings that drive src/bin/pr-brief (Phase 1 of the review flow):
+    #   b — generate/refresh the briefing for the highlighted PR into the local
+    #       inbox (idempotent: skips if the PR is unchanged since last brief), then
+    #       show it in a pager. gh-dash runs these via tea.ExecProcess, which hands
+    #       pr-brief the real terminal, so the pager takes over the screen — quit
+    #       it (q) to drop back to the dashboard.
+    #   B — same, then open the briefing file in the editor (-o) instead of paging.
+    # gh-dash runs these with the row's template vars; {{.RepoName}} is owner/repo
+    # and {{.PrNumber}} is the PR number, which pr-brief accepts as owner/repo#123.
+    prs = [
+      {
+        key = "b";
+        name = "brief PR";
+        command = "pr-brief {{.RepoName}}#{{.PrNumber}}";
+      }
+      {
+        key = "B";
+        name = "brief + open";
+        command = "pr-brief -o {{.RepoName}}#{{.PrNumber}}";
+      }
+    ];
+
+    # Starter sections (mirror gh-dash's own defaults); edit to taste.
+    prSections = [
+      {
+        title = "My Pull Requests";
+        filters = "is:open author:@me";
+      }
+      {
+        title = "Needs My Review";
+        filters = "is:open review-requested:@me";
+      }
+      {
+        title = "Involved";
+        filters = "is:open involves:@me -author:@me";
+      }
+    ];
+
+    issuesSections = [
+      {
+        title = "My Issues";
+        filters = "is:open author:@me";
+      }
+      {
+        title = "Assigned";
+        filters = "is:open assignee:@me";
+      }
+      {
+        title = "Involved";
+        filters = "is:open involves:@me -author:@me";
+      }
+    ];
+  };
+
   # A systemd service to update tldr cache
   systemd.user.services.tldr-cache-update = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     Unit = {
