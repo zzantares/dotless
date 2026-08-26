@@ -85,7 +85,7 @@ in
     # Global (no `paths:`): every project. Mechanical writing conventions,
     # separate from rules.brevity (which governs length, not punctuation or
     # word choice).
-    rules.conversation = ''
+    rules.writing-mechanics = ''
       # Writing Mechanics
 
       Applies to every bit of text you produce - chat, commit messages, PR
