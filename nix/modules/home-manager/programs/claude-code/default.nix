@@ -8,6 +8,10 @@
 }:
 
 let
+  # Shared, harness-agnostic agent knowledge (skills, rules, MCP), authored once in
+  # ../agentic/knowledge.nix and consumed by every agent module.
+  knowledge = import ../agentic/knowledge.nix { inherit pkgs inputs lib; };
+
   # Per-item live-override convention (mirrors wezterm/hyprland). For each item the
   # consumer lists in profile.liveOverrides.claude-code, symlink that item live
   # (out-of-store → editable, no rebuild) AND turn off dotless's baked version below,
@@ -41,85 +45,24 @@ in
 
     # rules.<name> renders to ~/.claude/rules/<name>.md and applies to EVERY
     # project, unlike a repo's own CLAUDE.md which is only loaded inside that
-    # repo. No `paths:` frontmatter, so this rule is global.
-    rules.comments = ''
-      # Comment Discipline
-
-      Hard limits on every in-code comment you write or edit. Not style
-      suggestions - constraints.
-
-      1. Length cap. A comment must never exceed 280 characters (one tweet),
-         counting the whole comment across all its lines. Aim well under that.
-
-      2. Never grow a comment. When you rephrase, update, or fix an existing
-         comment, the result must be the same length or shorter than what was
-         there before - never longer. Shortening is always fine; lengthening
-         is not.
-
-      3. Exceptions need approval. If a comment genuinely cannot satisfy rule 1
-         or 2 and there is truly no alternative, do not write it. Ask the user
-         for explicit approval first, with your best justification for why the
-         exception is necessary. Only proceed if they approve.
-    '';
-
-    # Global (no `paths:`): every project. Nudges Claude toward blunt, concise
-    # answers instead of long-winded prose.
-    rules.brevity = ''
-      # Answer Style: Brevity
-
-      Default to short, direct answers. Lead with the answer, then only the
-      detail that earns its place. Blunt beats polished.
-
-      - When reporting information to me, be extremely concise and sacrifice
-        grammar for the sake of concision.
-      - Cut preamble, filler, and hedging. Don't restate the question, don't
-        open with "great question", don't preface the answer by previewing it
-        ("here's what I'll cover..."). Just say it.
-      - Prefer fragments and lists over prose paragraphs.
-      - Match length to the task. A simple question gets a line or two, not a
-        paragraph. Don't pad with options or caveats the user didn't ask for;
-        one clear recommendation beats a survey.
-
-      Brevity means cutting filler, not substance. Keep the facts, numbers, and
-      caveats that change what the user does - just drop the words around them.
-    '';
-
-    # Global (no `paths:`): every project. Mechanical writing conventions,
-    # separate from rules.brevity (which governs length, not punctuation or
-    # word choice).
-    rules.writing-mechanics = ''
-      # Writing Mechanics
-
-      Applies to every bit of text you produce - chat, commit messages, PR
-      titles and bodies, docs, code comments.
-
-      1. Hyphens only. Use a plain hyphen (`-`), never an em-dash (`—`) or
-         en-dash (`–`). They render inconsistently across fonts and read as AI
-         boilerplate.
-
-      2. Domain words, not filler metaphors. Drop vague, over-used terms that
-         add no meaning - e.g. "seam", "load-bearing", "delve", "robust",
-         "leverage". Pick the precise word for the domain at hand.
-    '';
+    # repo. No `paths:` frontmatter, so these rules are global. Sourced from the
+    # shared knowledge layer so Codex (and any rules-capable agent) gets the same set.
+    rules = knowledge.rules;
 
     # skills: if the consumer ships config/claude/skills/, the live symlink (see the
     # home.file block below) owns ~/.claude/skills; empty here so the upstream module
     # writes nothing for that path and there is no double-owner collision.
     #
-    # Attrset form (not the bare ./skills path) so dotless's own baked skills coexist
-    # with skills sourced from external flake inputs. Each subdir of ./skills is one
-    # skill; simple-english comes from the pinned SimpleEnglish input (ASD-STE100
-    # Simplified Technical English), its skills/simple-english/ dir carrying SKILL.md
-    # plus references/.
-    skills =
-      if hasUserItem "skills" then
-        lib.mkForce { }
-      else
-        {
-          changelog = ./skills/changelog;
-          explain = ./skills/explain;
-          simple-english = "${inputs.simple-english}/skills/simple-english";
-        };
+    # Attrset form (not a bare directory path) so dotless's own baked skills coexist
+    # with skills sourced from external flake inputs. The set lives in the shared
+    # knowledge layer (../agentic) so every agent - Claude, Codex, opencode, Pi -
+    # gets the identical skills; simple-english comes from the pinned SimpleEnglish
+    # input (ASD-STE100 Simplified Technical English).
+    # mkForce in the live-override branch yields ~/.claude/skills to the consumer's
+    # out-of-store symlink (drops dotless's baked default so there's no double owner).
+    # Otherwise mkDefault so a downstream consumer can override; to ADD to the baked
+    # set rather than replace it, import knowledge.skills and merge (knowledge.skills // { ... }).
+    skills = if hasUserItem "skills" then lib.mkForce { } else lib.mkDefault knowledge.skills;
 
     # settings.json: if the consumer ships config/claude/settings.json, empty here so the
     # upstream module writes no settings.json, leaving the path free for the live symlink.
@@ -190,13 +133,8 @@ in
     mcpServers = {
       forgejo = {
         type = "stdio";
-        command = "${pkgs.forgejo-mcp}/bin/forgejo-mcp";
-        args = [
-          "--transport"
-          "stdio"
-          "--url"
-          "https://git.gutimore.net"
-        ];
+        command = knowledge.forgejo.bin;
+        args = knowledge.forgejo.args;
         env = {
           FORGEJO_ACCESS_TOKEN = "\${FORGEJO_ACCESS_TOKEN}";
         };
