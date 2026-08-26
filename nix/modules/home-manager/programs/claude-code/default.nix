@@ -82,6 +82,24 @@ in
       caveats that change what the user does - just drop the words around them.
     '';
 
+    # Global (no `paths:`): every project. Mechanical writing conventions,
+    # separate from rules.brevity (which governs length, not punctuation or
+    # word choice).
+    rules.conversation = ''
+      # Writing Mechanics
+
+      Applies to every bit of text you produce - chat, commit messages, PR
+      titles and bodies, docs, code comments.
+
+      1. Hyphens only. Use a plain hyphen (`-`), never an em-dash (`—`) or
+         en-dash (`–`). They render inconsistently across fonts and read as AI
+         boilerplate.
+
+      2. Domain words, not filler metaphors. Drop vague, over-used terms that
+         add no meaning - e.g. "seam", "load-bearing", "delve", "robust",
+         "leverage". Pick the precise word for the domain at hand.
+    '';
+
     # skills: if the consumer ships config/claude/skills/, the live symlink (see the
     # home.file block below) owns ~/.claude/skills; empty here so the upstream module
     # writes nothing for that path and there is no double-owner collision.
