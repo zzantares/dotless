@@ -30,18 +30,31 @@ in
     # `--replace-fail` makes the build fail loudly if upstream reworks these lines
     # on a `nix flake update` — the signal to re-sync this patch — rather than
     # silently reverting to vim defaults.
-    postPatch = (old.postPatch or "") + ''
-      substituteInPlace pkg/ui/keys.go \
-        --replace-fail 'key.WithKeys("up", "k"),' 'key.WithKeys("up", "h"),' \
-        --replace-fail 'key.WithKeys("down", "j"),' 'key.WithKeys("down", "k"),' \
-        --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
-        --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
-        --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),' \
-        --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
-      substituteInPlace pkg/ui/panes/filetree/keys.go \
-        --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
-        --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
-    '';
+    #
+    # The append is guarded on a sentinel so it is idempotent: this overlay can
+    # be composed onto the same pkgs set more than once (e.g. a NixOS config
+    # that imports both the `nix` module and a base preset, each of which adds
+    # dotless.overlays.default), which runs this overrideAttrs twice. Without
+    # the guard the second pass re-appends the block and --replace-fail aborts,
+    # because the first pass already rewrote 'k' -> 'h' etc.
+    postPatch =
+      (old.postPatch or "")
+      +
+        final.lib.optionalString
+          (!(final.lib.hasInfix "colemak keybindings for diffnav" (old.postPatch or "")))
+          ''
+            # colemak keybindings for diffnav
+            substituteInPlace pkg/ui/keys.go \
+              --replace-fail 'key.WithKeys("up", "k"),' 'key.WithKeys("up", "h"),' \
+              --replace-fail 'key.WithKeys("down", "j"),' 'key.WithKeys("down", "k"),' \
+              --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
+              --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
+              --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),' \
+              --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
+            substituteInPlace pkg/ui/panes/filetree/keys.go \
+              --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
+              --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
+          '';
   });
 
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
@@ -79,27 +92,39 @@ in
   opencode =
     if prev.stdenv.hostPlatform.isLinux then
       (inputs.opencode.packages.${system}.default).overrideAttrs (old: {
-        postPatch = (old.postPatch or "") + ''
-          substituteInPlace packages/opencode/script/build.ts \
-            --replace-fail \
-              'if (item.os === process.platform && item.arch === process.arch && !item.abi) {' \
-              'if (false) {'
-        '';
+        # Both appends below are sentinel-guarded so they stay idempotent when
+        # this overlay is composed onto the same pkgs set twice (see the diffnav
+        # note above): a second pass would otherwise re-run --replace-fail on an
+        # already-patched build.ts and re-`mv` an already-moved binary.
+        postPatch =
+          (old.postPatch or "")
+          +
+            final.lib.optionalString
+              (!(final.lib.hasInfix "opencode cross-platform build patch" (old.postPatch or "")))
+              ''
+                # opencode cross-platform build patch
+                substituteInPlace packages/opencode/script/build.ts \
+                  --replace-fail \
+                    'if (item.os === process.platform && item.arch === process.arch && !item.abi) {' \
+                    'if (false) {'
+              '';
 
         postInstall = "";
         doInstallCheck = false;
 
-        postFixup = (old.postFixup or "") + ''
-          # The Bun binary uses Nix's ld-linux-x86-64.so.2 (glibc 2.42) as its
-          # interpreter, but that linker crashes while applying COPY relocations to
-          # the BSS section of this non-PIE Bun binary. The system linker works.
-          # We replace .opencode-wrapped with a shim that invokes it via the system
-          # linker, leaving the binary itself untouched.
-          mv $out/bin/.opencode-wrapped $out/bin/.opencode-bun
-          printf '#!/bin/sh\nexec /lib64/ld-linux-x86-64.so.2 "%s" "$@"\n' \
-            "$out/bin/.opencode-bun" > $out/bin/.opencode-wrapped
-          chmod +x $out/bin/.opencode-wrapped
-        '';
+        postFixup =
+          (old.postFixup or "")
+          + final.lib.optionalString (!(final.lib.hasInfix ".opencode-bun" (old.postFixup or ""))) ''
+            # The Bun binary uses Nix's ld-linux-x86-64.so.2 (glibc 2.42) as its
+            # interpreter, but that linker crashes while applying COPY relocations to
+            # the BSS section of this non-PIE Bun binary. The system linker works.
+            # We replace .opencode-wrapped with a shim that invokes it via the system
+            # linker, leaving the binary itself untouched.
+            mv $out/bin/.opencode-wrapped $out/bin/.opencode-bun
+            printf '#!/bin/sh\nexec /lib64/ld-linux-x86-64.so.2 "%s" "$@"\n' \
+              "$out/bin/.opencode-bun" > $out/bin/.opencode-wrapped
+            chmod +x $out/bin/.opencode-wrapped
+          '';
       })
     else
       inputs.opencode.packages.${system}.default;
