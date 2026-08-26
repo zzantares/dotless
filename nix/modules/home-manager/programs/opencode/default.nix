@@ -39,6 +39,5 @@ in
     # themes = {};
     # agents = {};
     # commands = {};
-    # forgejo MCP is wired via the shared programs.mcp registry in a follow-up PR.
   };
 }

@@ -49,19 +49,10 @@ in
     # shared knowledge layer so Codex (and any rules-capable agent) gets the same set.
     rules = knowledge.rules;
 
-    # skills: if the consumer ships config/claude/skills/, the live symlink (see the
-    # home.file block below) owns ~/.claude/skills; empty here so the upstream module
-    # writes nothing for that path and there is no double-owner collision.
-    #
-    # Attrset form (not a bare directory path) so dotless's own baked skills coexist
-    # with skills sourced from external flake inputs. The set lives in the shared
-    # knowledge layer (../agentic) so every agent - Claude, Codex, opencode, Pi -
-    # gets the identical skills; simple-english comes from the pinned SimpleEnglish
-    # input (ASD-STE100 Simplified Technical English).
-    # mkForce in the live-override branch yields ~/.claude/skills to the consumer's
-    # out-of-store symlink (drops dotless's baked default so there's no double owner).
-    # Otherwise mkDefault so a downstream consumer can override; to ADD to the baked
-    # set rather than replace it, import knowledge.skills and merge (knowledge.skills // { ... }).
+    # Skills from the shared knowledge layer (../agentic), identical across agents.
+    # Live-override branch: mkForce {} yields ~/.claude/skills to the consumer's
+    # out-of-store symlink (one owner). Else mkDefault, so a consumer can override;
+    # to ADD rather than replace, merge (knowledge.skills // { ... }).
     skills = if hasUserItem "skills" then lib.mkForce { } else lib.mkDefault knowledge.skills;
 
     # settings.json: if the consumer ships config/claude/settings.json, empty here so the
@@ -135,9 +126,8 @@ in
         type = "stdio";
         command = knowledge.forgejo.bin;
         args = knowledge.forgejo.args;
-        env = {
-          FORGEJO_ACCESS_TOKEN = "\${FORGEJO_ACCESS_TOKEN}";
-        };
+        # No env block: forgejo-mcp inherits FORGEJO_ACCESS_TOKEN from Claude's shell
+        # env (exported by devstation secrets.nix). Same as the Codex module.
       };
 
       # github = {
