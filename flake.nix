@@ -87,6 +87,7 @@
         "claude-code" = ./nix/modules/home-manager/programs/claude-code;
         opencode = ./nix/modules/home-manager/programs/opencode;
         codex = ./nix/modules/home-manager/programs/codex;
+        pi = ./nix/modules/home-manager/programs/pi;
         ssh = ./nix/modules/home-manager/programs/ssh;
         browser = ./nix/modules/home-manager/programs/browser;
         firefox = ./nix/modules/home-manager/programs/firefox;

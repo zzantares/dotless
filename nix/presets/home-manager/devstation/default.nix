@@ -22,6 +22,7 @@
     ./../../../modules/home-manager/programs/claude-code
     ./../../../modules/home-manager/programs/opencode
     ./../../../modules/home-manager/programs/codex
+    ./../../../modules/home-manager/programs/pi
     ./clojure.nix
     ./packages.nix
     ./secrets.nix
