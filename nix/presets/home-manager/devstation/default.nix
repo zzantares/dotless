@@ -21,6 +21,7 @@
     ./../../../modules/home-manager/programs/fourmolu
     ./../../../modules/home-manager/programs/claude-code
     ./../../../modules/home-manager/programs/opencode
+    ./../../../modules/home-manager/programs/codex
     ./clojure.nix
     ./packages.nix
     ./secrets.nix
@@ -70,10 +71,6 @@
 
     # Speed up Emacs LSP: https://emacs-lsp.github.io/lsp-mode/page/performance/#use-plists-for-deserialization
     LSP_USE_PLISTS = lib.mkDefault "true";
-
-    # Used by qwen-code
-    OPENAI_BASE_URL = lib.mkDefault "https://openrouter.ai/api/v1";
-    OPENAI_MODEL = lib.mkDefault "qwen/qwen3-coder:free";
   };
 
   home.shellAliases = { } // (profile.shellAliases or { });
