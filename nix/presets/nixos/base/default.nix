@@ -1,6 +1,5 @@
 {
   profile,
-  inputs,
   pkgs,
   lib,
   ...
@@ -11,9 +10,11 @@
 # Import this as the foundation and extend with bare-metal, server, or desktop.
 
 {
-  nixpkgs.config.allowUnfree = true;
+  # The dotless overlay comes from the shared modules/nixpkgs module (deduplicated
+  # so it applies once even when a config also imports it via modules/nix).
+  imports = [ ./../../../modules/nixpkgs ];
 
-  nixpkgs.overlays = [ inputs.dotless.overlays.default ];
+  nixpkgs.config.allowUnfree = true;
 
   time.timeZone = lib.mkIf (profile ? timeZone) profile.timeZone;
 

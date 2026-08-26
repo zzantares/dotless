@@ -22,6 +22,11 @@ in
   };
 
   modules = [
+    # Import both overlay entry points the way a real desktop config does: the
+    # `nix` module directly, and the overlay-carrying base preset via the
+    # desktop chain. They now funnel through the deduplicated modules/nixpkgs,
+    # so the dotless overlay is applied once instead of twice.
+    self.nixosModules.nix
     self.nixosModules.desktop
     {
       # minimal hardware so toplevel evaluates (bare-metal enables systemd-boot).

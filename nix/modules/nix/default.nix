@@ -7,16 +7,14 @@ theInputs@{
 }:
 
 {
-  nixpkgs = {
-    # TODO later do this via a whitelist
-    config.allowUnfree = true;
+  # The dotless overlay is injected by the shared modules/nixpkgs module, imported
+  # here so standalone home-manager configs (which reach the overlay only through
+  # this module) still get it. Keeping it in one place means it is applied once
+  # even when a config also pulls in a base preset. See modules/nixpkgs.
+  imports = [ ./../nixpkgs ];
 
-    overlays = [
-      # inputs.dotless refers to the dotless flake input — the README establishes
-      # "dotless" as the conventional name: `inputs.dotless.url = "..."`.
-      inputs.dotless.overlays.default
-    ];
-  };
+  # TODO later do this via a whitelist
+  nixpkgs.config.allowUnfree = true;
 
   nix = {
     # In a multi-user installation Nix is at the system level which means
