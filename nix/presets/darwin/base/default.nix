@@ -11,11 +11,10 @@
 # users.users.${user}.home to be set manually in the system config.
 
 {
-  # The dotless overlay comes from the shared modules/nixpkgs module (deduplicated
-  # so it applies once even when a config also imports it via modules/nix).
+  # nixpkgs setup (the dotless overlay and allowUnfree) comes from the shared
+  # modules/nixpkgs module (deduplicated so it applies once even when a config
+  # also imports it via modules/nix).
   imports = [ ./../../../modules/nixpkgs ];
-
-  nixpkgs.config.allowUnfree = true;
 
   time.timeZone = lib.mkIf (profile ? timeZone) profile.timeZone;
 

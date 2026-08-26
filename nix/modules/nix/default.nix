@@ -7,14 +7,12 @@ theInputs@{
 }:
 
 {
-  # The dotless overlay is injected by the shared modules/nixpkgs module, imported
-  # here so standalone home-manager configs (which reach the overlay only through
-  # this module) still get it. Keeping it in one place means it is applied once
-  # even when a config also pulls in a base preset. See modules/nixpkgs.
-  imports = [ ./../nixpkgs ];
-
-  # TODO later do this via a whitelist
-  nixpkgs.config.allowUnfree = true;
+  # nixpkgs setup (the dotless overlay and allowUnfree) lives in the shared
+  # modules/nixpkgs module, imported here so standalone home-manager configs
+  # (which reach it only through this module) still get it. Keeping it in one
+  # place means the overlay is applied once even when a config also pulls in a
+  # base preset. See modules/nixpkgs.
+  imports = [ ./../../modules/nixpkgs ];
 
   nix = {
     # In a multi-user installation Nix is at the system level which means

@@ -14,6 +14,9 @@
 { inputs, ... }:
 
 {
+  # TODO later do this via a whitelist
+  nixpkgs.config.allowUnfree = true;
+
   nixpkgs.overlays = [
     # inputs.dotless refers to the dotless flake input — the README establishes
     # "dotless" as the conventional name: `inputs.dotless.url = "..."`.
