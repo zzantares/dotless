@@ -13,6 +13,18 @@
     defaultMaximumIdentityLifetime = 14400;
   };
 
+  # HM only exports SSH_AUTH_SOCK from shell inits plus a oneshot unit that races
+  # every other user service. Losers (the Emacs daemon, so Magit's git) start
+  # without an agent and re-prompt for the key passphrase. environment.d is set
+  # before any unit starts; both agents listen on a fixed path.
+  systemd.user.sessionVariables = lib.mkIf config.sshAuthSock.enable {
+    SSH_AUTH_SOCK =
+      if config.services.ssh-agent.enable then
+        "\${XDG_RUNTIME_DIR}/${config.services.ssh-agent.socket}"
+      else
+        "\${XDG_RUNTIME_DIR}/gnupg/S.gpg-agent.ssh";
+  };
+
   # This only handles the SSH client configuration not the installation of the client
   programs.ssh = {
     enable = lib.mkDefault true;
