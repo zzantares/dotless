@@ -115,6 +115,36 @@ in
           };
         };
 
+    # Language servers for Claude Code's LSP tool, declared once for every
+    # consumer instead of per-project from the marketplace. Store paths, not
+    # bare names, so a server resolves without its toolchain in the profile.
+    # Does not silence the install prompt; that is a ~/.claude.json key.
+    lspServers = {
+      typescript = {
+        command = lib.getExe' pkgs.typescript-language-server "typescript-language-server";
+        args = [ "--stdio" ];
+        extensionToLanguage = {
+          ".ts" = "typescript";
+          ".tsx" = "typescriptreact";
+          ".mts" = "typescript";
+          ".cts" = "typescript";
+          ".js" = "javascript";
+          ".jsx" = "javascriptreact";
+          ".mjs" = "javascript";
+          ".cjs" = "javascript";
+        };
+      };
+
+      pyright = {
+        command = lib.getExe' pkgs.pyright "pyright-langserver";
+        args = [ "--stdio" ];
+        extensionToLanguage = {
+          ".py" = "python";
+          ".pyi" = "python";
+        };
+      };
+    };
+
     # See the HomeManager module docs for extra options they all look very interesting
     # settings = {}; # settings.json
     # agents = {};
