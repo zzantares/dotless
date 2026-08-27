@@ -35,7 +35,65 @@ in
     extraPackages =
       epkgs: with epkgs; [
         vterm
-        treesit-grammars.with-all-grammars
+        multi-vterm
+
+        # Doom's :tools pdf otherwise compiles epdfinfo on first use; the
+        # nixpkgs build ships it prebuilt against poppler.
+        pdf-tools
+
+        # Curated, not `with-all-grammars`: that builds 290+ grammars and breaks
+        # whenever a single upstream tarball 404s. Covers every language our Doom
+        # :lang modules enable, plus the config formats we read.
+        (treesit-grammars.with-grammars (
+          g: with g; [
+            tree-sitter-bash
+            tree-sitter-c
+            tree-sitter-clojure
+            tree-sitter-commonlisp
+            tree-sitter-cpp
+            tree-sitter-css
+            tree-sitter-dhall
+            tree-sitter-dockerfile
+            tree-sitter-elisp
+            tree-sitter-erlang
+            tree-sitter-fennel
+            tree-sitter-fsharp
+            tree-sitter-gherkin
+            tree-sitter-ghostty
+            tree-sitter-go
+            tree-sitter-graphql
+            tree-sitter-haskell
+            tree-sitter-hcl # Terraform / HCL
+            tree-sitter-html
+            tree-sitter-javascript
+            tree-sitter-jinja2
+            tree-sitter-json
+            tree-sitter-latex
+            tree-sitter-lua
+            tree-sitter-make
+            tree-sitter-markdown
+            tree-sitter-markdown-inline
+            tree-sitter-mermaid
+            tree-sitter-nginx
+            tree-sitter-nix
+            tree-sitter-ocaml
+            tree-sitter-odin
+            tree-sitter-opam
+            tree-sitter-org
+            tree-sitter-purescript
+            tree-sitter-python
+            tree-sitter-rust
+            tree-sitter-scheme # Guile / Scheme
+            tree-sitter-sql
+            tree-sitter-sshclientconfig
+            tree-sitter-toml
+            tree-sitter-tsx
+            tree-sitter-typescript
+            tree-sitter-xml
+            tree-sitter-yaml
+            tree-sitter-zig
+          ]
+        ))
       ];
   };
 
