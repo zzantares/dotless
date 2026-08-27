@@ -135,6 +135,20 @@ in
         };
       };
 
+      rust-analyzer = {
+        command = lib.getExe' pkgs.rust-analyzer "rust-analyzer";
+        extensionToLanguage = {
+          ".rs" = "rust";
+        };
+      };
+
+      lua = {
+        command = lib.getExe' pkgs.lua-language-server "lua-language-server";
+        extensionToLanguage = {
+          ".lua" = "lua";
+        };
+      };
+
       pyright = {
         command = lib.getExe' pkgs.pyright "pyright-langserver";
         args = [ "--stdio" ];
