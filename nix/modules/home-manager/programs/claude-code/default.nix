@@ -63,6 +63,13 @@ in
       else
         {
           autoUpdates = false;
+
+          # Classic main-screen renderer, not the alt-screen "fullscreen" one.
+          # Fullscreen virtualises its own scrollback, so the conversation never
+          # reaches the terminal's history: tmux copy-mode sees one frozen frame
+          # and the wheel is captured. Keep the transcript in real scrollback.
+          tui = "default";
+
           env = {
             "DISABLE_AUTOUPDATER" = "1";
 
