@@ -375,15 +375,6 @@ in
     };
   };
 
-  # pkgs.emacs (set by the emacs module) is built with --with-x-toolkit
-  # (GTK3+X11), so it only ever runs through XWayland. Under a fractional
-  # monitor scale, XWayland clients render at 1x and get bitmap-upscaled by
-  # the compositor, producing visibly blurry text next to native Wayland
-  # clients (e.g. Alacritty). emacs-pgtk is the same Emacs version built
-  # without the X toolkit — a native Wayland client that renders at the
-  # correct scale. Only applies if the consumer has enabled programs.emacs.
-  programs.emacs.package = lib.mkIf config.programs.emacs.enable pkgs.emacs-pgtk;
-
   # Notifications + a GNOME-style quick-settings panel (toggle: SUPER+CTRL+n).
   # Replaces mako - both claim org.freedesktop.Notifications, so only one can
   # run. Android-style hub, Kanagawa palette.

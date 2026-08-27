@@ -693,6 +693,11 @@ in
     };
   };
 
+  # This session is X11, so take the GTK3+X11 build back: the emacs module
+  # defaults to pgtk, which is a Wayland client and loses -display / the X
+  # toolkit behaviour the rest of this module assumes.
+  programs.emacs.package = pkgs.emacs;
+
   # Ensure the Emacs daemon starts after xsettingsd so it reads the correct
   # DPI from XSETTINGS rather than falling back to the raw X11 screen DPI.
   systemd.user.services.emacs.Unit = {

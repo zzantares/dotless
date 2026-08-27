@@ -180,22 +180,6 @@ in
     pkgs.libnotify # To get a newer version of notify-send which supports the --print-id flag
   ];
 
-  # This GNOME module is Wayland-only: GNOME dropped the Xorg session in 49 (we
-  # ship 50), so there is no X11 GNOME session — hence this override is scoped
-  # here, while the X11 modules (e.g. xmonad) keep the default GTK3+X11
-  # pkgs.emacs.
-  #
-  # Why pgtk: pkgs.emacs (from the emacs module) is a GTK3+X11 build, so on
-  # Wayland it only ever runs through XWayland. XWayland gives the frame its
-  # WM_CLASS asynchronously, and auto-move-windows only pins a window if the app
-  # is already resolved at window-creation time — so the Emacs daemon frame
-  # (emacsclient -c) intermittently misses its pinned workspace and opens on
-  # whatever workspace is active. emacs-pgtk is the same Emacs built as a native
-  # Wayland client with a synchronous app_id ("emacs"), so it pins reliably like
-  # the other apps. Set unconditionally: the emacs module already gates install
-  # on programs.emacs.enable, so this is a no-op when Emacs is disabled.
-  programs.emacs.package = pkgs.emacs-pgtk;
-
   systemd.user.services.touchegg = {
     Unit = {
       Description = "Touchegg Daemon";

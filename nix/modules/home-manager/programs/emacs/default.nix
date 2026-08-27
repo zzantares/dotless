@@ -24,9 +24,13 @@ in
     enable = lib.mkDefault true;
 
     # macOS gets the emacs-plus patch stack (NS window role, undecorated frame,
-    # system appearance, Doom icon); Linux keeps stock Emacs, and the gnome
-    # module swaps in emacs-pgtk on top of this default.
-    package = lib.mkDefault (if isDarwin then pkgs.emacs-plus else pkgs.emacs);
+    # system appearance, Doom icon).
+    #
+    # Linux defaults to pgtk, a native Wayland client: pkgs.emacs is GTK3+X11, so
+    # every Wayland session runs it through XWayland, which costs a synchronous
+    # app_id (workspace pinning) and correct fractional scaling. X11 sessions
+    # override this back to pkgs.emacs - see the xmonad module.
+    package = lib.mkDefault (if isDarwin then pkgs.emacs-plus else pkgs.emacs-pgtk);
 
     extraPackages =
       epkgs: with epkgs; [
