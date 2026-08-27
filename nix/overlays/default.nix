@@ -510,3 +510,14 @@ in
     ];
   };
 }
+// prev.lib.optionalAttrs prev.stdenv.hostPlatform.isDarwin {
+  # Emacs 30 + emacs-plus's macOS patches, and the applet that hands files and
+  # org-protocol URLs to the daemon. Both are darwin-only, so Linux consumers
+  # keep stock `pkgs.emacs`; the emacs home module wires them up per platform.
+  emacs-plus = final.callPackage ./../pkgs/emacs-plus { };
+
+  # `emacs` defaults to the unwrapped build here; the module overrides it with
+  # `programs.emacs.finalPackage` so the applet talks to the emacsclient that
+  # actually ships the user's packages.
+  emacs-client = final.callPackage ./../pkgs/emacs-client { emacs = final.emacs-plus; };
+}

@@ -165,6 +165,11 @@
                 linear-cli
                 zed-editor
                 ;
+            }
+            # macOS only: the emacs-plus patches target the NS port, and the
+            # client applet compiles against the host's osacompile.
+            // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+              inherit (pkgs) emacs-plus emacs-client;
             };
 
             # CI smoke configs — instantiate the presets so module/preset
