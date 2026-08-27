@@ -51,7 +51,9 @@ in
     focusEvents = lib.mkDefault true;
     clock24 = false;
     escapeTime = 10;
-    historyLimit = 10000;
+    # 10k lines is a few minutes of a Claude Code session; keep enough
+    # scrollback that copy-mode can still reach the start of a conversation.
+    historyLimit = 50000;
     keyMode = "vi";
     secureSocket = lib.mkDefault true;
     terminal = "tmux-256color";
