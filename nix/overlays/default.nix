@@ -24,6 +24,20 @@ in
 
   boom = final.callPackage ./../pkgs/boom { };
 
+  # Ship `pr-review' through the emacs package scope so any consumer can pull it
+  # in with `programs.emacs.extraPackages = epkgs: [ epkgs.pr-review ];'.
+  emacsPackagesFor =
+    emacs:
+    (prev.emacsPackagesFor emacs).overrideScope (
+      efinal: _eprev: {
+        # `gh' is passed from the top-level set: the emacs scope has its own
+        # `gh' (an elisp library), which is not the GitHub CLI we shell out to.
+        pr-review = efinal.callPackage ./../pkgs/emacs/pr-review { inherit (final) gh; };
+      }
+    );
+
+  emacsPackages = final.emacsPackagesFor final.emacs;
+
   # diffnav ships hardcoded vim keybindings (pkg/ui/keys.go) with no config
   # hook, so the only way to get the Colemak nav scheme used elsewhere in this
   # config (h=up, k=down, j=left, l=right; cf. gh-dash, aerospace) is to rewrite

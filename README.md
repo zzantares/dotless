@@ -15,7 +15,7 @@ included, but designed to be extended with your own private layer.
 - **NixOS presets** — system-level role bundles (`base`, `bare-metal`, `server`, `desktop`, `node`)
 - **NixOS modules** — opt-in system services (`sops`, `syncthing`, `tailscale`, `gnome`, `kde`) and an opt-in nix daemon module (`nix`) usable on any platform
 - **nix-darwin presets** — system-level foundation (`base`) that unblocks Home Manager integration
-- **Overlay** — curated toolchain groupings (`haskell`, `rust`, `python`, `ops`, `network`, …)
+- **Overlay** — curated toolchain groupings (`haskell`, `rust`, `python`, `ops`, `network`, …) and the `pr-review` Emacs package
 - **Lib** — flake discovery utilities (`discoverHome`, `discoverDarwin`, `discoverNixos`)
 
 ## Setup
@@ -278,6 +278,35 @@ programs.opencode.enable = false;
 openrouter_api_key: <your OpenRouter API key>
 github_auth_token: <your GitHub personal access token>
 forgejo_mcp_token: <your Forgejo access token>
+```
+
+## PR reviews from Emacs
+
+The overlay adds `pr-review` to the Emacs package scope, and the `emacs` module
+installs it. It reviews a pull request from the files on disk: comment on the
+line at point, batch the drafts into a server-side pending review, submit them
+with a verdict. GitHub via the `gh` CLI is the only backend today.
+
+| Command | What it does |
+| --- | --- |
+| `pr-review-comment` | Draft a comment on the current line or region |
+| `pr-review-list` | List the pending review's drafts, flagging outdated ones |
+| `pr-review-submit` | Publish the drafts with COMMENT / APPROVE / REQUEST_CHANGES |
+| `pr-review-refresh` | Resync the worktree to the PR head after the author pushes |
+| `pr-review-diff-hl-set-base` | Point diff-hl at the PR base, so gutters show the PR's changes |
+
+Bind them yourself; `pr-review-prefix-map` holds `c`, `l`, `s`, `f`. Enable
+`pr-review-forge-mode` to route Forge's approve / request-changes through the
+batch submitter.
+
+```elisp
+(require 'pr-review)
+(pr-review-forge-mode 1)
+(map! :leader :prefix "g" (:prefix ("V" . "review")
+       :desc "Comment on PR line(s)" :m "c" #'pr-review-comment
+       :desc "List pending review"   :m "l" #'pr-review-list
+       :desc "Submit review"         :m "s" #'pr-review-submit
+       :desc "Refresh to PR head"    :m "f" #'pr-review-refresh))
 ```
 
 ## Extending dotless

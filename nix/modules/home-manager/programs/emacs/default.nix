@@ -94,6 +94,9 @@ in
             tree-sitter-zig
           ]
         ))
+
+        # Batched PR reviews from Emacs; see nix/pkgs/emacs/pr-review.
+        pr-review
       ];
   };
 
