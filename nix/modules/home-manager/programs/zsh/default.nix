@@ -34,6 +34,15 @@
   }
   // (profile.shellAliases or { });
 
+  # Shared shell primitives for the worktree-workspace scripts (git-wt, git-pr,
+  # task) in consuming repos. Store-based, not out-of-store: it is dotless-owned
+  # and consumers source it by this fixed path instead of vendoring a copy.
+  home.file.worktree-lib = {
+    enable = lib.mkDefault true;
+    source = ./lib/worktree.sh;
+    target = "${config.home.homeDirectory}/.local/lib/worktree.sh";
+  };
+
   programs.zsh = {
     enable = lib.mkDefault true;
     autocd = lib.mkDefault true;

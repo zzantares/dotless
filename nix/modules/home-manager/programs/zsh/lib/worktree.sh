@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 #
 # Shared primitives for the worktree-workspace scripts (git-wt, git-pr, task)
-# across repos. dotless ships this to a stable path via its dotfiles home-manager
+# across repos. dotless ships this to a stable path via its zsh home-manager
 # module, so consumers source it by absolute path:
 #
 #   source "$HOME/.local/lib/worktree.sh"
