@@ -122,6 +122,23 @@ wt_emacsclient() {
 	fi
 }
 
+# Force-restart the Emacs daemon: the launchd agent on macOS, the systemd --user
+# unit on Linux. Returns non-zero when there is no daemon to restart (e.g. before
+# the first activation), so a caller can report that rather than claim a restart.
+wt_emacs_restart() {
+	case "$OSTYPE" in
+		darwin*)
+			# -k kills a wedged-but-loaded daemon before restarting; a plain
+			# kickstart no-ops when the service is loaded (but hung).
+			launchctl kickstart -k "gui/$(id -u)/org.nix-community.home.emacs" 2>/dev/null
+			;;
+		*)
+			systemctl --user cat emacs.service >/dev/null 2>&1 || return 1
+			systemctl --user restart emacs.service 2>/dev/null
+			;;
+	esac
+}
+
 # Ensure the Emacs daemon is up AND responsive. Returns 0 when reachable.
 # The liveness probe is a bounded ping (portable; `systemctl is-active` is
 # Linux-only and cannot detect a wedged-but-loaded daemon). Restarts only when
@@ -131,16 +148,7 @@ wt_emacs_daemon() {
 	wt_emacsclient 3 -u --eval t >/dev/null 2>&1 && return 0
 	[[ "${1:-0}" == 1 ]] || return 1
 
-	case "$OSTYPE" in
-		darwin*)
-			# -k kills a wedged-but-loaded daemon before restarting; a plain
-			# kickstart no-ops when the service is loaded (but hung).
-			launchctl kickstart -k "gui/$(id -u)/org.nix-community.home.emacs" 2>/dev/null || true
-			;;
-		*)
-			systemctl --user restart emacs.service 2>/dev/null || true
-			;;
-	esac
+	wt_emacs_restart || true
 
 	local _
 	for _ in $(seq 1 15); do

@@ -133,12 +133,17 @@ in
     };
   };
 
-  # The macOS counterpart of the desktop entry below: an applet that hands files
-  # and org-protocol URLs to the daemon. Built against finalPackage so it calls
-  # the emacsclient that carries extraPackages.
-  home.packages = lib.mkIf (isDarwin && enabled) [
-    (pkgs.emacs-client.override { emacs = config.programs.emacs.finalPackage; })
-  ];
+  # doom-bootstrap installs/upgrades the Doom checkout in ~/.config/emacs and
+  # restarts the daemon afterwards - the half of the setup Nix does not own.
+  #
+  # The darwin extra is the counterpart of the desktop entry below: an applet
+  # that hands files and org-protocol URLs to the daemon. Built against
+  # finalPackage so it calls the emacsclient that carries extraPackages.
+  home.packages =
+    lib.optionals enabled [ pkgs.doom-bootstrap ]
+    ++ lib.optionals (isDarwin && enabled) [
+      (pkgs.emacs-client.override { emacs = config.programs.emacs.finalPackage; })
+    ];
 
   # Add our own desktop entry in order to use Emacs Doom icon
   xdg.desktopEntries.emacs = lib.mkIf isLinux {
