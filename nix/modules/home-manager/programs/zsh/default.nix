@@ -34,13 +34,17 @@
   }
   // (profile.shellAliases or { });
 
-  # Shared shell primitives for the worktree-workspace scripts (git-wt, git-pr,
-  # task) in consuming repos. Store-based, not out-of-store: it is dotless-owned
-  # and consumers source it by this fixed path instead of vendoring a copy.
-  home.file.worktree-lib = {
+  # Shared shell primitives for the workspace scripts (git-wt, git-pr, task) in
+  # consuming repos. Store-based, not out-of-store: dotless owns these and
+  # consumers source them by this fixed path instead of vendoring a copy.
+  #
+  # The whole directory ships as one unit so all.sh can reach its siblings by a
+  # relative path - which is also what lets a nix package source a module
+  # straight from the store (see pkgs/doom-bootstrap).
+  home.file.shell-lib = {
     enable = lib.mkDefault true;
-    source = ./lib/worktree.sh;
-    target = "${config.home.homeDirectory}/.local/lib/worktree.sh";
+    source = ./lib;
+    target = "${config.home.homeDirectory}/.local/lib/sh";
   };
 
   programs.zsh = {

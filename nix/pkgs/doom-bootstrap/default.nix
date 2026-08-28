@@ -13,7 +13,8 @@
 # second Emacs here would build Doom against a different binary than the daemon.
 
 let
-  worktreeLib = ./../../modules/home-manager/programs/zsh/lib/worktree.sh;
+  # Only the Emacs module: this script has no use for the worktree and tmux half.
+  emacsLib = ./../../modules/home-manager/programs/zsh/lib/emacs.sh;
 in
 
 writeShellApplication {
@@ -24,7 +25,7 @@ writeShellApplication {
     coreutils
   ];
 
-  text = builtins.replaceStrings [ "@worktreeLib@" ] [ "${worktreeLib}" ] (
+  text = builtins.replaceStrings [ "@emacsLib@" ] [ "${emacsLib}" ] (
     builtins.readFile ./doom-bootstrap.sh
   );
 }

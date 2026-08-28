@@ -11,10 +11,11 @@
 #
 # Environment: DOOM_DIR (default $XDG_CONFIG_HOME/emacs), DOOM_REPO, DOOM_REF.
 
-# Shared primitives from dotless's zsh module; wt_emacs_restart branches
-# launchd vs systemd.
+# The Emacs module of dotless's shared shell library; wt_emacs_restart branches
+# launchd vs systemd. Substituted with its store path at build time, so this
+# does not depend on the copy the zsh module installs under ~/.local/lib/sh.
 # shellcheck source=/dev/null
-source "@worktreeLib@"
+source "@emacsLib@"
 
 doom_repo="${DOOM_REPO:-https://github.com/doomemacs/doomemacs}"
 doom_ref="${DOOM_REF:-master}"
