@@ -1,16 +1,12 @@
 # shellcheck shell=bash
 #
-# Emacs primitives shared by the workspace scripts (git-wt, git-pr, task) and by
-# boom. dotless ships this directory to a stable path via its zsh
-# home-manager module, so consumers source it by absolute path:
+# Emacs primitives for the workspace scripts (git-wt, git-pr, task) and boom:
 #
 #   source "$HOME/.local/lib/sh/emacs.sh"
 #
 # Every helper is cross-platform: systemd --user on Linux, launchd on macOS.
-# Helpers stay quiet and return status codes; each caller owns its messages.
 
-# Sourcing this file twice is harmless for the functions, but the probe below
-# would run again - so guard the whole file, the way a C header does.
+# Guarded so the probe below does not run twice.
 [[ -n "${_DOTLESS_EMACS_SH:-}" ]] && return 0
 _DOTLESS_EMACS_SH=1
 

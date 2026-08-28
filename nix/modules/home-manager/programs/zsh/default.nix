@@ -34,13 +34,8 @@
   }
   // (profile.shellAliases or { });
 
-  # Shared shell primitives for the workspace scripts (git-wt, git-pr, task) in
-  # consuming repos. Store-based, not out-of-store: dotless owns these and
-  # consumers source them by this fixed path instead of vendoring a copy.
-  #
-  # The whole directory ships as one unit so all.sh can reach its siblings by a
-  # relative path - which is also what lets a nix package source a module
-  # straight from the store (see pkgs/boom).
+  # Shared shell primitives for git-wt, git-pr and task. The directory ships as
+  # one unit: that is how all.sh finds its siblings, here and from the store.
   home.file.shell-lib = {
     enable = lib.mkDefault true;
     source = ./lib;

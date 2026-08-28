@@ -1,17 +1,12 @@
 # shellcheck shell=bash
 #
-# Worktree and tmux primitives shared by the workspace scripts (git-wt, git-pr,
-# task). dotless ships this directory to a stable path via its zsh home-manager
-# module, so consumers source it by absolute path:
+# Worktree and tmux primitives for the workspace scripts (git-wt, git-pr, task):
 #
-#   source "$HOME/.local/lib/sh/worktree.sh"
-#
-# The Emacs half lives in ./emacs.sh; ./all.sh sources every module at once.
+#   source "$HOME/.local/lib/sh/worktree.sh"   # Emacs half: ./emacs.sh
 #
 # Helpers stay quiet and return status codes; each caller owns its user-facing
-# messages (and its own "git wt:" / "git pr:" / task prefix). Unavoidable
-# git/tmux output is routed to stderr so a caller's stdout can stay a pure path
-# emitter.
+# messages. Unavoidable git/tmux output goes to stderr, so a caller's stdout can
+# stay a pure path emitter.
 
 [[ -n "${_DOTLESS_WORKTREE_SH:-}" ]] && return 0
 _DOTLESS_WORKTREE_SH=1

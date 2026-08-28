@@ -133,12 +133,9 @@ in
     };
   };
 
-  # boom installs/upgrades the Doom checkout in ~/.config/emacs and restarts the
-  # daemon afterwards - the half of the setup Nix does not own.
-  #
-  # The darwin extra is the counterpart of the desktop entry below: an applet
-  # that hands files and org-protocol URLs to the daemon. Built against
-  # finalPackage so it calls the emacsclient that carries extraPackages.
+  # boom owns the Doom checkout Nix cannot. The darwin extra is the macOS
+  # counterpart of the desktop entry below: an applet that hands files and
+  # org-protocol URLs to the daemon, built against finalPackage.
   home.packages = lib.optionals enabled (
     [ pkgs.boom ]
     ++ lib.optionals isDarwin [
