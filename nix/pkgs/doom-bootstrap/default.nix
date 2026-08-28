@@ -13,8 +13,7 @@
 # second Emacs here would build Doom against a different binary than the daemon.
 
 let
-  # Only the Emacs module: this script has no use for the worktree and tmux half.
-  emacsLib = ./../../modules/home-manager/programs/zsh/lib/emacs.sh;
+  shLib = ./../../modules/home-manager/programs/zsh/lib;
 in
 
 writeShellApplication {
@@ -25,7 +24,9 @@ writeShellApplication {
     coreutils
   ];
 
-  text = builtins.replaceStrings [ "@emacsLib@" ] [ "${emacsLib}" ] (
-    builtins.readFile ./doom-bootstrap.sh
-  );
+  # Exported above the script body, so the source line below reads as a normal
+  # variable rather than a build-time placeholder, and no caller can repoint it.
+  runtimeEnv.DOTLESS_SH_LIB = "${shLib}";
+
+  text = builtins.readFile ./doom-bootstrap.sh;
 }

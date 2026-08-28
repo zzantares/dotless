@@ -12,10 +12,11 @@
 # Environment: DOOM_DIR (default $XDG_CONFIG_HOME/emacs), DOOM_REPO, DOOM_REF.
 
 # The Emacs module of dotless's shared shell library; wt_emacs_restart branches
-# launchd vs systemd. Substituted with its store path at build time, so this
-# does not depend on the copy the zsh module installs under ~/.local/lib/sh.
+# launchd vs systemd. DOTLESS_SH_LIB is the library directory in the store,
+# exported by the wrapper - not the copy the zsh module installs under
+# ~/.local/lib/sh, so this script works without that module.
 # shellcheck source=/dev/null
-source "@emacsLib@"
+source "$DOTLESS_SH_LIB/emacs.sh"
 
 doom_repo="${DOOM_REPO:-https://github.com/doomemacs/doomemacs}"
 doom_ref="${DOOM_REF:-master}"
