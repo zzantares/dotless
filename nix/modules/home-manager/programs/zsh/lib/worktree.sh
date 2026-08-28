@@ -187,7 +187,11 @@ wt_emacs_add() {
 wt_emacs_remove() {
 	local slug=$1 dest=$2 elisp
 	command -v emacsclient >/dev/null 2>&1 || return 0
-	elisp="(progn (when (fboundp '+workspace/delete) (ignore-errors (+workspace/delete \"$slug\"))) \
+	# persp-kill, not +workspace/delete: in Doom the latter deletes a workspace
+	# saved under persp-save-dir and errors on a live one, so the workspace
+	# wt_emacs_add created was never actually removed - ignore-errors hid it.
+	elisp="(progn (when (and (fboundp 'persp-kill) (member \"$slug\" (persp-names))) \
+		(ignore-errors (persp-kill \"$slug\"))) \
 		(projectile-remove-known-project \"$dest\"))"
 	wt_emacsclient 5 -n --eval "$elisp" >/dev/null 2>&1 || true
 }
