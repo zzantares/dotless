@@ -507,15 +507,16 @@ in
       # un-tiles a maximized/fullscreen window and restores its tile when
       # toggled back. So the native Mutter toggles reliably cover the other
       # tiles regardless of tree shape:
-      #   <Super>comma  → maximize (fills the work area, top bar kept)
-      #   <Super>Return → fullscreen (covers the top bar too, i3/sway monocle)
+      #   <Super>comma/Return  → maximize (fills the work area, top bar kept)
+      #   <Super><Shift>Return → fullscreen (covers the top bar too)
       # Second press restores the tile. These don't cycle to the covered tiles
       # (Forge can't do zoom-follows-focus on Wayland); <Alt>F10 is kept too.
       toggle-maximized = [
         "<Alt>F10"
         "<Super>comma"
+        "<Super>Return"
       ];
-      toggle-fullscreen = [ "<Super>Return" ];
+      toggle-fullscreen = [ "<Super><Shift>Return" ];
 
       # Close focused window — mirror Hyprland's <Super><Shift>Backspace killactive
       # plus the <Super>Delete alias (keep the GNOME default <Alt>F4 too).
