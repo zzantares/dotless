@@ -40,7 +40,7 @@
   #
   # The whole directory ships as one unit so all.sh can reach its siblings by a
   # relative path - which is also what lets a nix package source a module
-  # straight from the store (see pkgs/doom-bootstrap).
+  # straight from the store (see pkgs/boom).
   home.file.shell-lib = {
     enable = lib.mkDefault true;
     source = ./lib;

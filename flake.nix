@@ -159,7 +159,7 @@
             packages = {
               inherit (pkgs)
                 claude-code
-                doom-bootstrap
+                boom
                 opencode
                 fonts
                 wallpapers

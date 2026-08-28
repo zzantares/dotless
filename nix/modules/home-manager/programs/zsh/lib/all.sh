@@ -4,8 +4,8 @@
 #
 #   source "$HOME/.local/lib/sh/all.sh"
 #
-# A script that needs one module sources that module instead - doom-bootstrap
-# takes emacs.sh only. Each module guards itself, so sourcing this file and a
+# A script that needs one module sources that module instead - boom takes
+# emacs.sh only. Each module guards itself, so sourcing this file and a
 # module in the same process is safe.
 #
 # Modules are listed one per line rather than globbed: a glob makes load order

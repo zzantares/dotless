@@ -1,9 +1,11 @@
-# doom-bootstrap - install, upgrade and activate Doom Emacs.
+# shellcheck shell=bash
+#
+# boom - bootstrap Doom: install, upgrade and activate Doom Emacs.
 #
 # Usage:
-#   doom-bootstrap install    clone Doom into $DOOM_DIR, run doom install + sync
-#   doom-bootstrap upgrade    re-clone and reinstall, rolling back on failure
-#   doom-bootstrap activate   clear a stray ~/.emacs.d and restart the daemon
+#   boom install    clone Doom into $DOOM_DIR, run doom install + sync
+#   boom upgrade    re-clone and reinstall, rolling back on failure
+#   boom activate   clear a stray ~/.emacs.d and restart the daemon
 #
 # install and upgrade both activate when they finish. Nix owns the Emacs binary
 # and the daemon; Doom itself is a git checkout, which is why this is a script
@@ -18,31 +20,39 @@
 # shellcheck source=/dev/null
 source "$DOTLESS_SH_LIB/emacs.sh"
 
+# macOS GUI processes do not inherit the shell environment, so Doom needs its
+# own envvars file there; on Linux the daemon gets its environment from systemd.
+# --aot native-compiles ahead of time rather than on first use of each file.
+case "$OSTYPE" in
+	darwin*) doom_install_flags=(--aot --env) ;;
+	*) doom_install_flags=(--no-env) ;;
+esac
+
 doom_repo="${DOOM_REPO:-https://github.com/doomemacs/doomemacs}"
 doom_ref="${DOOM_REF:-master}"
 doom_dir="${DOOM_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/emacs}"
 tmp="${TMPDIR:-/tmp}"
 
 die() {
-	echo "doom-bootstrap: $*" >&2
+	echo "boom: $*" >&2
 	exit 1
 }
 
 usage() {
 	cat >&2 <<'EOF'
 usage:
-  doom-bootstrap install    clone Doom, then run `doom install` and `doom sync`
-  doom-bootstrap upgrade    re-clone and reinstall, restoring the old checkout
-                            if either step fails
-  doom-bootstrap activate   move a stray ~/.emacs.d aside and restart the Emacs
-                            daemon so it picks Doom up
+  boom install    clone Doom, then run `doom install` and `doom sync`
+  boom upgrade    re-clone and reinstall, restoring the old checkout if either
+                  step fails
+  boom activate   move a stray ~/.emacs.d aside and restart the Emacs daemon so
+                  it picks Doom up
 EOF
 }
 
 # Clone + set up. Kept as one unit so `upgrade` can roll back on either half.
 install_doom() {
 	git clone --depth 1 --branch "$doom_ref" "$doom_repo" "$doom_dir" &&
-		"$doom_dir/bin/doom" install --no-env &&
+		"$doom_dir/bin/doom" install "${doom_install_flags[@]}" &&
 		"$doom_dir/bin/doom" sync
 }
 
@@ -68,7 +78,7 @@ cmd_activate() {
 }
 
 cmd_install() {
-	[[ -e "$doom_dir" ]] && die "$doom_dir already exists - use 'doom-bootstrap upgrade'"
+	[[ -e "$doom_dir" ]] && die "$doom_dir already exists - use 'boom upgrade'"
 
 	install_doom || die "install failed; $doom_dir is left in place for inspection"
 
@@ -77,7 +87,7 @@ cmd_install() {
 }
 
 cmd_upgrade() {
-	[[ -d "$doom_dir" ]] || die "no Doom at $doom_dir - run 'doom-bootstrap install' first"
+	[[ -d "$doom_dir" ]] || die "no Doom at $doom_dir - run 'boom install' first"
 
 	local backup
 	backup="$tmp/emacs-$(date +%Y%m%d-%H%M%S)"

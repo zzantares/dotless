@@ -22,7 +22,7 @@ in
 
   claude-code = final.callPackage ./../pkgs/claude-code { };
 
-  doom-bootstrap = final.callPackage ./../pkgs/doom-bootstrap { };
+  boom = final.callPackage ./../pkgs/boom { };
 
   # diffnav ships hardcoded vim keybindings (pkg/ui/keys.go) with no config
   # hook, so the only way to get the Colemak nav scheme used elsewhere in this

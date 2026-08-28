@@ -4,9 +4,9 @@
   coreutils,
 }:
 
-# Doom's lifecycle (clone, `doom install`, `doom sync`) is a git checkout in
-# $XDG_CONFIG_HOME/emacs, not something Nix can own - so it ships as a script
-# both consumers call instead of a justfile recipe each keeps its own copy of.
+# boom - bootstrap Doom. Its lifecycle (clone, `doom install`, `doom sync`) is a
+# git checkout in $XDG_CONFIG_HOME/emacs, not something Nix can own, so it ships
+# as a script both consumers call instead of a justfile recipe each keeps.
 #
 # emacs, emacsclient, systemctl and launchctl deliberately stay out of
 # runtimeInputs: they come from the user's profile and the OS, and pinning a
@@ -17,7 +17,7 @@ let
 in
 
 writeShellApplication {
-  name = "doom-bootstrap";
+  name = "boom";
 
   runtimeInputs = [
     git
@@ -28,5 +28,5 @@ writeShellApplication {
   # variable rather than a build-time placeholder, and no caller can repoint it.
   runtimeEnv.DOTLESS_SH_LIB = "${shLib}";
 
-  text = builtins.readFile ./doom-bootstrap.sh;
+  text = builtins.readFile ./boom.sh;
 }

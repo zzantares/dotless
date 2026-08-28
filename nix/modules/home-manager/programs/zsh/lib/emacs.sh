@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 #
 # Emacs primitives shared by the workspace scripts (git-wt, git-pr, task) and by
-# doom-bootstrap. dotless ships this directory to a stable path via its zsh
+# boom. dotless ships this directory to a stable path via its zsh
 # home-manager module, so consumers source it by absolute path:
 #
 #   source "$HOME/.local/lib/sh/emacs.sh"
