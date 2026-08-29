@@ -19,6 +19,8 @@ rec {
   # `skillsDir`.
   skills = {
     changelog = ./skills/changelog;
+    # Strips LLM writing tells, after Wikipedia:Signs of AI writing.
+    deslop = ./skills/deslop;
     explain = ./skills/explain;
     # ASD-STE100 Simplified Technical English, from the pinned SimpleEnglish input.
     simple-english = "${inputs.simple-english}/skills/simple-english";
