@@ -9,7 +9,7 @@
 # copy into the wrapper would shadow it. `declare-function' keeps the compiler
 # quiet about them.
 trivialBuild {
-  pname = "pr-review";
+  pname = "revu";
   version = "0.1.0";
 
   src = lib.sources.sourceFilesBySuffices ./. [ ".el" ];
@@ -19,9 +19,9 @@ trivialBuild {
   # picks that one unless the caller passes it explicitly. Fail loudly if so.
   postPatch = ''
     test -x ${lib.getExe' gh "gh"}
-    substituteInPlace pr-review.el \
-      --replace-fail '(defcustom pr-review-gh-executable "gh"' \
-                     '(defcustom pr-review-gh-executable "${lib.getExe' gh "gh"}"'
+    substituteInPlace revu.el \
+      --replace-fail '(defcustom revu-gh-executable "gh"' \
+                     '(defcustom revu-gh-executable "${lib.getExe' gh "gh"}"'
   '';
 
   # trivialBuild byte-compiles and installs the top-level *.el only, so the
@@ -29,7 +29,7 @@ trivialBuild {
   doCheck = true;
   checkPhase = ''
     runHook preCheck
-    emacs --batch -L . -l ert -l pr-review -l test/pr-review-test.el \
+    emacs --batch -L . -l ert -l revu -l test/revu-test.el \
       -f ert-run-tests-batch-and-exit
     runHook postCheck
   '';

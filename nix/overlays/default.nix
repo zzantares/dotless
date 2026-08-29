@@ -24,15 +24,15 @@ in
 
   boom = final.callPackage ./../pkgs/boom { };
 
-  # Ship `pr-review' through the emacs package scope so any consumer can pull it
-  # in with `programs.emacs.extraPackages = epkgs: [ epkgs.pr-review ];'.
+  # Ship `revu' through the emacs package scope so any consumer can pull it
+  # in with `programs.emacs.extraPackages = epkgs: [ epkgs.revu ];'.
   emacsPackagesFor =
     emacs:
     (prev.emacsPackagesFor emacs).overrideScope (
       efinal: _eprev: {
         # `gh' is passed from the top-level set: the emacs scope has its own
         # `gh' (an elisp library), which is not the GitHub CLI we shell out to.
-        pr-review = efinal.callPackage ./../pkgs/emacs/pr-review { inherit (final) gh; };
+        revu = efinal.callPackage ./../pkgs/emacs/revu { inherit (final) gh; };
       }
     );
 

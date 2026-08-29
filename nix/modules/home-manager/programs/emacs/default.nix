@@ -95,8 +95,8 @@ in
           ]
         ))
 
-        # Batched PR reviews from Emacs; see nix/pkgs/emacs/pr-review.
-        pr-review
+        # Batched PR reviews from Emacs; see nix/pkgs/emacs/revu.
+        revu
       ];
   };
 
