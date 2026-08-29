@@ -157,6 +157,8 @@ in
 
   wallpapers = final.callPackage ./../pkgs/wallpapers { };
 
+  doom-icon = final.callPackage ./../pkgs/doom-icon { };
+
   # Zed's flake pins cargo-about to 0.8.2 (via overrideAttrs) but inherits
   # buildFeatures from the surrounding nixpkgs' cargo-about recipe. Since
   # nixpkgs bumped cargo-about to 0.9.0 — which moved the CLI behind a `cli`

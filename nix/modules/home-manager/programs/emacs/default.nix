@@ -133,14 +133,15 @@ in
     };
   };
 
-  # boom owns the Doom checkout Nix cannot. The darwin extra is the macOS
-  # counterpart of the desktop entry below: an applet that hands files and
-  # org-protocol URLs to the daemon, built against finalPackage.
+  # boom owns the Doom checkout Nix cannot. The darwin extra hands files and
+  # org-protocol URLs to the daemon, built against finalPackage; doom-icon
+  # makes the desktop entry's `Icon=doom` resolve.
   home.packages = lib.optionals enabled (
     [ pkgs.boom ]
     ++ lib.optionals isDarwin [
       (pkgs.emacs-client.override { emacs = config.programs.emacs.finalPackage; })
     ]
+    ++ lib.optionals isLinux [ pkgs.doom-icon ]
   );
 
   # Add our own desktop entry in order to use Emacs Doom icon

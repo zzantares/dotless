@@ -160,6 +160,7 @@
               inherit (pkgs)
                 claude-code
                 boom
+                doom-icon
                 opencode
                 fonts
                 wallpapers

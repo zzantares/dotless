@@ -1,8 +1,8 @@
 {
   lib,
   emacs30,
+  doom-icon,
   fetchFromGitHub,
-  fetchurl,
 }:
 
 # Emacs 30 carrying d12frosted/homebrew-emacs-plus's macOS patches and the Doom
@@ -23,14 +23,6 @@ let
   };
 
   patch = name: "${emacsPlusSrc}/patches/emacs-30/${name}";
-
-  # The official Doom Emacs icon (Dock / Finder / cmd-Tab), fetched as a prebuilt
-  # multi-resolution icns. Swap `cute-doom` -> `abject-doom` for the alternate.
-  # https://github.com/jaidetree/doom-icon
-  icon = fetchurl {
-    url = "https://raw.githubusercontent.com/jaidetree/doom-icon/0.0.3/cute-doom/doom.icns";
-    sha256 = "0r1ikkpjrpga3k3yiyh2y292c70y1xhl8b2b9j5b6rkv718dakyh";
-  };
 in
 
 emacs30.overrideAttrs (old: {
@@ -57,7 +49,7 @@ emacs30.overrideAttrs (old: {
   # Replace the stock bundle icon. emacs-client copies Emacs.icns from here, so
   # this single swap covers both .apps.
   postInstall = (old.postInstall or "") + ''
-    cp -f ${icon} $out/Applications/Emacs.app/Contents/Resources/Emacs.icns
+    cp -f ${doom-icon}/share/doom.icns $out/Applications/Emacs.app/Contents/Resources/Emacs.icns
   '';
 
   meta = old.meta // {
