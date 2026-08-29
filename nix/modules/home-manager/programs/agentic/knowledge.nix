@@ -19,6 +19,8 @@ rec {
   # `skillsDir`.
   skills = {
     changelog = ./skills/changelog;
+    # Cuts the previous response to a word budget, wc -w verified.
+    chop = ./skills/chop;
     # Strips LLM writing tells, after Wikipedia:Signs of AI writing.
     deslop = ./skills/deslop;
     explain = ./skills/explain;
