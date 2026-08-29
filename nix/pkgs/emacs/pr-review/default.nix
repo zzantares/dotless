@@ -24,6 +24,20 @@ trivialBuild {
                      '(defcustom pr-review-gh-executable "${lib.getExe' gh "gh"}"'
   '';
 
+  # trivialBuild byte-compiles and installs the top-level *.el only, so the
+  # suite under test/ is available to run but never ships.
+  doCheck = true;
+  checkPhase = ''
+    runHook preCheck
+    emacs --batch -L . -l ert -l pr-review -l test/pr-review-test.el \
+      -f ert-run-tests-batch-and-exit
+    runHook postCheck
+  '';
+
+  # A byte-compiler warning fails the build; `declare-function' above is what
+  # keeps the absent magit/forge/diff-hl from tripping it.
+  turnCompilationWarningToError = true;
+
   meta = {
     description = "Batched pull request reviews from Emacs, anchored on the files on disk";
     homepage = "https://git.gutimore.net/gutimore/dotless";
