@@ -23,7 +23,7 @@ awk '/^```/{f=!f; next} !f' DRAFT | wc -w
 Over budget: cut and recount. Stop after three passes - hand back the shortest
 draft and state its count rather than looping.
 
-## What comes out
+## What to cut
 
 In order, until it fits:
 
@@ -34,7 +34,7 @@ In order, until it fits:
 5. Adjectives that carry no fact.
 6. Prose connectives between list items.
 
-## What stays
+## What to keep
 
 - Numbers, file paths, commands, flags, error text - verbatim.
 - Code blocks and diffs, uncut and uncounted.
