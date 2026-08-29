@@ -55,6 +55,11 @@ in
     # to ADD rather than replace, merge (knowledge.skills // { ... }).
     skills = if hasUserItem "skills" then lib.mkForce { } else lib.mkDefault knowledge.skills;
 
+    # Symlinked into ~/.claude/skills/<name>, loaded as <name>@skills-dir. A
+    # subdirectory of the marketplace source, so only this plugin is linked.
+    # Its 6 agents self-trigger on review-shaped requests; /review-pr batches them.
+    plugins.pr-review-toolkit = "${pkgs.claude-plugins-official}/plugins/pr-review-toolkit";
+
     # settings.json: if the consumer ships config/claude/settings.json, empty here so the
     # upstream module writes no settings.json, leaving the path free for the live symlink.
     settings =

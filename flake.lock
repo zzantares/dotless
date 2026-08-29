@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "claude-plugins-official": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787942454,
+        "narHash": "sha256-wimwSUFVxE2TbhHeVE+iknfjHV6Ljv1AJ2X6hIbbsgI=",
+        "owner": "anthropics",
+        "repo": "claude-plugins-official",
+        "rev": "ed404106fcd80ba98ecb7c851e531dcb626d13b7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anthropics",
+        "repo": "claude-plugins-official",
+        "type": "github"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1769737823,
@@ -293,6 +309,7 @@
     },
     "root": {
       "inputs": {
+        "claude-plugins-official": "claude-plugins-official",
         "flake-utils": "flake-utils",
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",

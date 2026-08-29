@@ -159,6 +159,12 @@ in
 
   doom-icon = final.callPackage ./../pkgs/doom-icon { };
 
+  # Anthropic's plugin marketplace, exposed so home-manager modules can point at
+  # a plugin subdirectory without the consumer mirroring the input with
+  # `follows` - the overlay closes over dotless's own inputs. See dotless#25.
+  # Source tree, not a derivation; consumed as a store path.
+  claude-plugins-official = inputs.claude-plugins-official;
+
   # Zed's flake pins cargo-about to 0.8.2 (via overrideAttrs) but inherits
   # buildFeatures from the surrounding nixpkgs' cargo-about recipe. Since
   # nixpkgs bumped cargo-about to 0.9.0 — which moved the CLI behind a `cli`
