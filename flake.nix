@@ -42,7 +42,7 @@
     zed-editor.url = "github:zed-industries/zed?ref=v1.9.0";
     zed-editor.inputs.nixpkgs.follows = "nixpkgs";
 
-    opencode.url = "github:anomalyco/opencode?ref=v1.14.48";
+    opencode.url = "github:anomalyco/opencode?ref=v1.18.25";
 
     # Anthropic's official plugin marketplace. Source-only; only the
     # pr-review-toolkit subdirectory is used, via the overlay (no consumer
