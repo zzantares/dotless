@@ -1,35 +1,32 @@
 {
   lib,
-  emacs30,
+  emacs31,
   doom-icon,
   fetchFromGitHub,
 }:
 
-# Emacs 30 carrying d12frosted/homebrew-emacs-plus's macOS patches and the Doom
+# Emacs 31 carrying d12frosted/homebrew-emacs-plus's macOS patches and the Doom
 # bundle icon. macOS only: every patch targets the NS/Cocoa port.
 #
-# No `.override`: nixpkgs's emacs30 already defaults withNS, withNativeCompilation,
+# No `.override`: nixpkgs's emacs31 already defaults withNS, withNativeCompilation,
 # withSQLite3, withTreeSitter, withWebP and withMailutils the way we want on darwin.
 
 let
-  # Fetched as the whole repo, not per-file: some patches under patches/emacs-30/
-  # are symlinks into patches/emacs-28/, and raw.githubusercontent.com serves a
-  # symlink's target path as text. A real checkout resolves them.
+  # Fetched as the whole repo, not per-file: patches can be symlinks into a
+  # sibling emacs-NN dir, and raw.githubusercontent.com serves a symlink's
+  # target path as text. A real checkout resolves them.
   emacsPlusSrc = fetchFromGitHub {
     owner = "d12frosted";
     repo = "homebrew-emacs-plus";
-    rev = "cask-30-215";
-    hash = "sha256-00X4Bqf4a+8TfDRFaSana2xdYPteWid5vubD9Z2eWKI=";
+    rev = "cask-30-292";
+    hash = "sha256-DH4iCOdxfkKYJLfdTOwhg6bCA712zdAe764W8NnQAGQ=";
   };
 
-  patch = name: "${emacsPlusSrc}/patches/emacs-30/${name}";
+  patch = name: "${emacsPlusSrc}/patches/emacs-31/${name}";
 in
 
-emacs30.overrideAttrs (old: {
+emacs31.overrideAttrs (old: {
   patches = (old.patches or [ ]) ++ [
-    # Fix the OS window role so tiling WMs (yabai, AeroSpace) pick Emacs up.
-    (patch "fix-window-role.patch")
-
     # Adds the setting for a rounded, undecorated window (still needs
     # default-frame-alist set to take effect).
     (patch "round-undecorated-frame.patch")
@@ -39,11 +36,10 @@ emacs30.overrideAttrs (old: {
     (patch "system-appearance.patch")
 
     (patch "fix-ns-x-colors.patch")
-    (patch "fix-macos-tahoe-scrolling.patch")
 
-    # treesit-compatibility.patch is deliberately omitted: nixpkgs's emacs30
-    # carries its own tree-sitter 0.26 patches, and this one rejects against
-    # the already-patched src/treesit.c.
+    # That is the whole of patches/emacs-31/, and the whole of what upstream's
+    # emacs-plus@31 formula applies. fix-window-role, fix-macos-tahoe-scrolling
+    # and treesit-compatibility exist only for emacs-30 and earlier.
   ];
 
   # Replace the stock bundle icon. emacs-client copies Emacs.icns from here, so

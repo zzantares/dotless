@@ -23,8 +23,8 @@ in
   programs.emacs = {
     enable = lib.mkDefault true;
 
-    # macOS gets the emacs-plus patch stack (NS window role, undecorated frame,
-    # system appearance, Doom icon).
+    # macOS gets the emacs-plus patch stack (undecorated frame, system
+    # appearance, NS colors, Doom icon).
     #
     # Linux defaults to pgtk, a native Wayland client: pkgs.emacs is GTK3+X11, so
     # every Wayland session runs it through XWayland, which costs a synchronous
