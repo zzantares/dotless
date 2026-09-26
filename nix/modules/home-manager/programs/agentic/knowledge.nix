@@ -42,7 +42,7 @@ rec {
     comments = ./rules/comments.md;
     brevity = ./rules/brevity.md;
     writing-mechanics = ./rules/writing-mechanics.md;
-    technical-guidelines = ./rules/techical-guidelines.md;
+    technical-guidelines = ./rules/technical-guidelines.md;
   };
 
   # The global rules concatenated into one string, for harnesses that read a
