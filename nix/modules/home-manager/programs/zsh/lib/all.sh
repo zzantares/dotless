@@ -17,6 +17,8 @@ _dotless_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=emacs.sh
 source "$_dotless_lib_dir/emacs.sh"
+# shellcheck source=mux.sh
+source "$_dotless_lib_dir/mux.sh"
 # shellcheck source=worktree.sh
 source "$_dotless_lib_dir/worktree.sh"
 

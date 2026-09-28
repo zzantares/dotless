@@ -162,6 +162,17 @@ end
 wezterm.on("update-status", function(window, pane)
     local ws = window:active_workspace()
     record_ws(ws, pane_cwd(pane))
+    -- Drop the "\u{25cf} " marker `claude-attention` puts on a tab once you are
+    -- looking at it (mirrors tmux's client-session-changed hook).
+    local ok, tab = pcall(function()
+        return window:active_tab()
+    end)
+    if ok and tab then
+        local title = tab:get_title()
+        if title and title:match("^\u{25cf} ") then
+            tab:set_title(title:gsub("^\u{25cf} ", ""))
+        end
+    end
     -- Show the active workspace name in the status bar (like tmux's session name),
     -- as a small colored pill matching the active-tab colors.
     window:set_right_status(wezterm.format({
@@ -323,20 +334,20 @@ config.keys = {
     },
 
     -- Sessions == WezTerm workspaces (the analog of a tmux session).
-    -- LEADER T → the `t` fzf picker in a transient tab. fzf honors YOUR keybindings
-    -- (FZF_DEFAULT_OPTS — e.g. Colemak Ctrl-k/Ctrl-h), and on select it emits the OSC
-    -- that the user-var handler below turns into a SwitchToWorkspace. Run via a login
-    -- shell so PATH + FZF_DEFAULT_OPTS are present; the tab closes when `t` exits.
-    -- (WezTerm's built-in InputSelector has fixed, non-customizable keys — hence
-    -- delegating to fzf, which is fully key-programmable.)
+    -- LEADER B / T / S → the workspace picker, all three the same thing. B and T
+    -- mirror the tmux `t` binds; the picker is the built-in launcher, which runs
+    -- GUI-side with no shell, no spawn and no escape sequence to stall on. Type to
+    -- filter, Enter to switch.
+    {
+        key = "B",
+        mods = "LEADER",
+        action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }),
+    },
     {
         key = "T",
         mods = "LEADER",
-        action = act.SpawnCommandInNewTab({
-            args = { os.getenv("SHELL") or "/bin/zsh", "-lc", "t" },
-        }),
+        action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }),
     },
-    -- LEADER S → built-in launcher: switch between EXISTING workspaces only.
     {
         key = "S",
         mods = "LEADER",
@@ -461,10 +472,15 @@ config.key_tables.copy_mode = copy_mode
 -- search_mode defaults already give you n/N-style cycling via Enter / Ctrl-n / Ctrl-p.
 
 -- ----------------------------------------------------------------------------
--- Shell-driven workspace switching (complements LEADER T).
--- The `t` shell script emits an OSC 1337 SetUserVar named "switch-workspace" whose
--- value is "<workspace-name>\t<cwd>". WezTerm's CLI can't change the active
--- workspace, so the switch has to happen here, GUI-side.
+-- Script-driven workspace switching, for `mux_switch` in dotless's mux.sh.
+-- The script emits an OSC 1337 SetUserVar named "switch-workspace" whose value is
+-- "<workspace-name>\t<cwd>"; the CLI cannot change the active workspace, so the
+-- switch has to happen here, GUI-side.
+--
+-- Never passes `spawn`. Callers create the workspace first with
+-- `wezterm cli spawn --new-window --workspace`, so it always already exists, and a
+-- plain SwitchToWorkspace(name) — what the built-in launcher does — switches
+-- cleanly. Passing spawn for an existing workspace is what stalls the repaint.
 -- ----------------------------------------------------------------------------
 wezterm.on("user-var-changed", function(window, pane, name, value)
     if name ~= "switch-workspace" then
@@ -474,22 +490,7 @@ wezterm.on("user-var-changed", function(window, pane, name, value)
     if not ws or ws == "" then
         return
     end
-    -- Only pass `spawn` when the workspace does NOT already exist. Switching to an
-    -- existing workspace with a spawn arg triggers a repaint stall (the pane doesn't
-    -- redraw until an input event); a plain SwitchToWorkspace(name) — what the
-    -- built-in launcher does — switches cleanly.
-    local exists = false
-    for _, w in ipairs(wezterm.mux.get_workspace_names()) do
-        if w == ws then
-            exists = true
-            break
-        end
-    end
-    local spawn = (not exists and dir and dir ~= "") and { cwd = dir } or nil
-    window:perform_action(
-        act.SwitchToWorkspace({ name = ws, spawn = spawn }),
-        pane
-    )
+    window:perform_action(act.SwitchToWorkspace({ name = ws }), pane)
     record_ws(ws, dir)
 end)
 

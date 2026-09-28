@@ -156,6 +156,24 @@ in
     fi
   '';
 
+  # Flags the current session as needing input, for the Claude Code Notification
+  # hook. tmux: an option the status bar reads. wezterm: a marker on the tab title,
+  # cleared again by wezterm.lua when you switch to that workspace.
+  claude-attention = final.writeShellScriptBin "claude-attention" ''
+    #!/usr/bin/env bash
+    if [ -n "''${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+      tmux set-option @claude_attention 1
+    elif [ -n "''${WEZTERM_PANE:-}" ] && command -v wezterm >/dev/null 2>&1; then
+      title=$(wezterm cli list --format json 2>/dev/null |
+        ${final.jq}/bin/jq -r --argjson p "$WEZTERM_PANE" \
+          '.[] | select(.pane_id == $p) | .tab_title' 2>/dev/null)
+      case "$title" in
+        "● "*) ;;
+        *) wezterm cli set-tab-title --pane-id "$WEZTERM_PANE" "● ''${title:-claude}" ;;
+      esac
+    fi
+  '';
+
   # Creates a menu for tmux-fzf that exposes Claude Code sessions
   tmux-claude-picker = final.writeShellScriptBin "tmux-claude-picker" ''
     #!/usr/bin/env bash

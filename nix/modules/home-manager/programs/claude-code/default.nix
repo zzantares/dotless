@@ -111,11 +111,12 @@ in
               {
                 matcher = "";
                 hooks = [
-                  # This will make Claude to issue a Tmux notification whenever it requires user attention
-                  # In our configuration Tmux is configured to display it in the status bar when it gets issued
+                  # Flags the session that needs attention, in whichever
+                  # multiplexer is running: the tmux status bar, or a marker on
+                  # the wezterm tab title.
                   {
                     type = "command";
-                    command = "tmux set-option @claude_attention 1";
+                    command = "${pkgs.claude-attention}/bin/claude-attention";
                   }
                   {
                     type = "command";

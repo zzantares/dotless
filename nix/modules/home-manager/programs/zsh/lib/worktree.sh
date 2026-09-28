@@ -1,15 +1,21 @@
 # shellcheck shell=bash
 #
-# Worktree and tmux primitives for the workspace scripts (git-wt, git-pr, task):
+# Git worktree primitives for the workspace scripts (git-wt, git-pr, task):
 #
 #   source "$HOME/.local/lib/sh/worktree.sh"   # Emacs half: ./emacs.sh
 #
+# Multiplexer sessions live in ./mux.sh, sourced below so the deprecated wt_*tmux*
+# aliases at the end of this file keep working for anyone sourcing only this one.
+#
 # Helpers stay quiet and return status codes; each caller owns its user-facing
-# messages. Unavoidable git/tmux output goes to stderr, so a caller's stdout can
-# stay a pure path emitter.
+# messages. Unavoidable git output goes to stderr, so a caller's stdout can stay a
+# pure path emitter.
 
 [[ -n "${_DOTLESS_WORKTREE_SH:-}" ]] && return 0
 _DOTLESS_WORKTREE_SH=1
+
+# shellcheck source=mux.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mux.sh"
 
 # Root where sibling worktrees live: the dir containing the git common dir.
 wt_worktree_root() { dirname "$(cd "$(git rev-parse --git-common-dir)" && pwd)"; }
@@ -61,36 +67,14 @@ wt_add() {
 	echo "$dest"
 }
 
-# Idempotent detached tmux session <session> rooted at <dir>.
-# Returns: 0 newly created, 1 already existed, 2 tmux unavailable / create failed.
-wt_ensure_tmux() {
-	local session=$1 dir=$2
-	command -v tmux >/dev/null 2>&1 || return 2
-	tmux has-session -t "$session" 2>/dev/null && return 1
-	tmux new-session -d -s "$session" -c "$dir" 2>/dev/null && return 0 || return 2
-}
+# Deprecated: kept so consumers pinned to the pre-mux.sh API keep working.
+# Use mux_ensure_session / mux_switch / mux_kill / mux_new_window instead.
+wt_ensure_tmux() { mux_ensure_session "$@"; }
+wt_tmux_switch() { mux_switch "$@"; }
+wt_tmux_kill() { mux_kill "$@"; }
 
-# Switch/attach the caller into <session>: switch-client inside tmux, else attach.
-wt_tmux_switch() {
-	local session=$1
-	command -v tmux >/dev/null 2>&1 || return 0
-	if [[ -n "${TMUX:-}" ]]; then
-		tmux switch-client -t "$session" 2>/dev/null || true
-	else
-		tmux attach-session -t "$session"
-	fi
-}
-
-# Kill tmux session <session> if it exists. Returns 0 iff a session was killed.
-wt_tmux_kill() {
-	local session=$1
-	command -v tmux >/dev/null 2>&1 || return 1
-	tmux has-session -t "$session" 2>/dev/null || return 1
-	tmux kill-session -t "$session" 2>/dev/null
-}
-
-# nvim in its own tmux window (a TUI, so it shares the session): (<session> <dir>).
-wt_open_nvim() { tmux new-window -t "$1" -c "$2" -n editor "nvim ."; }
+# nvim in its own window of <session>, so it shares the session: (<session> <dir>).
+wt_open_nvim() { mux_new_window "$1" "$2" editor nvim .; }
 
 # zed opens <dir> as a project window.
 wt_open_zed() { zed "$1" & }
