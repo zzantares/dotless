@@ -184,10 +184,13 @@ in
       }
     ];
 
+    # App launchers on Meta+Ctrl+<key>, matching Hyprland, GNOME and xmonad so the
+    # same keys reach the same app in every session. Togglers below stay on
+    # Ctrl+Alt, as they do under GNOME.
     hotkeys.commands = {
       "launch-alacritty" = {
         name = "Alacritty";
-        key = "Ctrl+Alt+T";
+        key = "Meta+Ctrl+T";
         command = "alacritty";
       };
       "launch-wezterm" = {
@@ -197,13 +200,23 @@ in
       };
       "launch-firefox" = {
         name = "Firefox";
-        key = "Ctrl+Alt+F";
+        key = "Meta+Ctrl+F";
         command = "firefox";
+      };
+      "launch-librewolf" = {
+        name = "LibreWolf";
+        key = "Meta+Ctrl+W";
+        command = "librewolf";
       };
       "launch-emacs" = {
         name = "Emacs";
-        key = "Ctrl+Alt+E";
+        key = "Meta+Ctrl+E";
         command = "emacs";
+      };
+      "launch-dolphin" = {
+        name = "Files";
+        key = "Meta+Ctrl+.";
+        command = "dolphin";
       };
       "toggle-large-text" = {
         name = "Large Text Toggler";
