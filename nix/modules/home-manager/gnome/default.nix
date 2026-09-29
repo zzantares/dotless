@@ -125,6 +125,14 @@ let
     command = v.cmd;
     binding = "<Ctrl><Super>${v.key}";
   }) appSlots;
+  # Launchers that do not own a workspace slot, so they cannot come from appSlots.
+  extraLaunchers = [
+    {
+      name = "WezTerm";
+      command = "wezterm";
+      binding = "<Ctrl><Super>Return";
+    }
+  ];
   # Non-app togglers keep their existing <Ctrl><Alt> binds.
   extraKeybindings = [
     {
@@ -139,7 +147,7 @@ let
     }
   ];
   # Materialise as customN entries + the paths list GNOME expects to register.
-  customKeybindings = appLaunchers ++ extraKeybindings;
+  customKeybindings = appLaunchers ++ extraLaunchers ++ extraKeybindings;
   customKeybindingPaths = lib.imap0 (
     i: _: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${toString i}/"
   ) customKeybindings;

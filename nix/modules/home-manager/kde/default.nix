@@ -190,6 +190,11 @@ in
         key = "Ctrl+Alt+T";
         command = "alacritty";
       };
+      "launch-wezterm" = {
+        name = "WezTerm";
+        key = "Meta+Ctrl+Return";
+        command = "wezterm";
+      };
       "launch-firefox" = {
         name = "Firefox";
         key = "Ctrl+Alt+F";
