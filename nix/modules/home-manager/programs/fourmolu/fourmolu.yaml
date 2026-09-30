@@ -10,5 +10,4 @@ column-limit: 100
 respectful: true
 single-constraint-parens: never
 single-deriving-parens: never
-haddock-style: single-line
 haddock-style-module: single-line
