@@ -75,6 +75,36 @@ in
 
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
 
+  # jj at trunk, for `jj workspace add --colocate`: it gives each workspace a
+  # real .git, so Nix resolves it git+file: instead of copying the tree (.jj
+  # included) on every jj command. Released 0.45.1 has no such flag.
+  # Drop this once nixpkgs ships a jj release carrying it (jj-vcs/jj#8052).
+  #
+  # Built from nixpkgs' derivation, not jj's flake: that one pins a nightly
+  # toolchain and builds rustc first. Both hashes change with the rev.
+  jujutsu =
+    let
+      src = final.fetchFromGitHub {
+        owner = "jj-vcs";
+        repo = "jj";
+        rev = "030ecf22c56b98bf6507067dca0df3dffa6de498";
+        hash = "sha256-nTNmmGpac4Kb0h0MYmqemil+5f7tlYD7Xa4HqmU864s=";
+      };
+    in
+    prev.jujutsu.overrideAttrs (_: {
+      version = "0.45.1-unstable-2026-09-30";
+      inherit src;
+
+      cargoDeps = final.rustPlatform.fetchCargoVendor {
+        inherit src;
+        hash = "sha256-Hv/cHlbpo41uhVHDxkI7tURfDjjBnxbjx7hzsnESCSw=";
+      };
+
+      # `jj --version` still prints 0.45.1 on a trunk build, so the version
+      # check cannot match the rev-qualified name above.
+      doInstallCheck = false;
+    });
+
   # v0.1.7 has a dbus screensaver-inhibit ref-counting bug (logs "BUG THIS:
   # inhibit locks < 0: -1", triggered by apps like Firefox rapidly toggling
   # inhibit during video playback). Once it fires, listener state gets

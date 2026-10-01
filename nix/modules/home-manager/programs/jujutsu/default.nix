@@ -48,19 +48,15 @@ in
       }
       // lib.optionalAttrs config.programs.jujutsu.ediff { merge-editor = "ediff"; };
 
-      # Nearest bookmark at or below a revision — what `tug` advances.
-      revset-aliases."closest_bookmarks(to)" = "heads(::to & bookmarks())";
+      # `jj bookmark advance` defaults to `--to @`; a bookmark should follow
+      # the commits you finished, not the working copy you are still editing.
+      revsets.bookmark-advance-to = "@-";
 
       aliases = {
-        # Advance the closest bookmark onto the parent of the working copy,
-        # the jj equivalent of a git branch following your commits.
+        # The jj equivalent of a git branch following your commits.
         tug = [
           "bookmark"
-          "move"
-          "--from"
-          "closest_bookmarks(@-)"
-          "--to"
-          "@-"
+          "advance"
         ];
 
         patch = [
