@@ -44,6 +44,16 @@ theInputs@{
       # Temporary solution to faster downloads see: https://github.com/NixOS/nix/issues/11728
       download-buffer-size = "524288000";
 
+      # An unreachable substituter costs connect-timeout x 5 retries, per
+      # substituter, before anything builds - 75s each at the 15s default.
+      connect-timeout = 5;
+
+      # Build from source when a substituter cannot be reached, instead of
+      # failing. Needed because a miss on an unreachable cache is otherwise
+      # fatal even when every input is already in the store. The cost is that
+      # a genuine cache outage can start a large local build.
+      fallback = true;
+
       substituters = [
         "https://cache.iog.io"
         "https://cache.nixos.org"

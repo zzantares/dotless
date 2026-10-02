@@ -260,6 +260,10 @@ in
         cachix
         nil
         nixd
+        # Offline docs for nixpkgs lib functions, which noogle only serves
+        # online. Options are already covered by the configuration.nix(5) and
+        # home-configuration.nix(5) manpages.
+        nix-doc
         nixfmt
       ];
     };

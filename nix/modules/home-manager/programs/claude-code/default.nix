@@ -170,6 +170,16 @@ in
           ".pyi" = "python";
         };
       };
+
+      # nixd over nil: it evaluates, so it resolves across files and into
+      # nixpkgs instead of parsing one file at a time. Option completion also
+      # wants a per-project .nixd.json naming the flake's configurations.
+      nixd = {
+        command = lib.getExe' pkgs.nixd "nixd";
+        extensionToLanguage = {
+          ".nix" = "nix";
+        };
+      };
     };
 
     # See the HomeManager module docs for extra options they all look very interesting
