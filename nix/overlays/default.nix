@@ -294,7 +294,11 @@ in
     rust = final.buildEnv {
       name = "rust-toolchain";
       paths = with final; [
-        pkgs.rust-bin.stable.latest.default
+        # rust-src lands in the sysroot, which is how rust-analyzer resolves std
+        # offline (goto-definition, hover). The `default` profile omits it.
+        (rust-bin.stable.latest.default.override {
+          extensions = [ "rust-src" ];
+        })
         rust-analyzer
       ];
     };

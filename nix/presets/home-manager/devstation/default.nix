@@ -242,9 +242,11 @@
     };
   };
 
+  # The database is a nix store artifact from ghcWithHoogle, so it only changes
+  # on rebuild - there is nothing for a refresh timer to do.
   systemd.user.services.hoogle = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     Unit = {
-      Description = "Start a local Hoggle server.";
+      Description = "Start a local Hoogle server.";
       After = [ "network.target" ];
     };
 
@@ -258,11 +260,6 @@
     };
 
     Install.WantedBy = [ "default.target" ];
-  };
-
-  systemd.user.timers.hoogle = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
-    Unit.Description = "Keep Hoogle database up to date.";
-    Timer.OnCalendar = "weekly";
   };
 
   # We put this here because it only makes sense on devstations

@@ -144,7 +144,8 @@
     ];
     urls = [
       {
-        template = "http://localhost:8080/";
+        # Port must match the hoogle user service in presets/home-manager/devstation
+        template = "http://localhost:8123/";
         params = [
           {
             name = "scope";
