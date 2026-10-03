@@ -1,4 +1,5 @@
 {
+  profile,
   pkgs,
   lib,
   ...
@@ -15,6 +16,9 @@ let
   # Stack Overflow is NOT fetched into the store: at 115 GB a fetchurl has no
   # resume, so one dropped connection restarts the whole download. Fetch it out
   # of band with something resumable; --skipInvalid covers its absence.
+  #
+  # It cannot live under $HOME either: the unit runs ProtectHome=true, so the
+  # whole of /home reads as empty from inside it.
   stackoverflow = "/var/lib/kiwix/stackoverflow.com_en_all.zim";
 
   # Keyed by the name each book is served and searched under. kiwix.el derives
@@ -51,8 +55,13 @@ in
   # module's own link farm is an internal store path it does not expose. Mirror
   # the same set at a stable path so Emacs and the server agree on both the
   # books and the names. kiwix-serve runs under DynamicUser, hence 0755.
+  #
+  # The parent is owned by the login user so the out-of-store ZIM can be
+  # downloaded without root - it is a multi-hour transfer, and needing sudo for
+  # it only sends people to put the file somewhere ProtectHome then hides.
+  # zims/ stays root-owned: tmpfiles manages every symlink in it.
   systemd.tmpfiles.rules = [
-    "d /var/lib/kiwix 0755 root root -"
+    "d /var/lib/kiwix 0755 ${profile.login} users -"
     "d /var/lib/kiwix/zims 0755 root root -"
   ]
   ++ lib.mapAttrsToList (name: path: "L+ /var/lib/kiwix/zims/${name}.zim - - - - ${path}") zims;
