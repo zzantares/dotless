@@ -264,6 +264,10 @@
 
   # We put this here because it only makes sense on devstations
   programs.opencode.settings = {
+    # Mirrors the set declared for claude-code's lspServers, so both harnesses
+    # see the same languages. Store paths, not bare names, so a server resolves
+    # without its toolchain in the profile - hls stays a bare wrapper call on
+    # purpose, since it picks the GHC the project asks for.
     lsp = {
       hls = {
         command = [
@@ -273,6 +277,49 @@
         extensions = [
           ".hs"
         ];
+      };
+
+      typescript = {
+        command = [
+          (lib.getExe' pkgs.typescript-language-server "typescript-language-server")
+          "--stdio"
+        ];
+        extensions = [
+          ".ts"
+          ".tsx"
+          ".mts"
+          ".cts"
+          ".js"
+          ".jsx"
+          ".mjs"
+          ".cjs"
+        ];
+      };
+
+      rust-analyzer = {
+        command = [ (lib.getExe' pkgs.rust-analyzer "rust-analyzer") ];
+        extensions = [ ".rs" ];
+      };
+
+      lua = {
+        command = [ (lib.getExe' pkgs.lua-language-server "lua-language-server") ];
+        extensions = [ ".lua" ];
+      };
+
+      pyright = {
+        command = [
+          (lib.getExe' pkgs.pyright "pyright-langserver")
+          "--stdio"
+        ];
+        extensions = [
+          ".py"
+          ".pyi"
+        ];
+      };
+
+      nixd = {
+        command = [ (lib.getExe' pkgs.nixd "nixd") ];
+        extensions = [ ".nix" ];
       };
     };
   };
