@@ -17,6 +17,5 @@
     slack
     spotify
     xournalpp
-    zeal
   ];
 }

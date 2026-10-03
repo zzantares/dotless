@@ -41,6 +41,11 @@ in
         # nixpkgs build ships it prebuilt against poppler.
         pdf-tools
 
+        # Queries the local kiwix-serve over HTTP, so it reads the same pinned
+        # ZIMs as the browser instead of a second copy of the docs. Configured
+        # in Doom's config.el, which lives in the consumer repo.
+        kiwix
+
         # Curated, not `with-all-grammars`: that builds 290+ grammars and breaks
         # whenever a single upstream tarball 404s. Covers every language our Doom
         # :lang modules enable, plus the config formats we read.

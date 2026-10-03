@@ -137,6 +137,34 @@
     }}";
   };
 
+  # Full-text search across every ZIM the local kiwix-serve holds - the DevDocs
+  # docsets and Stack Overflow. Deliberately unscoped: book names come from ZIM
+  # metadata rather than the filenames the module assigns, so pinning one here
+  # would be a guess. Scope to a single book from the server's own UI.
+  kiwix-local = {
+    definedAliases = [
+      "@dd"
+    ];
+    urls = [
+      {
+        # Port must match the kiwix module in modules/nixos/kiwix
+        template = "http://localhost:8124/search";
+        params = [
+          {
+            name = "pattern";
+            value = "{searchTerms}";
+          }
+        ];
+      }
+    ];
+    icon = "${pkgs.fetchurl {
+      # Fetched at build time so bootstrapping does not depend on the local
+      # server already running, same as hoogle-local below.
+      url = "https://kiwix.org/favicon.ico";
+      sha256 = "sha256-aHlUhlruWwvbTmDkPaM2hZdzwp+4kDBhRrZlJIvAnQ8=";
+    }}";
+  };
+
   hoogle-local = {
     definedAliases = [
       "@hol"

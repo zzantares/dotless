@@ -121,6 +121,7 @@
         hyprland = ./nix/modules/nixos/hyprland;
         syncthing = ./nix/modules/nixos/syncthing;
         tailscale = ./nix/modules/nixos/tailscale;
+        kiwix = ./nix/modules/nixos/kiwix;
 
         # Presets: batteries-included bundles for common machine roles.
         # base — foundation for all managed NixOS systems
