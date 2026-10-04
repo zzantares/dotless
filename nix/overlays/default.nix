@@ -502,12 +502,12 @@ in
 
   ghc-with-batteries = final.myHaskellPackages.ghcWithHoogle (
     hpkgs: with hpkgs; [
-      # GHC boot libraries: these ship with the compiler, so listing them
-      # changes nothing. Kept to state the dependency, not inherit it.
+      # GHC boot libraries: these ship with the compiler so listing them is
+      # redundant but I like to be explicit
+      Cabal
       base
       binary
       bytestring
-      Cabal
       containers
       directory
       mtl
@@ -519,6 +519,10 @@ in
       time
       transformers
 
+      # Other libraries not included by default with GHC added explicitly by
+      # listing them here
+      HUnit
+      QuickCheck
       aeson
       async
       attoparsec
@@ -545,7 +549,6 @@ in
       hspec-wai
       http-client
       http-client-tls
-      HUnit
       io-streams
       jose
       megaparsec
@@ -559,11 +562,11 @@ in
       prettyprinter
       primitive
       profunctors
-      QuickCheck
       quickcheck-instances
       random
       resource-pool
       retry
+      say
       scientific
       servant
       servant-auth
