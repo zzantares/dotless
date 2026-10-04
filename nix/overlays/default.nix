@@ -515,13 +515,18 @@ in
       bytestring
       Cabal
       cassava
+      cereal
       containers
       criterion
+      crypton
       directory
       dns
       doctest
+      fast-logger
+      free
       happstack-server
       happy
+      hashable
       haskell-language-server
       haskell-src-exts
       hedgehog
@@ -531,13 +536,20 @@ in
       http-client
       http-client-tls
       io-streams
+      jose
+      megaparsec
       monad-logger
       monad-par
       mtl
       network
+      optparse-applicative
       parallel
       postgresql-simple
+      pretty-simple
+      prettyprinter
+      primitive
       process
+      profunctors
       quickcheck-instances
       random
       resource-pool
@@ -547,19 +559,24 @@ in
       servant-auth
       servant-client
       servant-server
+      sqlite-simple
       tar
+      tasty
       tasty-hedgehog
+      tasty-hunit
       tasty-quickcheck
       text
       text-show
       time
       tls
       transformers
+      unliftio
       unordered-containers
       uuid
       vector
       void
       wai
+      wai-extra
       warp
       warp-tls
       websockets
