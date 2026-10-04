@@ -516,6 +516,7 @@ in
       Cabal
       cassava
       containers
+      criterion
       directory
       dns
       doctest
@@ -530,29 +531,38 @@ in
       http-client
       http-client-tls
       io-streams
+      monad-logger
       monad-par
       mtl
       network
       parallel
+      postgresql-simple
       process
       quickcheck-instances
       random
+      resource-pool
+      retry
       scientific
       servant
       servant-auth
       servant-client
       servant-server
       tar
+      tasty-hedgehog
+      tasty-quickcheck
       text
       text-show
       time
       tls
       transformers
       unordered-containers
+      uuid
       vector
       void
       wai
       warp
+      warp-tls
+      websockets
       yaml
       zlib
     ]
