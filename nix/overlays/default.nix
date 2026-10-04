@@ -502,24 +502,34 @@ in
 
   ghc-with-batteries = final.myHaskellPackages.ghcWithHoogle (
     hpkgs: with hpkgs; [
-      HUnit
-      QuickCheck
+      # GHC boot libraries: these ship with the compiler, so listing them
+      # changes nothing. Kept to state the dependency, not inherit it.
+      base
+      binary
+      bytestring
+      Cabal
+      containers
+      directory
+      mtl
+      parsec
+      process
+      stm
+      template-haskell
+      text
+      time
+      transformers
+
       aeson
       async
       attoparsec
-      base
       base16-bytestring
       base64-bytestring
       bifunctors
       bytes
-      bytestring
-      Cabal
       cassava
       cereal
-      containers
       criterion
       crypton
-      directory
       dns
       doctest
       fast-logger
@@ -535,12 +545,12 @@ in
       hspec-wai
       http-client
       http-client-tls
+      HUnit
       io-streams
       jose
       megaparsec
       monad-logger
       monad-par
-      mtl
       network
       optparse-applicative
       parallel
@@ -548,8 +558,8 @@ in
       pretty-simple
       prettyprinter
       primitive
-      process
       profunctors
+      QuickCheck
       quickcheck-instances
       random
       resource-pool
@@ -565,11 +575,8 @@ in
       tasty-hedgehog
       tasty-hunit
       tasty-quickcheck
-      text
       text-show
-      time
       tls
-      transformers
       unliftio
       unordered-containers
       uuid
