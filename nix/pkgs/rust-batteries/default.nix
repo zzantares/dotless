@@ -25,6 +25,19 @@ let
     name = "cargo-warm";
     runtimeInputs = [ toolchains.rust ];
     text = ''
+      case "''${1-}" in
+        -h | --help)
+          echo "cargo-warm: pre-fetch the pinned crate set into CARGO_HOME."
+          echo "Also runs as 'cargo warm'. Takes no arguments."
+          exit 0
+          ;;
+        "") ;;
+        *)
+          echo "cargo-warm: unexpected argument '$1' (see --help)" >&2
+          exit 2
+          ;;
+      esac
+
       # Cargo wants a writable tree and the store copy is not one.
       work=$(mktemp -d)
       trap 'rm -rf "$work"' EXIT

@@ -1,10 +1,16 @@
 fmt:
     nix fmt
 
-# Re-pin the crates kept available offline, after editing its Cargo.toml.
-# Needs a connection; the resulting Cargo.lock is what importCargoLock reads.
+# The resulting Cargo.lock is what importCargoLock reads. Needs a connection.
+# Re-pin the offline crate set, after editing nix/pkgs/rust-batteries/Cargo.toml.
 rust-batteries:
     cd nix/pkgs/rust-batteries && cargo generate-lockfile
+
+# Thin wrapper; cargo-warm is on PATH and runs from anywhere, including as
+# `cargo warm`. Listed here for discoverability next to the recipe above.
+# Pre-fetch the offline crate set into ~/.cargo, so plain `cargo` resolves it.
+cargo-warm:
+    cargo-warm
 
 flake-update:
     #!/usr/bin/env bash
