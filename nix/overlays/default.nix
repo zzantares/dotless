@@ -75,6 +75,8 @@ in
 
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
 
+  rust-batteries = final.callPackage ./../pkgs/rust-batteries { };
+
   # jj at trunk, for `jj workspace add --colocate`: it gives each workspace a
   # real .git, so Nix resolves it git+file: instead of copying the tree (.jj
   # included) on every jj command. Released 0.45.1 has no such flag.

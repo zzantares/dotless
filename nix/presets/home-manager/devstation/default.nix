@@ -75,7 +75,16 @@
     LSP_USE_PLISTS = lib.mkDefault "true";
   };
 
-  home.shellAliases = { } // (profile.shellAliases or { });
+  # Crates pinned for offline use (pkgs.rust-batteries). The config lives under
+  # its own CARGO_HOME rather than ~/.cargo because Cargo source replacement is
+  # all-or-nothing: applied globally it would stop undeclared crates resolving
+  # even with a connection. `cargo-offline add clap` then works in the woods.
+  home.file.".cargo-offline/config.toml".source = pkgs.rust-batteries;
+
+  home.shellAliases = {
+    cargo-offline = "CARGO_HOME=${config.home.homeDirectory}/.cargo-offline cargo";
+  }
+  // (profile.shellAliases or { });
 
   programs.gh-dash.enable = true;
   programs.gh-dash.settings = {

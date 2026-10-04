@@ -1,6 +1,11 @@
 fmt:
     nix fmt
 
+# Re-pin the crates kept available offline, after editing its Cargo.toml.
+# Needs a connection; the resulting Cargo.lock is what importCargoLock reads.
+rust-batteries:
+    cd nix/pkgs/rust-batteries && cargo generate-lockfile
+
 flake-update:
     #!/usr/bin/env bash
     set -euo pipefail
