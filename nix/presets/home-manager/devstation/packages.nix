@@ -39,6 +39,7 @@
       toolchains.postgresql
       toolchains.python
       toolchains.rust
+      cargo-warm # pre-fetches pkgs.rust-batteries into ~/.cargo
       toolchains.shell
       toolchains.typescript
       toolchains.web

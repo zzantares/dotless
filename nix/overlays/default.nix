@@ -76,6 +76,7 @@ in
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
 
   rust-batteries = final.callPackage ./../pkgs/rust-batteries { };
+  cargo-warm = final.rust-batteries.warm;
 
   # jj at trunk, for `jj workspace add --colocate`: it gives each workspace a
   # real .git, so Nix resolves it git+file: instead of copying the tree (.jj

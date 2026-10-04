@@ -75,10 +75,12 @@
     LSP_USE_PLISTS = lib.mkDefault "true";
   };
 
-  # Crates pinned for offline use (pkgs.rust-batteries). The config lives under
-  # its own CARGO_HOME rather than ~/.cargo because Cargo source replacement is
-  # all-or-nothing: applied globally it would stop undeclared crates resolving
-  # even with a connection. `cargo-offline add clap` then works in the woods.
+  # Crates pinned for offline use (pkgs.rust-batteries), reachable two ways.
+  # `cargo-warm` pre-fetches them into ~/.cargo so plain `cargo` resolves them
+  # offline; `cargo-offline` serves them from the nix store, which survives a
+  # wiped ~/.cargo and a fresh machine. The store route needs its own
+  # CARGO_HOME: Cargo source replacement is all-or-nothing, so in ~/.cargo it
+  # would stop undeclared crates resolving even with a connection.
   home.file.".cargo-offline/config.toml".source = pkgs.rust-batteries;
 
   home.shellAliases = {
