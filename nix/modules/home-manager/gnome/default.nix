@@ -30,7 +30,36 @@ let
     # animation (overview zoom, dialog fades) intact. uuid
     # instantworkspaceswitcher@amalantony.net; supports GNOME 45-50.
     disable-workspace-switch-animation-for-gnome-40
+    user-themes # Loads the shell theme below; GNOME has no other hook for shell CSS
   ];
+
+  # ── Discrete notification banners ─────────────────────────────────────────
+  # Banner size lives in the shell stylesheet - no dconf key, and the one
+  # extension that touches banners (notification-banner-reloaded) does position
+  # only and stops at shell-version 49. So ship a shell theme: the stock dark
+  # sheet with our notification overrides appended.
+  #
+  # Extracted from gnome-shell at build time rather than vendored, so a nixpkgs
+  # bump regenerates it. Safe to lift out of the gresource: every url() in the
+  # stock sheet is an absolute `resource:///` path, and the accent colour stays
+  # live (the `-st-accent-color` keyword resolves at runtime).
+  #
+  # A user theme is a single file, so it pins dark - fine while color-scheme is
+  # "prefer-dark" below.
+  shellThemeName = "discrete-notifications";
+  shellTheme =
+    pkgs.runCommand "gnome-shell-theme-${shellThemeName}"
+      {
+        nativeBuildInputs = [ pkgs.glib.dev ]; # gresource
+      }
+      ''
+        mkdir -p $out/gnome-shell
+        gresource extract \
+          ${pkgs.gnome-shell}/share/gnome-shell/gnome-shell-theme.gresource \
+          /org/gnome/shell/theme/gnome-shell-dark.css \
+          > $out/gnome-shell/gnome-shell.css
+        cat ${./shell-notifications.css} >> $out/gnome-shell/gnome-shell.css
+      '';
 
   # ── i3/Hyprland-style fixed workspaces ────────────────────────────────────
   # GNOME/Mutter has no named, on-demand workspaces like Hyprland; it only has
@@ -221,6 +250,12 @@ in
   # `css-last-update` in dconf below.
   xdg.configFile."forge/stylesheet/forge/stylesheet.css".source = ./forge-stylesheet.css;
 
+  # User Themes searches ~/.themes, then $XDG_DATA_HOME/themes, then the system
+  # data dirs. Install under the user data dir rather than via home.packages:
+  # the HM profile's share/ is not reliably on gnome-shell's XDG_DATA_DIRS,
+  # since GDM starts the shell before the session shell exports them.
+  home.file.".local/share/themes/${shellThemeName}".source = shellTheme;
+
   programs.gnome-shell = {
     enable = lib.mkDefault true;
     extensions = map (x: {
@@ -243,6 +278,8 @@ in
       enabled-extensions = map (x: x.extensionUuid) gnome-extensions;
     };
 
+    "org/gnome/shell/extensions/user-theme".name = shellThemeName;
+
     # Hide the sidebar dock menu
     "org/gnome/shell/extensions/dash-to-dock" = {
       dock-fixed = false;
@@ -251,7 +288,9 @@ in
     # Unite extension settings
     "org/gnome/shell/extensions/unite" = {
       restrict-to-primary-screen = false;
-      notifications-position = "center";
+      # Corner, not centre: a banner over the middle of a full-screen editor is
+      # impossible to ignore. "right" is also Unite's own default.
+      notifications-position = "right";
       show-window-buttons = "never";
       extend-left-box = false;
       autofocus-windows = true;

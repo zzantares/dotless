@@ -1,0 +1,43 @@
+/* Discrete notification banners.
+ *
+ * Appended to the stock dark shell sheet, so every rule here must beat the
+ * upstream one on specificity or tie it (later wins). Scoped to
+ * `.notification-banner`, which the shell adds to the banner's own `.message`
+ * widget - the date-menu list and lock screen keep the stock sizes.
+ *
+ * Stock values (GNOME 50) are in the comments, for diffing after a bump. */
+
+.notification-banner {
+  width: 24em;            /* 34em */
+  min-height: 0;          /* 64px */
+  font-size: 0.9em;
+  padding: 3px;           /* 6px */
+  margin: 2px;            /* 4px */
+}
+
+.notification-banner .message-header .message-header-content {
+  padding-bottom: 3px;    /* 6px */
+}
+
+.notification-banner .message-header .message-close-button {
+  margin: 1px;            /* 3px */
+  padding: 3px;           /* 6px */
+}
+
+.notification-banner .message-box {
+  padding: 3px;           /* 6px */
+  spacing: 4px;           /* 6px */
+}
+
+.notification-banner .message-box:first-child {
+  margin-top: 4px;        /* 12px */
+}
+
+.notification-banner .message-box .message-icon {
+  icon-size: 24px;        /* 48px */
+}
+
+.notification-banner .message-box .message-icon.message-themed-icon {
+  min-width: 24px;        /* 48px */
+  min-height: 24px;       /* 48px */
+}
