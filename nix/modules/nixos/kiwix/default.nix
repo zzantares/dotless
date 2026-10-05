@@ -24,20 +24,28 @@ let
   # Keyed by the name each book is served and searched under. kiwix.el derives
   # its library list from these filenames, so the keys are user-visible.
   zims = {
-    rust = devdocs "devdocs_en_rust_2026-10" "sha256-kDUPDPVbJhkLf9w7UvBvsmPYNdRFj3yHC+FaCmqFYCM=";
+    # Packed from the toolchains in this closure, so the versions cannot drift
+    # from the compilers. Upstream's Haskell docset tracks the newest GHC 9.x -
+    # 9.14 against the 9.10 installed here - and its Rust and TypeScript
+    # docsets carry no version at all, only a build date.
+    haskell = pkgs.zim-haskell;
+    rust = pkgs.zim-rust;
+
+    # DevDocs for the languages with no local HTML to pack. Python and Postgres
+    # match to the minor and major respectively; TypeScript upstream is still
+    # on 6.x, so that one trails the installed compiler until they ship 7.
     python = devdocs "devdocs_en_python_2026-08" "sha256-KJ5dPg6MPTRwvxg+XJE7474LYacwzlKiR8I4EnmbqlE=";
     postgresql = devdocs "devdocs_en_postgresql_2026-08" "sha256-5Oc+OvXPvORQy53BY9wh4g07G1m4SBOXYSNldPN8UOo=";
-    haskell = devdocs "devdocs_en_haskell_2026-04" "sha256-gS33vVlAWJY9oCZxo0Zt/v9gQuFldb444Eij7D/jEaI=";
     typescript = devdocs "devdocs_en_typescript_2026-07" "sha256-sDjPXLDUTJ9kdxQH1hvz0JSi0Eovn35Pa84vbyXA0FI=";
+
     inherit stackoverflow;
   };
 in
 
 {
-  # Offline documentation served from pinned ZIM archives. DevDocs covers the
-  # languages with nothing local of their own - python, typescript, postgres.
-  # Haskell and Rust already ship haddock and rustdoc in their toolchains but
-  # are kept here for full-text search across the whole set.
+  # Offline documentation served from ZIM archives, which add full-text search
+  # over the toolchains' own HTML and cover the languages that ship no local
+  # docs at all.
   #
   # Dated filenames are deliberate: refreshing a docset is a URL + hash bump,
   # the price of the ZIMs being part of the closure.

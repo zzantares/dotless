@@ -78,6 +78,13 @@ in
   rust-batteries = final.callPackage ./../pkgs/rust-batteries { };
   cargo-warm = final.rust-batteries.warm;
 
+  # Docs packed from the toolchains themselves, so the versions cannot drift
+  # from the compilers. Upstream DevDocs ZIMs track their own release cadence -
+  # its Haskell book follows the newest GHC 9.x, which is not the one here.
+  toolchain-zims = final.callPackage ./../pkgs/toolchain-zims { };
+  zim-rust = final.toolchain-zims.rust;
+  zim-haskell = final.toolchain-zims.haskell;
+
   # jj at trunk, for `jj workspace add --colocate`: it gives each workspace a
   # real .git, so Nix resolves it git+file: instead of copying the tree (.jj
   # included) on every jj command. Released 0.45.1 has no such flag.
@@ -301,11 +308,7 @@ in
     rust = final.buildEnv {
       name = "rust-toolchain";
       paths = with final; [
-        # rust-src lands in the sysroot, which is how rust-analyzer resolves std
-        # offline (goto-definition, hover). The `default` profile omits it.
-        (rust-bin.stable.latest.default.override {
-          extensions = [ "rust-src" ];
-        })
+        rustc-with-src
         rust-analyzer
       ];
     };
@@ -503,7 +506,19 @@ in
     ]
   );
 
-  ghc-with-batteries = final.myHaskellPackages.ghcWithHoogle (
+  # rust-src lands in the sysroot, which is how rust-analyzer resolves std
+  # offline (goto-definition, hover). The `default` profile omits it.
+  # Named separately so zim-rust documents this exact compiler, not a
+  # second evaluation of the same expression.
+  rustc-with-src = final.rust-bin.stable.latest.default.override {
+    extensions = [ "rust-src" ];
+  };
+
+  # One list, consumed twice: ghcWithHoogle for the compiler plus its search
+  # database, hoogleWithPackages for the same haddock trees on their own, which
+  # is what zim-haskell packs. Sharing the function is what makes the ZIM
+  # describe exactly the GHC and packages installed.
+  haskell-batteries =
     hpkgs: with hpkgs; [
       # GHC boot libraries: these ship with the compiler so listing them is
       # redundant but I like to be explicit
@@ -595,8 +610,10 @@ in
       websockets
       yaml
       zlib
-    ]
-  );
+    ];
+
+  ghc-with-batteries = final.myHaskellPackages.ghcWithHoogle final.haskell-batteries;
+  hoogle-batteries = final.myHaskellPackages.hoogleWithPackages final.haskell-batteries;
 }
 // prev.lib.optionalAttrs prev.stdenv.hostPlatform.isLinux {
   gnomeExtensions = prev.gnomeExtensions // {
