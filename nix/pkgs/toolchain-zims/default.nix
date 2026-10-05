@@ -6,6 +6,7 @@
   rustc-with-src,
   hoogle-batteries,
   ghc,
+  postgresql-pinned,
 }:
 
 let
@@ -137,6 +138,14 @@ in
       print(f"redirects: dropped {dropped}, de-fragmented {trimmed}", file=sys.stderr)
       PY
     '';
+  };
+
+  postgresql = mkZim {
+    pname = "postgresql-local";
+    title = "PostgreSQL ${postgresql-pinned.version}";
+    description = "The PostgreSQL manual for the major this fleet serves";
+    src = "${postgresql-pinned.doc}/share/doc/postgresql/html";
+    rgb = "51,103,145";
   };
 
   haskell = mkZim {

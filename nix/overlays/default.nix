@@ -84,6 +84,7 @@ in
   toolchain-zims = final.callPackage ./../pkgs/toolchain-zims { };
   zim-rust = final.toolchain-zims.rust;
   zim-haskell = final.toolchain-zims.haskell;
+  zim-postgresql = final.toolchain-zims.postgresql;
 
   # jj at trunk, for `jj workspace add --colocate`: it gives each workspace a
   # real .git, so Nix resolves it git+file: instead of copying the tree (.jj
@@ -468,6 +469,7 @@ in
       name = "postgresql-toolchain";
       paths = with final; [
         pgformatter
+        postgresql-client
         sqls
       ];
     };
@@ -512,6 +514,15 @@ in
   # second evaluation of the same expression.
   rustc-with-src = final.rust-bin.stable.latest.default.override {
     extensions = [ "rust-src" ];
+  };
+
+  # Pinned to the major isildur serves (its services.postgresql.package is
+  # postgresql_17_jit), so the client and its ZIM both describe the server we
+  # actually talk to rather than whatever nixpkgs defaults to.
+  postgresql-pinned = final.postgresql_17;
+
+  postgresql-client = final.callPackage ./../pkgs/postgresql-client {
+    postgresql = final.postgresql-pinned;
   };
 
   # One list, consumed twice: ghcWithHoogle for the compiler plus its search
