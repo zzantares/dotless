@@ -7,6 +7,7 @@
   hoogle-batteries,
   ghc,
   postgresql-pinned,
+  lua,
 }:
 
 let
@@ -138,6 +139,18 @@ in
       print(f"redirects: dropped {dropped}, de-fragmented {trimmed}", file=sys.stderr)
       PY
     '';
+  };
+
+  # The reference manual Lua itself ships, so it tracks toolchains.lua rather
+  # than DevDocs, which follows 5.5. Nothing here targets 5.5: this exists for
+  # Neovim configuration, where the runtime is LuaJIT.
+  lua = mkZim {
+    pname = "lua-manual-local";
+    title = "Lua ${lua.version}";
+    description = "The Lua reference manual, from the installed interpreter";
+    src = "${lua.doc}/share/doc/lua-${lua.version}";
+    rgb = "0,0,128";
+    welcome = "contents.html";
   };
 
   postgresql = mkZim {

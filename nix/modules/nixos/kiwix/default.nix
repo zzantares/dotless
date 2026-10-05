@@ -31,6 +31,7 @@ let
     haskell = pkgs.zim-haskell;
     rust = pkgs.zim-rust;
     postgresql = pkgs.zim-postgresql;
+    lua = pkgs.zim-lua;
 
     # DevDocs for the languages with no local HTML to pack. Python matches to
     # the minor; TypeScript upstream is still on 6.x, so that one trails the

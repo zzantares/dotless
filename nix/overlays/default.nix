@@ -85,6 +85,7 @@ in
   zim-rust = final.toolchain-zims.rust;
   zim-haskell = final.toolchain-zims.haskell;
   zim-postgresql = final.toolchain-zims.postgresql;
+  zim-lua = final.toolchain-zims.lua;
 
   # jj at trunk, for `jj workspace add --colocate`: it gives each workspace a
   # real .git, so Nix resolves it git+file: instead of copying the tree (.jj
