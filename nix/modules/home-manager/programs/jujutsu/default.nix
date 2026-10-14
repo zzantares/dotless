@@ -53,6 +53,15 @@ in
       revsets.bookmark-advance-to = "@-";
 
       aliases = {
+        # jj has no git-style dispatch to external `jj-*` binaries, so the
+        # workspace helper needs an alias to be reachable as `jj wt`.
+        wt = [
+          "util"
+          "exec"
+          "--"
+          "jj-wt"
+        ];
+
         # The jj equivalent of a git branch following your commits.
         tug = [
           "bookmark"
