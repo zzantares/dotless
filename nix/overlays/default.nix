@@ -14,8 +14,6 @@ in
   aspell-with-dicts = final.aspellWithDicts (
     ds: with ds; [
       en
-      en-computers
-      en-science
       es
     ]
   );

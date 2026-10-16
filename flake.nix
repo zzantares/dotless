@@ -39,7 +39,7 @@
     simple-english.url = "github:AminBlg/SimpleEnglish";
     simple-english.flake = false;
 
-    zed-editor.url = "github:zed-industries/zed?ref=v1.21.0";
+    zed-editor.url = "github:zed-industries/zed?ref=v1.24.2";
     zed-editor.inputs.nixpkgs.follows = "nixpkgs";
 
     opencode.url = "github:anomalyco/opencode?ref=v1.18.25";

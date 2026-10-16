@@ -65,7 +65,7 @@ in
 
   programs.notmuch = {
     enable = enable;
-    new.tags = [ "new" ]; # New mail indexed will be tagged as 'new'
+    settings.new.tags = [ "new" ]; # New mail indexed will be tagged as 'new'
   };
 
   programs.afew = {
