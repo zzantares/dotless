@@ -88,6 +88,17 @@
   }
   // (profile.shellAliases or { });
 
+  # `gh dash` resolves only via ~/.local/share/gh/extensions, not PATH.
+  # programs.gh-dash already declares itself in programs.gh.extensions, so
+  # enabling gh wires the dispatch - and installs the gh CLI.
+  programs.gh = {
+    enable = true;
+
+    # github remotes here are ssh: the https-only helper is dead weight.
+    gitCredentialHelper.enable = false;
+    settings.git_protocol = "ssh";
+  };
+
   programs.gh-dash.enable = true;
   programs.gh-dash.settings = {
     # Render the `d` diff view through diffnav: a GitHub-style pager with a file

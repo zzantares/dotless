@@ -21,7 +21,6 @@
       git
       git-extras
       git-lfs
-      gh-dash
       just
       man-pages-posix
       latex-with-packages # needed for org-export commands in emacs
