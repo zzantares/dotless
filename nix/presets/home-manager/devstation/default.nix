@@ -94,6 +94,10 @@
   programs.gh = {
     enable = true;
 
+    # Stacked PRs, from github/gh-stack. gh-dash adds itself to this list from
+    # its own module, and the lists merge.
+    extensions = [ pkgs.gh-stack ];
+
     # github remotes here are ssh: the https-only helper is dead weight.
     gitCredentialHelper.enable = false;
     settings.git_protocol = "ssh";
