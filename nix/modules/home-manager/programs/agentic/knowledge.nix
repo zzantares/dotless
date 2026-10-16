@@ -24,6 +24,9 @@ rec {
     # Strips LLM writing tells, after Wikipedia:Signs of AI writing.
     deslop = ./skills/deslop;
     explain = ./skills/explain;
+    # Stacked PRs with `gh stack`; ships with the extension (github/gh-stack).
+    # Its non-interactive flags matter: bare `view`/`submit` block on a TUI.
+    gh-stack = "${pkgs.gh-stack}/share/skills/gh-stack/gh-stack";
     # ASD-STE100 Simplified Technical English, from the pinned SimpleEnglish input.
     simple-english = "${inputs.simple-english}/skills/simple-english";
   };
