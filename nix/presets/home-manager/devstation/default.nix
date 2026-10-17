@@ -103,12 +103,20 @@
     settings.git_protocol = "ssh";
   };
 
+  # diffnav reads this file and overrides only the keys it names, so the rest of
+  # its defaults stand. Unified beats side-by-side at this terminal width; `s`
+  # still toggles per session.
+  xdg.configFile."diffnav/config.yml".text = ''
+    ui:
+      sideBySide: false
+  '';
+
   programs.gh-dash.enable = true;
   programs.gh-dash.settings = {
-    # Render the `d` diff view through diffnav: a GitHub-style pager with a file
+    # Render the `D` diff view through diffnav: a GitHub-style pager with a file
     # tree for navigating large PRs per-file/per-directory. diffnav renders the diff
     # through delta under the hood, so `[delta]` git config styling still applies.
-    # (Its keybindings are patched to Colemak via nix/overlays/private.nix, matching
+    # (Its keybindings are patched to Colemak via nix/overlays/default.nix, matching
     # the universal keys below.) Swap back to `delta` for a plain scrolling diff.
     pager.diff = "diffnav";
 
@@ -134,8 +142,18 @@
         key = "l";
         builtin = "nextSection";
       }
+      # R is worth more as "review" than as "refresh all" - r already refreshes
+      # the current section, and ctrl+r sits next to it.
+      {
+        key = "ctrl+r";
+        builtin = "refreshAll";
+      }
     ];
 
+    # R - review the highlighted PR in nvim (src/bin/pr-review): octo.nvim for
+    # inline comments, suggestions and approve, run inside the same worktree `d`
+    # diffs, so both keys read one checkout at the PR head.
+    #
     # PR-only bindings that drive src/bin/pr-brief (Phase 1 of the review flow):
     #   b — generate/refresh the briefing for the highlighted PR into the local
     #       inbox (idempotent: skips if the PR is unchanged since last brief), then
@@ -146,6 +164,25 @@
     # gh-dash runs these with the row's template vars; {{.RepoName}} is owner/repo
     # and {{.PrNumber}} is the PR number, which pr-brief accepts as owner/repo#123.
     prs = [
+      # diffnav opens `o` against its working directory, which is wherever
+      # gh-dash was launched - the wrong revision for every PR. pr-diff runs it
+      # from the PR's own sibling worktree instead, so `o` lands on the file as
+      # the PR leaves it, editable. `D` keeps the plain `gh pr diff` pipe, for
+      # a look that needs no worktree.
+      {
+        key = "D";
+        builtin = "diff";
+      }
+      {
+        key = "d";
+        name = "diff at PR head";
+        command = "pr-diff {{.RepoName}}#{{.PrNumber}}";
+      }
+      {
+        key = "R";
+        name = "review in nvim";
+        command = "pr-review {{.RepoName}}#{{.PrNumber}}";
+      }
       {
         key = "b";
         name = "brief PR";
