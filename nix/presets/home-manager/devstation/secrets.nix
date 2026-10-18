@@ -9,8 +9,10 @@ in
   # opencode (OpenRouter provider) + pi
   sops.secrets.openrouter_api_key = lib.mkIf config.programs.opencode.enable { };
 
-  # GitHub API access alongside AI tooling
-  sops.secrets.github_auth_token = lib.mkIf config.programs.opencode.enable { };
+  # GitHub API access: gh and gh-dash authenticate from GITHUB_TOKEN, and so do
+  # the agents that shell out to gh. Keyed to gh rather than to any one of them,
+  # since every consumer goes through it.
+  sops.secrets.github_auth_token = lib.mkIf config.programs.gh.enable { };
 
   # Native OpenAI key for Codex. Add it with `sops secrets/<profile>/secrets.yaml`.
   sops.secrets.openai_api_key = lib.mkIf config.programs.codex.enable { };
@@ -18,8 +20,10 @@ in
   sops.secrets.forgejo_mcp_token = lib.mkIf usesForgejoMcp { };
 
   sops.templates.env.content =
-    lib.optionalString config.programs.opencode.enable ''
-      export GITHUB_TOKEN="${config.sops.placeholder.github_auth_token}";
+    lib.optionalString config.programs.gh.enable ''
+      export GITHUB_TOKEN="${config.sops.placeholder.github_auth_token}"; # gh, gh-dash, octo.nvim
+    ''
+    + lib.optionalString config.programs.opencode.enable ''
       export OPENROUTER_API_KEY="${config.sops.placeholder.openrouter_api_key}"; # opencode, pi
     ''
     + lib.optionalString config.programs.codex.enable ''
