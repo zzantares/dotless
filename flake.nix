@@ -89,6 +89,7 @@
         bat = ./nix/modules/home-manager/programs/bat;
         alacritty = ./nix/modules/home-manager/programs/alacritty;
         emacs = ./nix/modules/home-manager/programs/emacs;
+        zed = ./nix/modules/home-manager/programs/zed;
         fourmolu = ./nix/modules/home-manager/programs/fourmolu;
         "claude-code" = ./nix/modules/home-manager/programs/claude-code;
         opencode = ./nix/modules/home-manager/programs/opencode;

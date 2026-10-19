@@ -8,6 +8,7 @@ on:
       - "flake.nix"
       - "flake.lock"
       - "nix/**"
+      - "test/**"
   pull_request:
     branches:
       - master
@@ -15,6 +16,7 @@ on:
       - "flake.nix"
       - "flake.lock"
       - "nix/**"
+      - "test/**"
   workflow_dispatch:
 
 concurrency:
@@ -63,3 +65,21 @@ jobs:
 
       - name: Evaluate ${{ matrix.name }}, fail on any warning
         run: nix eval --impure --raw ${{ matrix.attr }} --option abort-on-warn true >/dev/null
+
+  # Checks that assert rather than only evaluate: built, so their scripts run.
+  checks:
+    name: Checks
+    needs: fmt
+    runs-on: nix
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        run: |
+          git init -q .
+          git remote add origin "https://x-token-auth:${GITHUB_TOKEN}@git.gutimore.net/gutimore/dotless.git"
+          git fetch -q --depth 1 origin "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+
+      - name: Build zed-compose
+        run: nix build --no-link .#checks.x86_64-linux.zed-compose --option abort-on-warn true
