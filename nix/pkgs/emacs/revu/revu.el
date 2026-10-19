@@ -14,7 +14,8 @@
 ;; they survive a crash and stay submittable from the web UI.
 ;;
 ;; Commands: `revu-comment', `revu-list', `revu-submit',
-;; `revu-refresh'.  Bind them yourself, or bind `revu-prefix-map'.
+;; `revu-refresh'.  `revu-mode' puts them on `revu-keymap-prefix' (C-c v by
+;; default); leave it off to bind `revu-prefix-map' yourself.
 ;;
 ;; GitHub via the `gh' CLI is the only backend today; the public names are
 ;; backend-neutral so another forge can be added behind them.
@@ -592,6 +593,52 @@ behaviour when there is no pending review."
     (define-key map "h" #'revu-diff-hl-toggle)
     map)
   "Keymap of PR review commands, meant to be bound to a prefix key.")
+
+(defvar revu-mode-map (make-sparse-keymap)
+  "Keymap for `revu-mode'.
+`revu-keymap-prefix' is installed into it; the mode only decides whether
+the binding is live, so nothing is touched globally while it is off.")
+
+(defvar revu--installed-prefix nil
+  "The prefix currently bound in `revu-mode-map', or nil.")
+
+;; The option and its setter refer to each other, and a warning fails the
+;; build, so declare the variable before the function reads it.
+(defvar revu-keymap-prefix)
+
+(defun revu--install-prefix ()
+  "Bind `revu-keymap-prefix' to `revu-prefix-map' in `revu-mode-map'.
+Removes the prefix an earlier call installed, so setting the option twice
+does not leave the old key behind."
+  (when revu--installed-prefix
+    (keymap-unset revu-mode-map revu--installed-prefix t)
+    (setq revu--installed-prefix nil))
+  (when revu-keymap-prefix
+    (keymap-set revu-mode-map revu-keymap-prefix revu-prefix-map)
+    (setq revu--installed-prefix revu-keymap-prefix)))
+
+(defcustom revu-keymap-prefix "C-c v"
+  "Prefix key that `revu-mode' binds `revu-prefix-map' to.
+Set it to nil to have `revu-mode' bind nothing, and bind
+`revu-prefix-map' wherever you like instead."
+  :type '(choice (key :tag "Prefix key")
+                 (const :tag "None" nil))
+  :group 'revu
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (revu--install-prefix)))
+
+;; The default value of a defcustom does not run :set, so install it once here.
+(revu--install-prefix)
+
+;;;###autoload
+(define-minor-mode revu-mode
+  "Put the PR review commands on `revu-keymap-prefix'.
+Default bindings are opt-in: enable this mode to take them, or leave it
+off and bind `revu-prefix-map' yourself."
+  :global t
+  :group 'revu
+  :keymap revu-mode-map)
 
 (provide 'revu)
 ;;; revu.el ends here

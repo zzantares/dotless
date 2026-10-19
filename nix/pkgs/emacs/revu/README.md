@@ -23,13 +23,22 @@ today; the public names are backend-neutral (see dotless #99).
 
 ## Binding
 
-Bind them yourself; `revu-prefix-map` holds `c`, `l`, `s`, `f`, `h`.
-Enable `revu-forge-mode` to route Forge's approve / request-changes through
-the batch submitter.
+`revu-mode` is the default bindings, opt-in: it puts `revu-prefix-map` (`c`,
+`l`, `s`, `f`, `h`) on `revu-keymap-prefix`, which defaults to `C-c v`. So
+`C-c v c` comments, `C-c v s` submits. Enable `revu-forge-mode` as well to
+route Forge's approve / request-changes through the batch submitter.
 
 ```elisp
 (require 'revu)
+(revu-mode 1)
 (revu-forge-mode 1)
+```
+
+Set `revu-keymap-prefix` through Customize (or `setopt`) to move the prefix;
+the old one is unbound for you. Set it to nil, or leave `revu-mode` off, and
+nothing is bound - then bind `revu-prefix-map` wherever you like:
+
+```elisp
 (map! :leader :prefix "g" (:prefix ("V" . "review")
        :desc "Comment on PR line(s)" :m "c" #'revu-comment
        :desc "List pending review"   :m "l" #'revu-list

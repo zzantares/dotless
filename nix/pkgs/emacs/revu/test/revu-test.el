@@ -599,5 +599,37 @@ Magit, diff-hl and the project are faked; `revu-diff-hl--bases' starts empty."
   (should (eq (lookup-key revu-prefix-map "f") #'revu-refresh))
   (should (eq (lookup-key revu-prefix-map "h") #'revu-diff-hl-toggle)))
 
+;;;; Default bindings
+
+(defun revu-test--call-with-prefix (prefix thunk)
+  "Set `revu-keymap-prefix' to PREFIX around THUNK, restoring it after."
+  (let ((saved revu-keymap-prefix))
+    (unwind-protect
+        (progn (customize-set-variable 'revu-keymap-prefix prefix)
+               (funcall thunk))
+      (customize-set-variable 'revu-keymap-prefix saved))))
+
+(ert-deftest revu-test-default-prefix-reaches-the-commands ()
+  (should (eq (keymap-lookup revu-mode-map "C-c v c") #'revu-comment)))
+
+(ert-deftest revu-test-changing-the-prefix-moves-the-binding ()
+  (revu-test--call-with-prefix
+   "C-c R"
+   (lambda ()
+     (should (eq (keymap-lookup revu-mode-map "C-c R c") #'revu-comment))
+     ;; the old prefix is gone rather than left behind alongside the new one.
+     ;; Look the prefix itself up: a lookup of the full sequence answers with
+     ;; the length of the part that matched, which is not nil.
+     (should-not (keymap-lookup revu-mode-map "C-c v")))))
+
+(ert-deftest revu-test-nil-prefix-binds-nothing ()
+  (revu-test--call-with-prefix
+   nil
+   (lambda ()
+     (should-not (keymap-lookup revu-mode-map "C-c v")))))
+
+(ert-deftest revu-test-mode-is-off-until-enabled ()
+  (should-not revu-mode))
+
 (provide 'revu-test)
 ;;; revu-test.el ends here

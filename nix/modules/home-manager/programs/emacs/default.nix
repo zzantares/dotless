@@ -100,24 +100,10 @@ in
           ]
         ))
 
-        # Batched PR reviews from Emacs; see nix/pkgs/emacs/revu.
+        # Batched PR reviews from Emacs; see nix/pkgs/emacs/revu. Its default
+        # bindings are opt-in: `(revu-mode 1)' in your own config.
         revu
       ];
-
-    # revu ships above but binds nothing, so a consumer with no Emacs config of
-    # their own would have to know the command names. Bind its prefix map and
-    # route Forge's approve / request-changes through the batch submitter, in
-    # Doom-free elisp so plain Emacs gets it too.
-    #
-    # This lands in default.el, loaded after the user's init file, so a config
-    # that binds revu its own way (dotfiles uses <leader>gV) keeps those keys -
-    # these are additional, and C-c v collides with neither.
-    extraConfig = ''
-      ;; Batched PR reviews: C-c v then c comment / l list / s submit / f refresh.
-      (when (require 'revu nil t)
-        (keymap-global-set "C-c v" revu-prefix-map)
-        (revu-forge-mode 1))
-    '';
   };
 
   # The daemon runs on both platforms: systemd user service on Linux, launchd
