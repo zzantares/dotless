@@ -150,11 +150,15 @@
       }
     ];
 
-    # R - review the highlighted PR in nvim (src/bin/pr-review): octo.nvim for
-    # inline comments, suggestions and approve, run inside the same worktree `d`
-    # diffs, so both keys read one checkout at the PR head.
+    # R - review the highlighted PR in nvim (pr-review, from pkgs.pr-tools):
+    # octo.nvim for inline comments, suggestions and approve, run inside the
+    # same worktree `d` diffs, so both keys read one checkout at the PR head.
+    # octo is the one piece a consumer wires up themselves - dotless owns no
+    # neovim config to put it in - so `R` opens nvim with `Octo` undefined
+    # until they do.
     #
-    # PR-only bindings that drive src/bin/pr-brief (Phase 1 of the review flow):
+    # b and B drive src/bin/pr-brief (Phase 1 of the review flow), which no
+    # consumer has yet - it is unwritten, so both keys fail today:
     #   b — generate/refresh the briefing for the highlighted PR into the local
     #       inbox (idempotent: skips if the PR is unchanged since last brief), then
     #       show it in a pager. gh-dash runs these via tea.ExecProcess, which hands
@@ -168,7 +172,7 @@
       # gh-dash was launched - the wrong revision for every PR. pr-diff runs it
       # from the PR's own sibling worktree instead, so `o` lands on the file as
       # the PR leaves it, editable. `D` keeps the plain `gh pr diff` pipe, for
-      # a look that needs no worktree.
+      # a look that needs no worktree, and for a repo with no local clone.
       {
         key = "D";
         builtin = "diff";

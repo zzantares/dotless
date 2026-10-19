@@ -27,6 +27,12 @@
       libfaketime
       pass # TODO check out bitwarden-cli?
       pre-commit
+
+      # git pr, pr-diff, pr-review - what the gh-dash `d`/`R` keys call.
+      # hiPrio because git-extras ships its own, lesser `git-pr` (it only checks
+      # a PR out); ours supersedes it deliberately, and buildEnv refuses to
+      # guess between two bin/git-pr.
+      (lib.hiPrio pr-tools)
       tree-sitter
       tea-dash
       tealdeer

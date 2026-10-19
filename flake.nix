@@ -173,6 +173,7 @@
                 fonts
                 wallpapers
                 linear-cli
+                pr-tools
                 zed-editor
                 ;
             }

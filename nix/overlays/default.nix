@@ -145,6 +145,8 @@ in
       '';
   });
 
+  pr-tools = final.callPackage ./../pkgs/pr-tools { };
+
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
 
   rust-batteries = final.callPackage ./../pkgs/rust-batteries { };
