@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# Git worktree primitives for the workspace scripts (git-wt, git-pr, task):
+# Git worktree primitives for git-wt and git-pr (nix/pkgs/pr-tools):
 #
 #   source "$HOME/.local/lib/sh/worktree.sh"   # Emacs half: ./emacs.sh
 #

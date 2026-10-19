@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# Multiplexer backends for the workspace scripts (git-wt, git-pr, task):
+# Multiplexer backends for git-wt, git-pr and other callers:
 #
 #   source "$HOME/.local/lib/sh/mux.sh"   # git half: ./worktree.sh
 #

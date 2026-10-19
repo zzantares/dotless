@@ -34,7 +34,7 @@
   }
   // (profile.shellAliases or { });
 
-  # Shared shell primitives for git-wt, git-pr and task. The directory ships as
+  # Shared shell primitives for git-wt and git-pr. The directory ships as
   # one unit: that is how all.sh finds its siblings, here and from the store.
   home.file.shell-lib = {
     enable = lib.mkDefault true;

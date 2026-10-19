@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# Emacs primitives for the workspace scripts (git-wt, git-pr, task) and boom:
+# Emacs primitives for git-wt, git-pr and boom:
 #
 #   source "$HOME/.local/lib/sh/emacs.sh"
 #
