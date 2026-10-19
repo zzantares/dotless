@@ -43,7 +43,7 @@ in
 
         # Queries the local kiwix-serve over HTTP, so it reads the same pinned
         # ZIMs as the browser instead of a second copy of the docs. Configured
-        # in Doom's config.el, which lives in the consumer repo.
+        # in the dotless Doom module's kiwix part.
         kiwix
 
         # Curated, not `with-all-grammars`: that builds 290+ grammars and breaks

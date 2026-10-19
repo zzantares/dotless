@@ -24,13 +24,6 @@
     fi
   '';
 
-  # This is configured as a symlink to not have to re-build HM to change Emacs config
-  home.file.doom = {
-    enable = lib.mkDefault true;
-    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/${profile.flakeRoot}/config/doom";
-    target = "${config.xdg.configHome}/doom";
-  };
-
   # This is configured as a symlink to not have to re-build HM to change LazyVim config
   home.file.lazyvim = {
     enable = lib.mkDefault true;

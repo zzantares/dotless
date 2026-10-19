@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: putStrLn
+# key: put
+# --
+
+putStrLn $ "==> [ $1 ] $2 = " <> show $2$0

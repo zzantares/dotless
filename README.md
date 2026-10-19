@@ -11,7 +11,7 @@ included, but designed to be extended with your own private layer.
 ## What it provides
 
 - **Home Manager presets** — composable role bundles (`base`, `devstation`, `workstation`, `server`)
-- **Home Manager modules** — individual modules you can opt into à la carte (`git`, `zsh`, `ssh`, `sops`, `emacs`, …)
+- **Home Manager modules** — individual modules you can opt into à la carte (`git`, `zsh`, `ssh`, `sops`, `emacs`, `doom`, …)
 - **NixOS presets** — system-level role bundles (`base`, `bare-metal`, `server`, `desktop`, `node`)
 - **NixOS modules** — opt-in system services (`sops`, `syncthing`, `tailscale`, `gnome`, `kde`) and an opt-in nix daemon module (`nix`) usable on any platform
 - **nix-darwin presets** — system-level foundation (`base`) that unblocks Home Manager integration
@@ -342,6 +342,32 @@ dotless.editors.zed.keymap = lib.mkAfter [
   }
 ];
 ```
+
+### Doom Emacs
+
+The `doom` module ships dotless's Doom config into `doom-user-dir` as individual
+files, so the directory stays writable (Emacs owns `<login>-custom.el` there).
+Compose it instead of forking it:
+
+```nix
+dotless.editors.doom = {
+  # init.el's doom! form, as a flat list
+  modules = lib.mkForce (lib.filter (m: m != "zen") options.dotless.editors.doom.modules.default);
+
+  # chunks of dotless's config.el, loaded in this order
+  parts = lib.mkForce (lib.filter (p: p != "notmuch") options.dotless.editors.doom.parts.default);
+
+  # elisp appended to config.el, which loads after every part
+  extraConfig = "(setopt doom-theme 'modus-vivendi)";
+
+  extraPackages = "(package! nov)";
+  extraFiles."modules/config/mine/config.el".source = ./doom/mine.el;
+};
+```
+
+For live editing, `profile.liveOverrides.doom` takes a list of paths relative to
+`doom-user-dir` (each symlinked out-of-store, dotless's version dropped), or
+`true` to hand over the whole directory.
 
 ### NeoVim
 
