@@ -31,13 +31,6 @@
     target = "${config.xdg.configHome}/doom";
   };
 
-  # This is configured as a symlink to not have to re-build HM to change NeoVim config
-  home.file.nvim = {
-    enable = lib.mkDefault true;
-    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/${profile.flakeRoot}/config/nvim";
-    target = "${config.xdg.configHome}/nvim";
-  };
-
   # This is configured as a symlink to not have to re-build HM to change LazyVim config
   home.file.lazyvim = {
     enable = lib.mkDefault true;

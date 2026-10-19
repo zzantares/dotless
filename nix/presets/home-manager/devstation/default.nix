@@ -20,6 +20,7 @@
     ./../../../modules/home-manager/programs/wezterm
     ./../../../modules/home-manager/programs/emacs
     ./../../../modules/home-manager/programs/zed
+    ./../../../modules/home-manager/programs/nvim
     ./../../../modules/home-manager/programs/fourmolu
     ./../../../modules/home-manager/programs/claude-code
     ./../../../modules/home-manager/programs/opencode

@@ -343,6 +343,42 @@ dotless.editors.zed.keymap = lib.mkAfter [
 ];
 ```
 
+### NeoVim
+
+dotless ships its Lua tree as a store path prepended to `runtimepath` and
+generates `~/.config/nvim/init.lua` from it, one `require` per piece.
+`~/.config/nvim` stays a real directory, so `:Lazy sync` still writes
+`lazy-lock.json` into it; dotless seeds that file once, when absent.
+
+```nix
+dotless.editors.nvim = {
+  modules.diagnostics.enable = false;   # drop one piece
+  plugins.octo.enable = false;          # drop one plugin spec file
+  lsp.servers = [ "lua_ls" "nixd" ];    # replace the vim.lsp.enable list
+
+  lazy.extraSpecs = [                   # append lazy.nvim specs
+    ''{ "ibhagwan/fzf-lua", opts = { defaults = { file_icons = true } } }''
+  ];
+
+  extraConfig = ''                      # Lua, after dotless's requires
+    vim.keymap.set("n", "<leader>tt", ":Explore .<cr>")
+  '';
+};
+```
+
+`~/.config/nvim/after/**` is sourced last, so a consumer `after/ftplugin/*.lua`
+or `after/lsp/*.lua` wins over dotless's without editing it.
+
+To hand-edit files with no rebuild, list them in `profile.liveOverrides.nvim`
+as paths under `<flakeRoot>/config/nvim`; `true` takes over the whole
+directory. Either way `$DOTLESS_NVIM_RTP` holds dotless's tree, so a
+hand-written `init.lua` can still layer on it:
+
+```lua
+vim.opt.rtp:prepend(vim.env.DOTLESS_NVIM_RTP)
+require("dotless.options").setup()
+```
+
 ## License
 
 GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
