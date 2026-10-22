@@ -19,12 +19,13 @@ today; the public names are backend-neutral (see dotless #99).
 | `revu-submit` | Publish the drafts with COMMENT / APPROVE / REQUEST_CHANGES |
 | `revu-refresh` | Resync the worktree to the PR head after the author pushes |
 | `revu-diff-hl-set-base` | Point diff-hl at the PR base, so gutters show the PR's changes |
+| `revu-diff-hl-toggle` | Turn the PR-base diff on the worktree on or off |
 
 ## Binding
 
-Bind them yourself; `revu-prefix-map` holds `c`, `l`, `s`, `f`. Enable
-`revu-forge-mode` to route Forge's approve / request-changes through the
-batch submitter.
+Bind them yourself; `revu-prefix-map` holds `c`, `l`, `s`, `f`, `h`.
+Enable `revu-forge-mode` to route Forge's approve / request-changes through
+the batch submitter.
 
 ```elisp
 (require 'revu)
@@ -33,8 +34,40 @@ batch submitter.
        :desc "Comment on PR line(s)" :m "c" #'revu-comment
        :desc "List pending review"   :m "l" #'revu-list
        :desc "Submit review"         :m "s" #'revu-submit
-       :desc "Refresh to PR head"    :m "f" #'revu-refresh))
+       :desc "Refresh to PR head"    :m "f" #'revu-refresh
+       :desc "Toggle the PR diff"    :m "h" #'revu-diff-hl-toggle))
 ```
+
+## Whole-line highlighting
+
+`revu-diff-hl-set-base` points diff-hl at the PR base, so the fringe marks
+every line the PR touched. `revu-diff-hl-line-mode` additionally paints those
+lines with a background, which reads better than fringe marks alone on a big
+diff. It is turned on by `revu-diff-hl-set-base`; set
+`revu-diff-hl-line-highlight` to nil to keep the fringe only.
+
+`revu-diff-hl-toggle` flips the whole thing, both halves at once: the
+reference revision and the line painting. Checking out a PR worktree turns it
+on, so the toggle is mostly for switching back and forth while reading. The
+base branch is remembered per worktree, so only the first turn-on in a
+worktree asks the forge for it.
+
+The mode swaps both of diff-hl's highlight slots - `diff-hl-highlight-function` for
+working-tree changes and `diff-hl-highlight-reference-function` for changes
+against the reference revision. A PR's own lines come through the second, so
+swapping only the first leaves them bare. Whatever the slots held still runs,
+so the fringe or margin marks stay, and the mode puts them back when off.
+
+Three things shape the result:
+
+- The faces must set `:extend t`, or the background stops at end-of-line and
+  the diff block looks like a bar chart of line lengths.
+- `delete` lines are deliberately not painted: diff-hl's overlay for a removal
+  sits on the line *after* the removed text, which the PR never touched. The
+  fringe mark still shows it. Add a `delete` entry to
+  `revu-diff-hl-line-faces` to override.
+- `revu-diff-hl-line-priority` is -60, below `hl-line`'s -50, so the cursor
+  line keeps its own colour. Raise it above -50 to let the diff colour win.
 
 ## Tests
 

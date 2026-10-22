@@ -405,6 +405,186 @@ magit or forge does not leave definitions behind."
        'approve (lambda (&rest _) (setq called 'native)) nil)
       (should (eq called 'native)))))
 
+;;;; diff-hl whole-line highlighting
+
+;; diff-hl is not in scope at build time: revu.el only declares these two
+;; variables special, so give them a dynamic binding to fake.
+(defvar diff-hl-reference-revision nil)
+(defvar diff-hl-highlight-function nil)
+(defvar diff-hl-highlight-reference-function nil)
+
+(defmacro revu-test--with-diff-hl (&rest body)
+  "Run BODY with diff-hl's two highlight slots bound to recording stubs.
+diff-hl is not in scope at build time, so the slots and the functions they
+hold are faked; the suite asserts on the overlays revu produces."
+  (declare (indent 0))
+  `(let ((diff-hl-highlight-function 'revu-test--inner-working)
+         (diff-hl-highlight-reference-function 'revu-test--inner-reference)
+         (revu-diff-hl--saved nil)
+         (revu-diff-hl--pointed nil)
+         (revu-diff-hl-line-mode nil)
+         (revu-test--inner-calls nil))
+     (revu-test--with-stubs
+         ((revu-test--inner-working
+           (lambda (&rest args) (push (cons 'working args) revu-test--inner-calls)))
+          (revu-test--inner-reference
+           (lambda (&rest args) (push (cons 'reference args) revu-test--inner-calls)))
+          (diff-hl-update (lambda () nil)))
+       ,@body)))
+
+(defvar revu-test--inner-calls nil
+  "Calls recorded by the stubbed diff-hl highlight functions.")
+
+(defun revu-test--line-overlay (line)
+  "Return a zero-width overlay at the start of LINE, as diff-hl makes one."
+  (goto-char (point-min))
+  (forward-line (1- line))
+  (make-overlay (point) (point)))
+
+(defmacro revu-test--in-buffer (&rest body)
+  "Run BODY in a three-line temp buffer."
+  (declare (indent 0))
+  `(with-temp-buffer
+     (insert "alpha\nbeta\ngamma\n")
+     ,@body))
+
+(ert-deftest revu-test-diff-hl-paints-the-whole-line ()
+  (revu-test--in-buffer
+    (let ((ovl (revu-test--line-overlay 2)))
+      (revu-diff-hl--paint-line ovl 'insert)
+      ;; the span covers "beta" and its newline, so an `:extend' face reaches
+      ;; the window edge
+      (should (equal (buffer-substring-no-properties
+                      (overlay-start ovl) (overlay-end ovl))
+                     "beta\n"))
+      (should (eq (overlay-get ovl 'face) 'revu-diff-hl-line-insert))
+      (should (eq (overlay-get ovl 'priority) revu-diff-hl-line-priority)))))
+
+(ert-deftest revu-test-diff-hl-paints-a-change-with-the-change-face ()
+  (revu-test--in-buffer
+    (let ((ovl (revu-test--line-overlay 1)))
+      (revu-diff-hl--paint-line ovl 'change)
+      (should (eq (overlay-get ovl 'face) 'revu-diff-hl-line-change)))))
+
+(ert-deftest revu-test-diff-hl-leaves-deletions-to-the-fringe ()
+  (revu-test--in-buffer
+    (let ((ovl (revu-test--line-overlay 2)))
+      ;; nothing was removed from the line the overlay sits on, so it must not
+      ;; be painted, and must stay zero-width
+      (revu-diff-hl--paint-line ovl 'delete)
+      (should-not (overlay-get ovl 'face))
+      (should (= (overlay-start ovl) (overlay-end ovl))))))
+
+(ert-deftest revu-test-diff-hl-clears-a-recycled-overlay ()
+  (revu-test--in-buffer
+    (let ((ovl (revu-test--line-overlay 2)))
+      (revu-diff-hl--paint-line ovl 'insert)
+      (revu-diff-hl--paint-line ovl 'delete)
+      (should-not (overlay-get ovl 'face)))))
+
+(ert-deftest revu-test-diff-hl-last-line-without-a-newline ()
+  (with-temp-buffer
+    (insert "alpha\nomega")
+    (let ((ovl (revu-test--line-overlay 2)))
+      (revu-diff-hl--paint-line ovl 'insert)
+      (should (= (overlay-end ovl) (point-max))))))
+
+(ert-deftest revu-test-diff-hl-line-mode-swaps-both-slots ()
+  (revu-test--with-diff-hl
+    (revu-diff-hl-line-mode 1)
+    (should (eq diff-hl-highlight-function #'revu-diff-hl-highlight-line))
+    (should (eq diff-hl-highlight-reference-function
+                #'revu-diff-hl-highlight-line-flat))))
+
+(ert-deftest revu-test-diff-hl-line-mode-restores-both-slots ()
+  (revu-test--with-diff-hl
+    (revu-diff-hl-line-mode 1)
+    (revu-diff-hl-line-mode 1)
+    (revu-diff-hl-line-mode -1)
+    (should (eq diff-hl-highlight-function 'revu-test--inner-working))
+    (should (eq diff-hl-highlight-reference-function 'revu-test--inner-reference))
+    (should-not revu-diff-hl--saved)))
+
+(ert-deftest revu-test-diff-hl-line-mode-keeps-the-inner-highlighting ()
+  (revu-test--with-diff-hl
+    (revu-diff-hl-line-mode 1)
+    (revu-test--in-buffer
+      (let ((ovl (revu-test--line-overlay 2)))
+        (funcall diff-hl-highlight-function ovl 'insert 'single)
+        (funcall diff-hl-highlight-reference-function ovl 'insert 'single)
+        (should (equal (mapcar #'car revu-test--inner-calls)
+                       '(reference working)))
+        (should (eq (overlay-get ovl 'face) 'revu-diff-hl-line-insert))))))
+
+(defmacro revu-test--with-set-base (&rest body)
+  "Run BODY with `revu-diff-hl-set-base' stubbed down to its own logic.
+Magit, diff-hl and the project are faked; `revu-diff-hl--bases' starts empty."
+  (declare (indent 0))
+  `(revu-test--with-diff-hl
+     (let ((revu-diff-hl--bases nil)
+           (revu-test--pointed-at nil))
+       (revu-test--with-stubs
+           ((magit-toplevel (lambda (&optional _) "/tmp/wt/"))
+            (magit-git-string (lambda (&rest _) "cafe1234"))
+            (magit-rev-abbrev (lambda (_) "cafe123"))
+            (project-current (lambda (&optional _ _) '(transient . "/tmp/wt/")))
+            (diff-hl-set-reference-rev-in-project-internal
+             (lambda (rev _proj) (setq revu-test--pointed-at rev)))
+            (diff-hl-reset-reference-rev
+             (lambda (&optional _) (setq revu-test--pointed-at nil))))
+         ,@body))))
+
+(defvar revu-test--pointed-at nil
+  "Reference revision handed to the stubbed diff-hl.")
+
+(ert-deftest revu-test-diff-hl-set-base-enables-the-line-mode ()
+  (revu-test--with-set-base
+    (let ((revu-diff-hl-line-highlight t))
+      (revu-diff-hl-set-base "/tmp/wt/" "master")
+      (should revu-diff-hl-line-mode))
+    (revu-diff-hl-line-mode -1)
+    (let ((revu-diff-hl-line-highlight nil))
+      (revu-diff-hl-set-base "/tmp/wt/" "master")
+      (should-not revu-diff-hl-line-mode))))
+
+(ert-deftest revu-test-diff-hl-set-base-remembers-the-base-ref ()
+  (revu-test--with-set-base
+    (revu-diff-hl-set-base "/tmp/wt" "develop")
+    ;; keyed by one spelling, so a root without the trailing slash still hits
+    (should (equal (revu-diff-hl--base-ref "/tmp/wt/") "develop"))))
+
+(ert-deftest revu-test-diff-hl-toggle-turns-the-review-view-off ()
+  (revu-test--with-set-base
+    (revu-diff-hl-set-base "/tmp/wt/" "master")
+    (should (revu-diff-hl--active-p "/tmp/wt/"))
+    (revu-diff-hl-toggle)
+    (should-not revu-diff-hl-line-mode)
+    (should-not revu-test--pointed-at)
+    (should-not (revu-diff-hl--active-p "/tmp/wt/"))))
+
+(ert-deftest revu-test-diff-hl-toggle-turns-it-back-on-without-the-forge ()
+  (revu-test--with-set-base
+    (revu-test--with-stubs
+        ((revu--pr-ctx (lambda (&optional _) (error "the forge must not be asked"))))
+      (revu-diff-hl-set-base "/tmp/wt/" "master")
+      (revu-diff-hl-toggle)
+      (revu-diff-hl-toggle)
+      (should (equal revu-test--pointed-at "cafe1234"))
+      (should revu-diff-hl-line-mode))))
+
+(ert-deftest revu-test-diff-hl-toggle-asks-the-forge-when-unknown ()
+  (revu-test--with-set-base
+    (revu-test--with-stubs
+        ((revu--pr-ctx (lambda (&optional _) '((base . "trunk")))))
+      (revu-diff-hl-toggle)
+      (should (equal (revu-diff-hl--base-ref "/tmp/wt/") "trunk"))
+      (should revu-diff-hl-line-mode))))
+
+(ert-deftest revu-test-diff-hl-toggle-sees-a-reference-set-by-hand ()
+  (revu-test--with-set-base
+    (let ((diff-hl-reference-revision "deadbeef"))
+      (should (revu-diff-hl--active-p "/tmp/wt/")))))
+
 ;;;; Entry points
 
 (ert-deftest revu-test-entry-points-are-commands ()
@@ -416,7 +596,8 @@ magit or forge does not leave definitions behind."
   (should (eq (lookup-key revu-prefix-map "c") #'revu-comment))
   (should (eq (lookup-key revu-prefix-map "l") #'revu-list))
   (should (eq (lookup-key revu-prefix-map "s") #'revu-submit))
-  (should (eq (lookup-key revu-prefix-map "f") #'revu-refresh)))
+  (should (eq (lookup-key revu-prefix-map "f") #'revu-refresh))
+  (should (eq (lookup-key revu-prefix-map "h") #'revu-diff-hl-toggle)))
 
 (provide 'revu-test)
 ;;; revu-test.el ends here

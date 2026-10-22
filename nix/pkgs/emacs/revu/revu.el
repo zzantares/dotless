@@ -21,6 +21,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'json)
 (require 'seq)
 (require 'project)
@@ -34,6 +35,14 @@
 (declare-function forge--get-remote "forge-repo" (&optional remote))
 (declare-function diff-hl-set-reference-rev "diff-hl" (rev))
 (declare-function diff-hl-set-reference-rev-in-project-internal "diff-hl" (rev project))
+(declare-function diff-hl-reset-reference-rev "diff-hl" (&optional global))
+(declare-function diff-hl-highlight-on-fringe "diff-hl" (ovl type shape))
+(declare-function diff-hl-highlight-on-fringe-flat "diff-hl" (ovl type shape))
+(declare-function diff-hl-update "diff-hl" ())
+(defvar diff-hl-mode)
+(defvar diff-hl-reference-revision)
+(defvar diff-hl-highlight-function)
+(defvar diff-hl-highlight-reference-function)
 (declare-function projectile-invalidate-cache "projectile" (prompt))
 (declare-function eieio-oref "eieio-core" (obj slot))
 
@@ -326,6 +335,114 @@ uncommitted changes (a review worktree should have none)."
                      n-out (length items)
                      (if (> n-out 0) " (`revu-list' to review)" ""))))))))
 
+;;;; diff-hl: paint the changed lines, not only the fringe
+
+(defface revu-diff-hl-line-insert
+  '((((background dark))  :extend t :background "#1e2d1e")
+    (((background light)) :extend t :background "#e3f7e3"))
+  "Background for whole lines the PR adds."
+  :group 'revu)
+
+(defface revu-diff-hl-line-change
+  '((((background dark))  :extend t :background "#20293d")
+    (((background light)) :extend t :background "#e0e8ff"))
+  "Background for whole lines the PR modifies."
+  :group 'revu)
+
+(defcustom revu-diff-hl-line-faces
+  '((insert . revu-diff-hl-line-insert)
+    (change . revu-diff-hl-line-change))
+  "Face per diff-hl change type.  A type absent here keeps the fringe only.
+`delete' is absent on purpose: the overlay sits on the line after the removed
+text, so painting it would mark a line the PR never touched."
+  :type '(alist :key-type symbol :value-type face)
+  :group 'revu)
+
+(defcustom revu-diff-hl-line-priority -60
+  "Overlay priority of the line backgrounds.
+Below `hl-line''s -50, so the cursor line keeps its own colour."
+  :type 'integer
+  :group 'revu)
+
+(defcustom revu-diff-hl-line-highlight t
+  "Whether `revu-diff-hl-set-base' also turns on `revu-diff-hl-line-mode'."
+  :type 'boolean
+  :group 'revu)
+
+(defvar revu-diff-hl--bases nil
+  "Alist of (ROOT . BASE-REF) last pointed at by `revu-diff-hl-set-base'.
+A memo that outlives the view being switched off, so `revu-diff-hl-toggle'
+can switch it back on without asking the forge for the base branch again.")
+
+(defvar revu-diff-hl--pointed nil
+  "Roots whose diff-hl currently points at a PR base rather than HEAD.")
+
+(defvar revu-diff-hl--saved nil
+  "The two diff-hl highlight functions `revu-diff-hl-line-mode' replaced.
+A cons of the working-tree one and the reference one.  Kept so the mode
+delegates to them instead of assuming fringes, and puts them back on exit.")
+
+(defun revu-diff-hl--inner (reference)
+  "Return the highlight function wrapped for the REFERENCE or working pass."
+  (or (if reference (cdr revu-diff-hl--saved) (car revu-diff-hl--saved))
+      (if reference #'diff-hl-highlight-on-fringe-flat #'diff-hl-highlight-on-fringe)))
+
+(defun revu-diff-hl--paint-line (ovl type)
+  "Stretch OVL over its whole line and paint it for diff-hl's TYPE.
+Point is at the start of the line diff-hl is highlighting.  The trailing
+newline is included so the `:extend' faces reach the window edge."
+  (if-let* ((face (alist-get type revu-diff-hl-line-faces)))
+      (progn
+        (move-overlay ovl (line-beginning-position)
+                      (min (point-max) (1+ (line-end-position))))
+        (overlay-put ovl 'face face)
+        (overlay-put ovl 'priority revu-diff-hl-line-priority))
+    ;; diff-hl recycles overlays between its two passes; clear a stale face.
+    (overlay-put ovl 'face nil)))
+
+(defun revu-diff-hl-highlight-line (ovl type shape)
+  "Highlight OVL as diff-hl would, then paint its whole line.
+For the working-tree pass; TYPE and SHAPE are diff-hl's."
+  (funcall (revu-diff-hl--inner nil) ovl type shape)
+  (revu-diff-hl--paint-line ovl type))
+
+(defun revu-diff-hl-highlight-line-flat (ovl type shape)
+  "Highlight OVL as diff-hl would, then paint its whole line.
+For the reference-revision pass; TYPE and SHAPE are diff-hl's."
+  (funcall (revu-diff-hl--inner t) ovl type shape)
+  (revu-diff-hl--paint-line ovl type))
+
+(defun revu-diff-hl--redraw ()
+  "Rebuild the diff-hl overlays of every buffer that has them."
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (bound-and-true-p diff-hl-mode) (diff-hl-update)))))
+
+;;;###autoload
+(define-minor-mode revu-diff-hl-line-mode
+  "Show diff-hl changes as whole-line backgrounds, not just fringe marks.
+
+Both of diff-hl's highlight slots are swapped: `diff-hl-highlight-function'
+for working-tree changes and `diff-hl-highlight-reference-function' for
+changes against the reference revision.  Reviewing a PR goes through the
+second one, so setting only the first would leave the PR's own lines bare.
+
+Whatever those slots held still runs, so the fringe or margin marks stay."
+  :global t
+  :group 'revu
+  (if revu-diff-hl-line-mode
+      (progn
+        (unless revu-diff-hl--saved
+          (setq revu-diff-hl--saved (cons diff-hl-highlight-function
+                                          diff-hl-highlight-reference-function)))
+        (setq diff-hl-highlight-function #'revu-diff-hl-highlight-line
+              diff-hl-highlight-reference-function #'revu-diff-hl-highlight-line-flat))
+    (when revu-diff-hl--saved
+      (setq diff-hl-highlight-function (car revu-diff-hl--saved)
+            diff-hl-highlight-reference-function (cdr revu-diff-hl--saved)
+            revu-diff-hl--saved nil)))
+  (revu-diff-hl--redraw))
+
 ;;;; diff-hl: annotate the worktree with the PR's own changes
 
 ;;;###autoload
@@ -335,7 +452,10 @@ uncommitted changes (a review worktree should have none)."
 BASE-REF is a branch name like \"master\"; the reference revision is
 `<remote>/BASE-REF' merge-based with HEAD (a 3-dot diff, like the forge's \"Files
 changed\").  Set project-locally so it does not bleed into other projects, and
-newly opened files inherit it."
+newly opened files inherit it.
+
+Also turns on `revu-diff-hl-line-mode' unless `revu-diff-hl-line-highlight'
+is nil; `revu-diff-hl-reset' undoes both."
   (condition-case err
       (let* ((default-directory root)
              (base (concat (or (and (fboundp 'forge--get-remote) (forge--get-remote))
@@ -348,17 +468,71 @@ newly opened files inherit it."
          ((not rev)
           (message "diff-hl: could not resolve PR base %s" base))
          ((and proj (fboundp 'diff-hl-set-reference-rev-in-project-internal))
+          (setf (alist-get (revu-diff-hl--root root) revu-diff-hl--bases
+                           nil nil #'string-equal)
+                base-ref)
+          (cl-pushnew (revu-diff-hl--root root) revu-diff-hl--pointed
+                      :test #'string-equal)
+          (when revu-diff-hl-line-highlight (revu-diff-hl-line-mode 1))
           (diff-hl-set-reference-rev-in-project-internal rev proj)
           (message "diff-hl: %s now shows PR changes vs %s (%s)"
                    (file-name-nondirectory (directory-file-name root))
                    base (magit-rev-abbrev rev)))
          ((fboundp 'diff-hl-set-reference-rev)
           ;; Older diff-hl without per-project references: fall back to global.
+          (setf (alist-get (revu-diff-hl--root root) revu-diff-hl--bases
+                           nil nil #'string-equal)
+                base-ref)
+          (cl-pushnew (revu-diff-hl--root root) revu-diff-hl--pointed
+                      :test #'string-equal)
+          (when revu-diff-hl-line-highlight (revu-diff-hl-line-mode 1))
           (diff-hl-set-reference-rev rev)
           (message "diff-hl: showing PR changes vs %s (%s) [global]"
                    base (magit-rev-abbrev rev)))))
     (error
      (message "diff-hl PR reference not set: %s" (error-message-string err)))))
+
+;;;###autoload
+(defun revu-diff-hl-toggle ()
+  "Toggle the review view of the worktree at point.
+
+On: diff-hl points at the PR's base, so the fringe and - unless
+`revu-diff-hl-line-highlight' is nil - the lines themselves show what the PR
+changed.  Off: diff-hl goes back to HEAD and stops painting lines.
+
+The base branch comes from the last `revu-diff-hl-set-base' for this
+worktree, or from the forge when there was none."
+  (interactive)
+  (let ((root (or (magit-toplevel) (user-error "Not inside a git repository"))))
+    (if (revu-diff-hl--active-p root)
+        (revu-diff-hl--reset root)
+      (revu-diff-hl-set-base root (revu-diff-hl--base-ref root)))))
+
+(defun revu-diff-hl--root (root)
+  "Return ROOT in the one spelling the base-ref cache is keyed by."
+  (file-name-as-directory (expand-file-name root)))
+
+(defun revu-diff-hl--active-p (root)
+  "Whether diff-hl is pointed somewhere other than HEAD for ROOT."
+  (or (and (member (revu-diff-hl--root root) revu-diff-hl--pointed) t)
+      ;; set by hand, or in a buffer opened after the project was pointed
+      (and (bound-and-true-p diff-hl-reference-revision) t)))
+
+(defun revu-diff-hl--base-ref (root)
+  "Return the base branch to diff ROOT against, asking the forge if unknown."
+  (or (alist-get (revu-diff-hl--root root) revu-diff-hl--bases nil nil #'string-equal)
+      (alist-get 'base (revu--pr-ctx root))))
+
+(defun revu-diff-hl--reset (root)
+  "Point diff-hl back at HEAD for ROOT and stop painting whole lines."
+  (setq revu-diff-hl--pointed
+        (delete (revu-diff-hl--root root) revu-diff-hl--pointed))
+  (when (fboundp 'diff-hl-reset-reference-rev)
+    ;; the prefix argument also discards diff-hl's per-project references,
+    ;; which is where `revu-diff-hl-set-base' put ours
+    (diff-hl-reset-reference-rev '(4)))
+  (revu-diff-hl-line-mode -1)
+  (message "diff-hl: back to HEAD"))
 
 ;;;###autoload
 (defun revu-diff-hl-set-from-pullreq (worktree-path pullreq)
@@ -415,6 +589,7 @@ behaviour when there is no pending review."
     (define-key map "l" #'revu-list)
     (define-key map "s" #'revu-submit)
     (define-key map "f" #'revu-refresh)
+    (define-key map "h" #'revu-diff-hl-toggle)
     map)
   "Keymap of PR review commands, meant to be bound to a prefix key.")
 
