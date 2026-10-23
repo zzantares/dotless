@@ -114,6 +114,56 @@ in
             					cmds = append(cmds, cmd)
             				}
             			}'
+          ''
+      +
+        # tab folds a directory in the tree, the way it does in mini.files and
+        # treemacs. Upstream binds tab/shift+tab to the panel switch; shift+tab
+        # keeps that job, and tab only switches when there is no dir to fold.
+        final.lib.optionalString (!(final.lib.hasInfix "tab folds dirs for diffnav" (old.postPatch or "")))
+          ''
+            # tab folds dirs for diffnav
+            substituteInPlace pkg/ui/keys.go \
+              --replace-fail 'key.WithHelp("tab", "switch panel"),' 'key.WithHelp("tab", "fold dir / switch panel"),'
+
+            substituteInPlace pkg/ui/panes/filetree/filetree.go \
+              --replace-fail '
+            func (m *Model) Down() {
+            	m.t.Down()
+            }' '
+            func (m *Model) Down() {
+            	m.t.Down()
+            }
+
+            // Toggle closes the selected node if it is open, and opens it if closed.
+            func (m *Model) Toggle() {
+            	m.t.ToggleCurrentNode()
+            }'
+
+            substituteInPlace pkg/ui/tui.go \
+              --replace-fail '
+            		case key.Matches(msg, keys.SwitchPanel):
+            			if m.isShowingFileTree {
+            				if m.activePanel == FileTreePanel {
+            					m.activePanel = DiffViewerPanel
+            				} else {
+            					m.activePanel = FileTreePanel
+            				}
+            			}' '
+            		case key.Matches(msg, keys.SwitchPanel):
+            			node := m.fileTree.GetCurrNode()
+            			isDir := false
+            			if node != nil {
+            				_, isDir = node.GivenValue().(*dirnode.DirNode)
+            			}
+            			if isDir && msg.String() == "tab" && m.activePanel == FileTreePanel {
+            				m.fileTree.Toggle()
+            			} else if m.isShowingFileTree {
+            				if m.activePanel == FileTreePanel {
+            					m.activePanel = DiffViewerPanel
+            				} else {
+            					m.activePanel = FileTreePanel
+            				}
+            			}'
           '';
   });
 
