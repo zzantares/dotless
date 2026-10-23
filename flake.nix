@@ -167,6 +167,7 @@
               inherit (pkgs)
                 claude-code
                 boom
+                diffnav
                 doom-icon
                 opencode
                 fonts

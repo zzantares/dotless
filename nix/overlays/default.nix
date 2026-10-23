@@ -68,6 +68,52 @@ in
             substituteInPlace pkg/ui/panes/filetree/keys.go \
               --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
               --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
+          ''
+      +
+        # `o` steps inward - expand a closed dir, else move to the diff, and
+        # from the diff open the editor. Matches `o` in mini.files and treemacs.
+        #
+        # Unlike the key rewrite above this patches behaviour, so a `--replace-fail`
+        # abort is not the only drift risk: upstream could keep these lines and
+        # change what surrounds them. Re-read the OpenInEditor case on a bump.
+        final.lib.optionalString (!(final.lib.hasInfix "o steps inward for diffnav" (old.postPatch or "")))
+          ''
+            # o steps inward for diffnav
+            substituteInPlace pkg/ui/panes/filetree/filetree.go \
+              --replace-fail '
+            func (m *Model) GetCurrNode() *tree.Node {
+            	return m.t.NodeAtCurrentOffset()
+            }' '
+            func (m *Model) GetCurrNode() *tree.Node {
+            	return m.t.NodeAtCurrentOffset()
+            }
+
+            // Expand opens the selected node, leaving the cursor where it is.
+            func (m *Model) Expand() {
+            	m.t.OpenCurrentNode()
+            }'
+
+            substituteInPlace pkg/ui/tui.go \
+              --replace-fail '
+            		case key.Matches(msg, keys.OpenInEditor):
+            			cmd = m.openInEditor()
+            			if cmd != nil {
+            				cmds = append(cmds, cmd)
+            			}' '
+            		case key.Matches(msg, keys.OpenInEditor):
+            			if node := m.fileTree.GetCurrNode(); m.activePanel == FileTreePanel && node != nil {
+            				_, isDir := node.GivenValue().(*dirnode.DirNode)
+            				if isDir && !node.IsOpen() {
+            					m.fileTree.Expand()
+            				} else {
+            					m.activePanel = DiffViewerPanel
+            				}
+            			} else {
+            				cmd = m.openInEditor()
+            				if cmd != nil {
+            					cmds = append(cmds, cmd)
+            				}
+            			}'
           '';
   });
 
