@@ -36,14 +36,14 @@ in
 
   emacsPackages = final.emacsPackagesFor final.emacs;
 
-  # diffnav ships hardcoded vim keybindings (pkg/ui/keys.go) with no config
-  # hook, so the only way to get the Colemak nav scheme used elsewhere in this
-  # config (h=up, k=down, j=left, l=right; cf. gh-dash, aerospace) is to rewrite
-  # the key strings at build time.
+  # diffnav has no keybinding config hook (pkg/ui/keys.go is hardcoded), so the
+  # only way to rebind it is to rewrite the source at build time.
   diffnav = prev.diffnav.overrideAttrs (old: {
     # `--replace-fail` makes the build fail loudly if upstream reworks these lines
     # on a `nix flake update` — the signal to re-sync this patch — rather than
-    # silently reverting to vim defaults.
+    # silently reverting to vim defaults. The `o` and tab cases patch behaviour,
+    # not just key strings, so a bump can also leave them matching but change
+    # what surrounds them: re-read both switch cases.
     #
     # The append is guarded on a sentinel so it is idempotent: this overlay can
     # be composed onto the same pkgs set more than once (e.g. a NixOS config
@@ -53,118 +53,96 @@ in
     # because the first pass already rewrote 'k' -> 'h' etc.
     postPatch =
       (old.postPatch or "")
-      +
-        final.lib.optionalString
-          (!(final.lib.hasInfix "colemak keybindings for diffnav" (old.postPatch or "")))
-          ''
-            # colemak keybindings for diffnav
-            substituteInPlace pkg/ui/keys.go \
-              --replace-fail 'key.WithKeys("up", "k"),' 'key.WithKeys("up", "h"),' \
-              --replace-fail 'key.WithKeys("down", "j"),' 'key.WithKeys("down", "k"),' \
-              --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
-              --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
-              --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),' \
-              --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
-            substituteInPlace pkg/ui/panes/filetree/keys.go \
-              --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
-              --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
-          ''
-      +
+      + final.lib.optionalString (!(final.lib.hasInfix "dotless diffnav keys" (old.postPatch or ""))) ''
+        # dotless diffnav keys
+
+        # Colemak nav: h=up, k=down, j=left/out, l=right/in, as everywhere
+        # else in this config (cf. gh-dash, aerospace).
+        substituteInPlace pkg/ui/keys.go \
+          --replace-fail 'key.WithKeys("up", "k"),' 'key.WithKeys("up", "h"),' \
+          --replace-fail 'key.WithKeys("down", "j"),' 'key.WithKeys("down", "k"),' \
+          --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
+          --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
+          --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),' \
+          --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),' \
+          --replace-fail 'key.WithHelp("tab", "switch panel"),' 'key.WithHelp("tab", "fold dir / switch panel"),'
+        substituteInPlace pkg/ui/panes/filetree/keys.go \
+          --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
+          --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
+
+        # Expand and Toggle, for the `o` and tab cases below.
+        substituteInPlace pkg/ui/panes/filetree/filetree.go \
+          --replace-fail '
+        func (m *Model) GetCurrNode() *tree.Node {
+        	return m.t.NodeAtCurrentOffset()
+        }' '
+        func (m *Model) GetCurrNode() *tree.Node {
+        	return m.t.NodeAtCurrentOffset()
+        }
+
+        // Expand opens the selected node, leaving the cursor where it is.
+        func (m *Model) Expand() {
+        	m.t.OpenCurrentNode()
+        }
+
+        // Toggle closes the selected node if it is open, and opens it if closed.
+        func (m *Model) Toggle() {
+        	m.t.ToggleCurrentNode()
+        }'
+
         # `o` steps inward - expand a closed dir, else move to the diff, and
         # from the diff open the editor. Matches `o` in mini.files and treemacs.
-        #
-        # Unlike the key rewrite above this patches behaviour, so a `--replace-fail`
-        # abort is not the only drift risk: upstream could keep these lines and
-        # change what surrounds them. Re-read the OpenInEditor case on a bump.
-        final.lib.optionalString (!(final.lib.hasInfix "o steps inward for diffnav" (old.postPatch or "")))
-          ''
-            # o steps inward for diffnav
-            substituteInPlace pkg/ui/panes/filetree/filetree.go \
-              --replace-fail '
-            func (m *Model) GetCurrNode() *tree.Node {
-            	return m.t.NodeAtCurrentOffset()
-            }' '
-            func (m *Model) GetCurrNode() *tree.Node {
-            	return m.t.NodeAtCurrentOffset()
-            }
+        substituteInPlace pkg/ui/tui.go \
+          --replace-fail '
+        		case key.Matches(msg, keys.OpenInEditor):
+        			cmd = m.openInEditor()
+        			if cmd != nil {
+        				cmds = append(cmds, cmd)
+        			}' '
+        		case key.Matches(msg, keys.OpenInEditor):
+        			if node := m.fileTree.GetCurrNode(); m.activePanel == FileTreePanel && node != nil {
+        				_, isDir := node.GivenValue().(*dirnode.DirNode)
+        				if isDir && !node.IsOpen() {
+        					m.fileTree.Expand()
+        				} else {
+        					m.activePanel = DiffViewerPanel
+        				}
+        			} else {
+        				cmd = m.openInEditor()
+        				if cmd != nil {
+        					cmds = append(cmds, cmd)
+        				}
+        			}'
 
-            // Expand opens the selected node, leaving the cursor where it is.
-            func (m *Model) Expand() {
-            	m.t.OpenCurrentNode()
-            }'
-
-            substituteInPlace pkg/ui/tui.go \
-              --replace-fail '
-            		case key.Matches(msg, keys.OpenInEditor):
-            			cmd = m.openInEditor()
-            			if cmd != nil {
-            				cmds = append(cmds, cmd)
-            			}' '
-            		case key.Matches(msg, keys.OpenInEditor):
-            			if node := m.fileTree.GetCurrNode(); m.activePanel == FileTreePanel && node != nil {
-            				_, isDir := node.GivenValue().(*dirnode.DirNode)
-            				if isDir && !node.IsOpen() {
-            					m.fileTree.Expand()
-            				} else {
-            					m.activePanel = DiffViewerPanel
-            				}
-            			} else {
-            				cmd = m.openInEditor()
-            				if cmd != nil {
-            					cmds = append(cmds, cmd)
-            				}
-            			}'
-          ''
-      +
-        # tab folds a directory in the tree, the way it does in mini.files and
-        # treemacs. Upstream binds tab/shift+tab to the panel switch; shift+tab
-        # keeps that job, and tab only switches when there is no dir to fold.
-        final.lib.optionalString (!(final.lib.hasInfix "tab folds dirs for diffnav" (old.postPatch or "")))
-          ''
-            # tab folds dirs for diffnav
-            substituteInPlace pkg/ui/keys.go \
-              --replace-fail 'key.WithHelp("tab", "switch panel"),' 'key.WithHelp("tab", "fold dir / switch panel"),'
-
-            substituteInPlace pkg/ui/panes/filetree/filetree.go \
-              --replace-fail '
-            func (m *Model) Down() {
-            	m.t.Down()
-            }' '
-            func (m *Model) Down() {
-            	m.t.Down()
-            }
-
-            // Toggle closes the selected node if it is open, and opens it if closed.
-            func (m *Model) Toggle() {
-            	m.t.ToggleCurrentNode()
-            }'
-
-            substituteInPlace pkg/ui/tui.go \
-              --replace-fail '
-            		case key.Matches(msg, keys.SwitchPanel):
-            			if m.isShowingFileTree {
-            				if m.activePanel == FileTreePanel {
-            					m.activePanel = DiffViewerPanel
-            				} else {
-            					m.activePanel = FileTreePanel
-            				}
-            			}' '
-            		case key.Matches(msg, keys.SwitchPanel):
-            			node := m.fileTree.GetCurrNode()
-            			isDir := false
-            			if node != nil {
-            				_, isDir = node.GivenValue().(*dirnode.DirNode)
-            			}
-            			if isDir && msg.String() == "tab" && m.activePanel == FileTreePanel {
-            				m.fileTree.Toggle()
-            			} else if m.isShowingFileTree {
-            				if m.activePanel == FileTreePanel {
-            					m.activePanel = DiffViewerPanel
-            				} else {
-            					m.activePanel = FileTreePanel
-            				}
-            			}'
-          '';
+        # tab folds a directory, the way it does in mini.files and treemacs.
+        # Upstream binds tab/shift+tab to the panel switch; shift+tab keeps
+        # that job, and tab only switches when there is no dir to fold.
+        substituteInPlace pkg/ui/tui.go \
+          --replace-fail '
+        		case key.Matches(msg, keys.SwitchPanel):
+        			if m.isShowingFileTree {
+        				if m.activePanel == FileTreePanel {
+        					m.activePanel = DiffViewerPanel
+        				} else {
+        					m.activePanel = FileTreePanel
+        				}
+        			}' '
+        		case key.Matches(msg, keys.SwitchPanel):
+        			node := m.fileTree.GetCurrNode()
+        			isDir := false
+        			if node != nil {
+        				_, isDir = node.GivenValue().(*dirnode.DirNode)
+        			}
+        			if isDir && msg.String() == "tab" && m.activePanel == FileTreePanel {
+        				m.fileTree.Toggle()
+        			} else if m.isShowingFileTree {
+        				if m.activePanel == FileTreePanel {
+        					m.activePanel = DiffViewerPanel
+        				} else {
+        					m.activePanel = FileTreePanel
+        				}
+        			}'
+      '';
   });
 
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
