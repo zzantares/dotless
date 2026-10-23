@@ -113,7 +113,7 @@
         "fzf"
       ];
       theme = profile.ohMyZshTheme;
-      custom = builtins.toString ./custom;
+      custom = "${./custom}";
     };
 
     initContent = lib.mkMerge [
