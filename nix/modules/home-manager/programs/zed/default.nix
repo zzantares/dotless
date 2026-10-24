@@ -41,6 +41,21 @@ in
       description = "Whether dotless renders Zed's global_settings.json and keymap.json.";
     };
 
+    userSettings = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Link <flakeRoot>/config/zed/settings.json into ~/.config/zed, out of
+        the store, so it stays editable without a rebuild and Zed's own UI can
+        write it. Zed merges it over dotless's global_settings.json, per field
+        and recursively.
+
+        Declared, not detected: dotless cannot probe your home purely. Leave it
+        false to manage the path yourself, or not at all.
+      '';
+    };
+
     keymap = lib.mkOption {
       type = lib.types.listOf (
         lib.types.submodule {
@@ -191,19 +206,6 @@ in
       }
     ];
 
-    # settings.json is never managed: it is the consumer's layer, which Zed
-    # merges over this one and rewrites from its own UI.
-    assertions = [
-      {
-        assertion = !(lib.isList live && builtins.elem "settings.json" live);
-        message = ''
-          profile.liveOverrides.zed lists "settings.json", which dotless does
-          not manage. Zed reads ~/.config/zed/settings.json directly; drop the
-          entry.
-        '';
-      }
-    ];
-
     # Per-file entries, so ~/.config/zed stays a real directory: Zed writes
     # settings.json and other state there.
     xdg.configFile = lib.mkIf cfg.enable (
@@ -213,6 +215,11 @@ in
         {
           "zed/global_settings.json" = fileFor "global_settings.json" globalSettings;
           "zed/keymap.json" = fileFor "keymap.json" (jsonFormat.generate "zed-keymap.json" keymapJSON);
+        }
+        # The consumer's layer, which Zed merges over dotless's. dotless never
+        # generates it; opting in only links their repo's copy.
+        // lib.optionalAttrs cfg.userSettings {
+          "zed/settings.json".source = config.lib.file.mkOutOfStoreSymlink "${userDir}/settings.json";
         }
     );
   };

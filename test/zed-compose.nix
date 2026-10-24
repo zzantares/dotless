@@ -21,26 +21,33 @@ let
     ];
   };
 
-  hm = inputs.home-manager.lib.homeManagerConfiguration {
-    inherit pkgs;
-    extraSpecialArgs = { inherit profile; };
-    modules = [
-      self.homeModules.zed
-      consumer
-      {
-        home.username = "ci";
-        home.homeDirectory = "/home/ci";
-        home.stateVersion = "24.05";
-      }
-    ];
-  };
+  mkHome =
+    extra:
+    inputs.home-manager.lib.homeManagerConfiguration {
+      inherit pkgs;
+      extraSpecialArgs = { inherit profile; };
+      modules = [
+        self.homeModules.zed
+        consumer
+        extra
+        {
+          home.username = "ci";
+          home.homeDirectory = "/home/ci";
+          home.stateVersion = "24.05";
+        }
+      ];
+    };
 
-  files = hm.config.xdg.configFile;
+  files = (mkHome { }).config.xdg.configFile;
   keymap = files."zed/keymap.json".source;
   globalSettings = files."zed/global_settings.json".source;
+
+  # Opting in links the consumer's own settings.json; dotless never writes one.
+  optedIn = (mkHome { dotless.editors.zed.userSettings = true; }).config.xdg.configFile;
+  userSettings = optedIn."zed/settings.json".source;
 in
-# settings.json is the consumer's layer; dotless must never write it.
 assert !(builtins.hasAttr "zed/settings.json" files);
+assert builtins.hasAttr "zed/settings.json" optedIn;
 pkgs.runCommand "zed-compose-check"
   {
     nativeBuildInputs = [
@@ -69,6 +76,13 @@ pkgs.runCommand "zed-compose-check"
     check ${keymap} '[.[] | select(.bindings["ctrl-s"])] | .[0].bindings["ctrl-s"]' 'workspace::Save'
 
     python3 ${./zed-global-settings-check.py} ${globalSettings}
+
+    # userSettings must reach the consumer's repo, not the store.
+    target="$(readlink ${userSettings})"
+    if [[ "$target" != "/home/ci/dotless/config/zed/settings.json" ]]; then
+      echo "zed-compose: userSettings links to '$target'" >&2
+      exit 1
+    fi
 
     touch $out
   ''

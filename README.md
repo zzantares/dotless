@@ -319,6 +319,17 @@ and its siblings survive:
 That file stays hand-editable with no rebuild, and Zed's own UI keeps writing
 to it. `base_keymap` is a setting too, so pick a preset there.
 
+To keep that file in your own repo, put it at `config/zed/settings.json` and
+opt in - dotless links it out of the store from your `flakeRoot`:
+
+```nix
+dotless.editors.zed.userSettings = true;
+```
+
+It is declared rather than detected because probing your home with
+`builtins.pathExists` is impure and fails in CI. Leave it `false` to manage
+`~/.config/zed/settings.json` yourself, or not at all.
+
 Keybindings have no such tier - Zed reads one `keymap.json` - so dotless
 generates it from `dotless.editors.zed.keymap`. Zed gives precedence to later
 blocks, so append:
