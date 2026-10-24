@@ -114,26 +114,16 @@ in
         };
       }
 
-      # Colemak navigation: k down, h up, j left, l right.
+      # Colemak navigation: k down, h up, j left, l right. Real motions, and
+      # `operator` in the context, so counts (5k) and operator+motion (dk, yk)
+      # compose. SendKeystrokes drops both.
       {
-        context = "vim_mode == normal || vim_mode == visual";
+        context = "vim_mode == normal || vim_mode == visual || vim_mode == operator";
         bindings = {
-          "k" = [
-            "workspace::SendKeystrokes"
-            "down"
-          ];
-          "h" = [
-            "workspace::SendKeystrokes"
-            "up"
-          ];
-          "j" = [
-            "workspace::SendKeystrokes"
-            "left"
-          ];
-          "l" = [
-            "workspace::SendKeystrokes"
-            "right"
-          ];
+          "k" = "vim::Down";
+          "h" = "vim::Up";
+          "j" = "vim::Left";
+          "l" = "vim::Right";
         };
       }
       {
@@ -172,30 +162,22 @@ in
       {
         context = "ProjectPanel && not_editing";
         bindings = {
-          "k" = [
-            "workspace::SendKeystrokes"
-            "down"
-          ];
-          "h" = [
-            "workspace::SendKeystrokes"
-            "up"
-          ];
+          "k" = "menu::SelectNext";
+          "h" = "menu::SelectPrevious";
           "space o p" = "project_panel::ToggleFocus";
         };
       }
       {
         context = "vim_mode == insert";
-        bindings."ctrl-f" = [
-          "workspace::SendKeystrokes"
-          "right"
-        ];
+        bindings."ctrl-f" = "editor::MoveRight";
       }
       {
         context = "vim_mode == normal";
         bindings = {
+          # Keystrokes split on "-": "ctrl+tab" names a key that does not exist.
           "g b" = [
             "workspace::SendKeystrokes"
-            "ctrl+tab"
+            "ctrl-tab"
           ];
           "space o p" = "project_panel::ToggleFocus";
 
