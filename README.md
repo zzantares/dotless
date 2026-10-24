@@ -303,6 +303,35 @@ Override any option using the standard NixOS module system:
 programs.git.settings.github.user = lib.mkForce "my-github-user";
 ```
 
+### Zed
+
+Zed's two config files layer differently, so dotless ships them differently.
+
+Settings go to `~/.config/zed/global_settings.json`. Zed merges that *below*
+your own `settings.json`, per field and recursively, so override one leaf there
+and its siblings survive:
+
+```jsonc
+// ~/.config/zed/settings.json - yours, never written by dotless
+{ "theme": { "dark": "Ayu Dark" } }   // theme.light and theme.mode still apply
+```
+
+That file stays hand-editable with no rebuild, and Zed's own UI keeps writing
+to it. `base_keymap` is a setting too, so pick a preset there.
+
+Keybindings have no such tier - Zed reads one `keymap.json` - so dotless
+generates it from `dotless.editors.zed.keymap`. Zed gives precedence to later
+blocks, so append:
+
+```nix
+dotless.editors.zed.keymap = lib.mkAfter [
+  {
+    context = "Editor && !menu";
+    bindings."ctrl-s" = "workspace::SaveAll";
+  }
+];
+```
+
 ## License
 
 GNU General Public License v3.0 or later — see [LICENSE](LICENSE).

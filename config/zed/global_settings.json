@@ -1,0 +1,33 @@
+// Zed settings shipped by dotless.
+//
+// Zed merges this below ~/.config/zed/settings.json, per field and
+// recursively, so override any leaf there and its siblings survive.
+// Machine-specific settings (ssh_connections, local paths) belong in
+// settings.json, not here.
+{
+  "vim_mode": true,
+  "ui_font_size": 16,
+  "buffer_font_size": 16,
+  "theme": {
+    "mode": "system",
+    "light": "One Light",
+    "dark": "Modus Operandi Deuteranopia"
+  },
+
+  // By default clang and gcc by will recognize *.C and *.H (uppercase extensions)
+  // as C++ and not C and so Zed too follows this convention. This overrides it.
+  "file_types": {
+    "C": ["C", "H"]
+  },
+
+  "vim": {
+    "toggle_relative_line_numbers": true,
+    "relative_line_numbers": true
+  },
+
+  "languages": {
+    "C": {
+      "format_on_save": "on"
+    }
+  }
+}

@@ -11,8 +11,8 @@ let
   jsonFormat = pkgs.formats.json { };
 
   # Live override; replaces dotless's version, never merges with it.
-  #   profile.liveOverrides.zed = true;                # whole ~/.config/zed
-  #   profile.liveOverrides.zed = [ "settings.json" ]; # that file only
+  #   profile.liveOverrides.zed = true;              # whole ~/.config/zed
+  #   profile.liveOverrides.zed = [ "keymap.json" ]; # that file only
   userDir = "${config.home.homeDirectory}/${profile.flakeRoot}/config/zed";
   live = profile.liveOverrides.zed or false;
   liveDir = live == true;
@@ -22,30 +22,23 @@ let
   # drop the null instead of emitting `"context": null`.
   keymapJSON = map (block: lib.filterAttrs (_: v: v != null) block) cfg.keymap;
 
+  # dotless's base layer. Shipped as JSONC verbatim: Zed parses comments, so
+  # they stay with the settings they explain.
+  globalSettings = ./../../../../../config/zed/global_settings.json;
+
   fileFor =
-    rel: value:
+    rel: baked:
     if liveItem rel then
       { source = config.lib.file.mkOutOfStoreSymlink "${userDir}/${rel}"; }
     else
-      { source = jsonFormat.generate "zed-${rel}" value; };
+      { source = baked; };
 in
 {
   options.dotless.editors.zed = {
     enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Whether dotless renders Zed's settings.json and keymap.json.";
-    };
-
-    settings = lib.mkOption {
-      type = lib.types.attrsOf jsonFormat.type;
-      default = { };
-      example = lib.literalExpression ''{ vim_mode = false; theme.dark = lib.mkForce "Ayu Dark"; }'';
-      description = ''
-        Rendered to ~/.config/zed/settings.json. Definitions merge per key at
-        any depth: assign a new key to add it, assign a leaf dotless already
-        sets to override it (dotless sets its own leaves with mkDefault).
-      '';
+      description = "Whether dotless renders Zed's global_settings.json and keymap.json.";
     };
 
     keymap = lib.mkOption {
@@ -85,46 +78,6 @@ in
   };
 
   config = {
-    # Definitions, not the option `default`: a default is dropped once the
-    # consumer defines anything, while definitions merge.
-    dotless.editors.zed.settings = lib.mapAttrsRecursive (_: lib.mkDefault) {
-      ssh_connections = [
-        {
-          host = "omnia.local";
-          args = [ ];
-          projects = [
-            { paths = [ "/home/jgutierrez/bitnomial/master" ]; }
-            { paths = [ "/home/jgutierrez/bitnomial/spot-markets" ]; }
-            { paths = [ "/home/jgutierrez/bitnomial/spot-writer" ]; }
-          ];
-        }
-      ];
-
-      vim_mode = true;
-      ui_font_size = 16;
-      buffer_font_size = 16;
-
-      theme = {
-        mode = "system";
-        light = "One Light";
-        dark = "Modus Operandi Deuteranopia";
-      };
-
-      # clang and gcc read *.C and *.H as C++, and Zed follows them. Treat
-      # both as C instead.
-      file_types.C = [
-        "C"
-        "H"
-      ];
-
-      vim = {
-        toggle_relative_line_numbers = true;
-        relative_line_numbers = true;
-      };
-
-      languages.C.format_on_save = "on";
-    };
-
     # Plain, so consumer blocks concatenate. mkDefault would drop these the
     # moment a consumer appends one.
     dotless.editors.zed.keymap = [
@@ -238,15 +191,28 @@ in
       }
     ];
 
+    # settings.json is never managed: it is the consumer's layer, which Zed
+    # merges over this one and rewrites from its own UI.
+    assertions = [
+      {
+        assertion = !(lib.isList live && builtins.elem "settings.json" live);
+        message = ''
+          profile.liveOverrides.zed lists "settings.json", which dotless does
+          not manage. Zed reads ~/.config/zed/settings.json directly; drop the
+          entry.
+        '';
+      }
+    ];
+
     # Per-file entries, so ~/.config/zed stays a real directory: Zed writes
-    # other state there (and rewrites settings.json from its own UI).
+    # settings.json and other state there.
     xdg.configFile = lib.mkIf cfg.enable (
       if liveDir then
         { "zed".source = config.lib.file.mkOutOfStoreSymlink userDir; }
       else
         {
-          "zed/settings.json" = fileFor "settings.json" cfg.settings;
-          "zed/keymap.json" = fileFor "keymap.json" keymapJSON;
+          "zed/global_settings.json" = fileFor "global_settings.json" globalSettings;
+          "zed/keymap.json" = fileFor "keymap.json" (jsonFormat.generate "zed-keymap.json" keymapJSON);
         }
     );
   };
