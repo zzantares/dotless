@@ -75,6 +75,17 @@ pkgs.runCommand "zed-compose-check"
     check ${keymap} '[.[] | select(.bindings["ctrl-s"])] | length' '2'
     check ${keymap} '[.[] | select(.bindings["ctrl-s"])] | .[0].bindings["ctrl-s"]' 'workspace::Save'
 
+    # `space t t` is three behaviours across two contexts: from the editor it
+    # shows the panel, reveals the file and focuses the tree; from inside the
+    # tree it hides the panel.
+    check ${keymap} '[.[] | select(.context | test("vim_mode == normal$")) | .bindings["space t t"]] | map(select(.)) | .[0]' 'pane::RevealInProjectPanel'
+    check ${keymap} '[.[] | select(.context | startswith("ProjectPanel")) | .bindings["space t t"]] | map(select(.)) | .[0]' 'project_panel::Toggle'
+
+    # Navigation must invoke actions; SendKeystrokes drops counts and
+    # operator-pending mode.
+    check ${keymap} 'any(.[]; (.bindings | to_entries[] | select(.key | test("^[hjkl]$")) | .value | tostring | test("SendKeystrokes")))' 'false'
+    check ${keymap} '[.[] | select(.context | test("operator")) | .bindings.h] | .[0]' 'vim::Up'
+
     python3 ${./zed-global-settings-check.py} ${globalSettings}
 
     # userSettings must reach the consumer's repo, not the store.

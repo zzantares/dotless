@@ -164,7 +164,14 @@ in
         bindings = {
           "k" = "menu::SelectNext";
           "h" = "menu::SelectPrevious";
+          "j" = "project_panel::CollapseSelectedEntry";
+          "l" = "project_panel::ExpandSelectedEntry";
           "space o p" = "project_panel::ToggleFocus";
+
+          # Third leg of `space t t`: from inside the tree it hides the panel.
+          # Not ToggleFocus - that only hides when close_panel_on_toggle is
+          # set, which defaults false and is workspace-wide.
+          "space t t" = "project_panel::Toggle";
         };
       }
       {
@@ -182,7 +189,9 @@ in
           "space o p" = "project_panel::ToggleFocus";
 
           # Doom's `SPC t t` and nvim's `<leader>tt` open a file browser at
-          # the current file; the panel is the nearest zed has.
+          # the current file. RevealInProjectPanel shows the panel, selects the
+          # current file and focuses the tree, in one action. Pressing it again
+          # from inside the tree hides it - see the ProjectPanel block.
           "space t t" = "pane::RevealInProjectPanel";
         };
       }
