@@ -126,6 +126,9 @@ in
           "l" = "vim::Right";
         };
       }
+      # Possibly redundant: the `Editor && VimControl` block below binds the
+      # same four keys and reaches further. Kept for focus inside a panel,
+      # which that context does not cover. Drop it if that proves moot.
       {
         context = "Dock";
         bindings = {
@@ -174,9 +177,17 @@ in
           "space t t" = "project_panel::Toggle";
         };
       }
+      # Emacs line-editing reflexes. Zed's own Emacs base keymap binds these,
+      # but base_keymap defaults to VSCode, so they do not arrive on their own.
       {
         context = "vim_mode == insert";
-        bindings."ctrl-f" = "editor::MoveRight";
+        bindings = {
+          "ctrl-a" = "editor::MoveToBeginningOfLine";
+          "ctrl-e" = "editor::MoveToEndOfLine";
+          "ctrl-b" = "editor::MoveLeft";
+          "ctrl-f" = "editor::MoveRight";
+          "ctrl-d" = "editor::Delete";
+        };
       }
       {
         context = "vim_mode == normal";
@@ -193,6 +204,86 @@ in
           # current file and focuses the tree, in one action. Pressing it again
           # from inside the tree hides it - see the ProjectPanel block.
           "space t t" = "pane::RevealInProjectPanel";
+        };
+      }
+
+      # Zed's default puts ] e / [ e on MoveLine, which relocates code.
+      {
+        context = "vim_mode == normal";
+        bindings = {
+          "] e" = "editor::GoToDiagnostic";
+          "[ e" = "editor::GoToPreviousDiagnostic";
+        };
+      }
+
+      # SPC leader map, mirroring Doom and nvim. Bare space (default: move
+      # right) is given up to the prefix, as in both editors.
+      {
+        context = "vim_mode == normal";
+        bindings = {
+          "space space" = "file_finder::Toggle";
+          "space ." = "file_finder::Toggle";
+          "space ," = "tab_switcher::Toggle";
+          "space /" = "pane::DeploySearch";
+          "space :" = "command_palette::Toggle";
+
+          "space f f" = "file_finder::Toggle";
+          "space f s" = "workspace::Save";
+          "space f r" = "projects::OpenRecent";
+
+          "space b b" = "tab_switcher::Toggle";
+          "space b k" = "pane::CloseActiveItem";
+          "space b d" = "pane::CloseActiveItem";
+
+          "space p f" = "file_finder::Toggle";
+          "space p p" = "projects::OpenRecent";
+
+          "space s s" = "outline::Toggle"; # symbols in this buffer
+          "space s p" = "project_symbols::Toggle"; # project-wide
+          "space s /" = "pane::DeploySearch";
+
+          "space c r" = "editor::Rename";
+          "space c a" = "editor::ToggleCodeActions";
+          "space c f" = "editor::Format";
+          "space c d" = "editor::GoToDefinition";
+          "space c shift-d" = "editor::FindAllReferences";
+          "space c j" = "editor::GoToDiagnostic";
+
+          # magit / neogit muscle memory
+          "space g g" = "git_panel::ToggleFocus";
+          "space g b" = "git::Blame";
+          "space g d" = "git::Diff";
+          "space g shift-p" = "git::Push";
+          "space g p" = "git::Pull";
+
+          # windows, colemak directions, mirroring ctrl-w below
+          "space w v" = "pane::SplitRight";
+          "space w s" = "pane::SplitDown";
+          "space w h" = "workspace::ActivatePaneUp";
+          "space w k" = "workspace::ActivatePaneDown";
+          "space w j" = "workspace::ActivatePaneLeft";
+          "space w l" = "workspace::ActivatePaneRight";
+          "space w o" = "workspace::CloseInactiveTabsAndPanes";
+
+          "space o t" = "terminal_panel::Toggle";
+
+          "space q q" = "workspace::CloseWindow";
+          "space q shift-q" = "zed::Quit";
+        };
+      }
+
+      # ctrl-w windows, colemak. An Editor context, so they work from the
+      # buffer. Zed's vim layer unbinds bare ctrl-w (vim.json), which is what
+      # keeps these sequences alive on Linux, where the default closes the tab.
+      {
+        context = "Editor && VimControl";
+        bindings = {
+          "ctrl-w h" = "workspace::ActivatePaneUp";
+          "ctrl-w k" = "workspace::ActivatePaneDown";
+          "ctrl-w j" = "workspace::ActivatePaneLeft";
+          "ctrl-w l" = "workspace::ActivatePaneRight";
+          "ctrl-w v" = "pane::SplitRight";
+          "ctrl-w s" = "pane::SplitDown";
         };
       }
     ];
