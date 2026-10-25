@@ -19,6 +19,7 @@ let
     "options"
     "keymap"
     "diagnostics"
+    "statusline"
     "lazy"
     "lsp"
     "format-on-save"
