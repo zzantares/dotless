@@ -31,6 +31,7 @@
 (declare-function magit-file-relative-name "magit-git" (&optional file tracked))
 (declare-function magit-git-string "magit-git" (&rest args))
 (declare-function magit-rev-verify "magit-git" (rev))
+(declare-function magit-main-branch "magit-git" ())
 (declare-function magit-rev-abbrev "magit-git" (rev))
 (declare-function magit-run-git "magit-process" (&rest args))
 (declare-function forge--get-remote "forge-repo" (&optional remote))
@@ -63,6 +64,10 @@
           (and (file-executable-p revu-gh-executable) revu-gh-executable)
         (executable-find revu-gh-executable))
       (user-error "The `gh' CLI is not available (see `revu-gh-executable')")))
+
+(defun revu--remote ()
+  "Return the git remote to resolve branches against."
+  (or (and (fboundp 'forge--get-remote) (forge--get-remote)) "origin"))
 
 (defvar-local revu--comment-ctx nil
   "Context alist for the inline PR comment being composed.")
@@ -459,9 +464,7 @@ Also turns on `revu-diff-hl-line-mode' unless `revu-diff-hl-line-highlight'
 is nil; `revu-diff-hl-reset' undoes both."
   (condition-case err
       (let* ((default-directory root)
-             (base (concat (or (and (fboundp 'forge--get-remote) (forge--get-remote))
-                               "origin")
-                           "/" base-ref))
+             (base (concat (revu--remote) "/" base-ref))
              (rev (or (magit-git-string "merge-base" base "HEAD")
                       (magit-rev-verify base)))
              (proj (project-current nil root)))
@@ -502,7 +505,8 @@ On: diff-hl points at the PR's base, so the fringe and - unless
 changed.  Off: diff-hl goes back to HEAD and stops painting lines.
 
 The base branch comes from the last `revu-diff-hl-set-base' for this
-worktree, or from the forge when there was none."
+worktree, else the open PR, else the repository's default branch - so this
+works on a branch with no PR yet."
   (interactive)
   (let ((root (or (magit-toplevel) (user-error "Not inside a git repository"))))
     (if (revu-diff-hl--active-p root)
@@ -520,9 +524,25 @@ worktree, or from the forge when there was none."
       (and (bound-and-true-p diff-hl-reference-revision) t)))
 
 (defun revu-diff-hl--base-ref (root)
-  "Return the base branch to diff ROOT against, asking the forge if unknown."
+  "Return the base branch to diff ROOT against.
+This worktree's last base, else the open PR's, else ROOT's default branch.
+The PR is only where a base is written down; a branch without one still gets
+an answer, while a stacked or release-targeting PR still needs the forge."
   (or (alist-get (revu-diff-hl--root root) revu-diff-hl--bases nil nil #'string-equal)
-      (alist-get 'base (revu--pr-ctx root))))
+      (ignore-errors (alist-get 'base (revu--pr-ctx root)))
+      (revu-diff-hl--default-base root)
+      (user-error "No open PR and no default branch to diff against")))
+
+(defun revu-diff-hl--default-base (root)
+  "Return ROOT's default branch, or nil.
+`magit-main-branch' first, then the remote's HEAD - that ref is written at
+clone time and is absent from plenty of clones."
+  (let* ((default-directory root)
+         (remote (revu--remote))
+         (head (magit-git-string "symbolic-ref" "--short"
+                                 (format "refs/remotes/%s/HEAD" remote))))
+    (or (and (fboundp 'magit-main-branch) (magit-main-branch))
+        (and head (string-remove-prefix (concat remote "/") head)))))
 
 (defun revu-diff-hl--reset (root)
   "Point diff-hl back at HEAD for ROOT and stop painting whole lines."

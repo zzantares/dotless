@@ -631,5 +631,50 @@ Magit, diff-hl and the project are faked; `revu-diff-hl--bases' starts empty."
 (ert-deftest revu-test-mode-is-off-until-enabled ()
   (should-not revu-mode))
 
+;;;; diff-hl: where the base branch comes from
+
+(ert-deftest revu-test-base-ref-prefers-the-remembered-base ()
+  "A base already set for this worktree wins; the forge is not consulted."
+  (let ((revu-diff-hl--bases (list (cons "/tmp/wt/" "release/2.4"))))
+    (revu-test--with-stubs
+        ((revu--pr-ctx (lambda (&rest _) (error "should not reach the forge"))))
+      (should (equal (revu-diff-hl--base-ref "/tmp/wt") "release/2.4")))))
+
+(ert-deftest revu-test-base-ref-uses-the-pr-base-when-there-is-one ()
+  "A stacked or release-targeting PR still gets its base from the forge."
+  (let ((revu-diff-hl--bases nil))
+    (revu-test--with-stubs
+        ((revu--pr-ctx (lambda (&rest _) '((base . "feature/parent"))))
+         (magit-main-branch (lambda () "master")))
+      (should (equal (revu-diff-hl--base-ref "/tmp/wt") "feature/parent")))))
+
+(ert-deftest revu-test-base-ref-falls-back-to-the-default-branch ()
+  "No open PR is not an error: the repository's default branch answers."
+  (let ((revu-diff-hl--bases nil))
+    (revu-test--with-stubs
+        ((revu--pr-ctx (lambda (&rest _) (error "gh pr view failed")))
+         (magit-main-branch (lambda () "master"))
+         (magit-git-string (lambda (&rest _) nil)))
+      (should (equal (revu-diff-hl--base-ref "/tmp/wt") "master")))))
+
+(ert-deftest revu-test-default-base-reads-the-remote-head ()
+  "Without `magit-main-branch', the remote's HEAD answers, remote stripped."
+  (revu-test--with-stubs
+      ((forge--get-remote (lambda (&rest _) "upstream"))
+       (magit-main-branch (lambda () nil))
+       (magit-git-string (lambda (&rest args)
+                           (and (equal (car args) "symbolic-ref")
+                                "upstream/trunk"))))
+    (should (equal (revu-diff-hl--default-base "/tmp/wt") "trunk"))))
+
+(ert-deftest revu-test-base-ref-errors-when-nothing-answers ()
+  "No PR and no default branch is a user error, not a nil base."
+  (let ((revu-diff-hl--bases nil))
+    (revu-test--with-stubs
+        ((revu--pr-ctx (lambda (&rest _) (error "gh pr view failed")))
+         (magit-main-branch (lambda () nil))
+         (magit-git-string (lambda (&rest _) nil)))
+      (should-error (revu-diff-hl--base-ref "/tmp/wt") :type 'user-error))))
+
 (provide 'revu-test)
 ;;; revu-test.el ends here
