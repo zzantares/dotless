@@ -84,21 +84,29 @@ wt_emacs_daemon() {
 # (inhibit-message / ignore-errors do NOT help - a prompt is neither). dired
 # opens the project root and never prompts. The body returns a plain `t`.
 wt_emacs_add() {
-	local slug=$1 dest=$2 start_daemon=${3:-0} switch=${4:-0} elisp
+	local slug=$1 dest=$2 start_daemon=${3:-0} switch=${4:-0} elisp stamp
 	wt_emacs_daemon "$start_daemon" || return 1
+
+	# `+workspace-project' is Doom's own parameter for a workspace's root; the
+	# persp-activated hook reads it and lands there on switch. +workspace-new,
+	# not +workspace/new: the latter activates what it makes, which moves the
+	# frame of whoever is using Emacs right now.
+	stamp="(when (fboundp '+workspace-new) \
+		(ignore-errors \
+			(set-persp-parameter '+workspace-project \"$dest\" \
+				(or (+workspace-get \"$slug\" t) (+workspace-new \"$slug\")))))"
 
 	if [[ "$switch" == 1 ]]; then
 		elisp="(let ((inhibit-message t) \
 		            (projectile-switch-project-action #'projectile-dired)) \
+			$stamp \
 			(ignore-errors \
-				(when (fboundp '+workspace/new) (+workspace/new \"$slug\")) \
+				(+workspace-switch \"$slug\") \
 				(projectile-add-known-project \"$dest\") \
 				(projectile-switch-project-by-name \"$dest\")) \
 			t)"
 	else
-		elisp="(progn \
-			(when (fboundp '+workspace/new) (ignore-errors (+workspace/new \"$slug\"))) \
-			(projectile-add-known-project \"$dest\") t)"
+		elisp="(progn $stamp (projectile-add-known-project \"$dest\") t)"
 	fi
 
 	# -n so we don't wait on the return value; the external timeout is the real

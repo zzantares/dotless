@@ -225,6 +225,7 @@ in
         "flycheck"
         "treemacs"
         "projectile"
+        "workspaces"
         "forge"
         "magit"
         "smerge"
