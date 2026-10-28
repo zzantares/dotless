@@ -109,16 +109,21 @@
   # diffnav reads this file and overrides only the keys it names, so the rest of
   # its defaults stand. Unified beats side-by-side at this terminal width; `s`
   # still toggles per session.
+  #
+  # The theme also picks the diff colours: added lines take the tint's Green
+  # darkened 80%, removed lines its Red. tokyo_night's `Green` is a teal, so
+  # both land at one luminance; dracula keeps them a green and a red.
   xdg.configFile."diffnav/config.yml".text = ''
     ui:
       sideBySide: false
+      theme: dracula
   '';
 
   programs.gh-dash.enable = true;
   programs.gh-dash.settings = {
     # Render the `D` diff view through diffnav: a GitHub-style pager with a file
-    # tree for navigating large PRs per-file/per-directory. diffnav renders the diff
-    # through delta under the hood, so `[delta]` git config styling still applies.
+    # tree for navigating large PRs per-file/per-directory. diffnav renders through
+    # delta, but passes its own styles, so only keys it omits read `[delta]`.
     # (Its keybindings are patched to Colemak via nix/overlays/default.nix, matching
     # the universal keys below.) Swap back to `delta` for a plain scrolling diff.
     pager.diff = "diffnav";
