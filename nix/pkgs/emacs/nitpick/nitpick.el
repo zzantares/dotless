@@ -40,10 +40,12 @@
 (declare-function diff-hl-highlight-on-fringe "diff-hl" (ovl type shape))
 (declare-function diff-hl-highlight-on-fringe-flat "diff-hl" (ovl type shape))
 (declare-function diff-hl-update "diff-hl" ())
+(declare-function diff-hl-changes-buffer "diff-hl" (file backend &optional new-rev bufname))
 (declare-function project-buffers "project" (project))
 (defvar diff-hl-mode)
 (defvar diff-hl-reference-revision)
 (defvar diff-hl-update-async)
+(defvar vc-git-diff-switches)
 (defvar diff-hl-highlight-function)
 (defvar diff-hl-highlight-reference-function)
 (declare-function projectile-invalidate-cache "projectile" (prompt))
@@ -441,6 +443,43 @@ Whatever those slots held still runs, so the fringe or margin marks stay."
             diff-hl-highlight-reference-function (cdr nitpick-diff-hl--saved)
             nitpick-diff-hl--saved nil)))
   (nitpick-diff-hl--redraw))
+
+;;;; diff-hl: give it the zero-context diffs it parses
+
+(defconst nitpick--git-diff-algorithm-switches
+  '("--histogram" "--patience" "--minimal" "--textconv")
+  "Git diff switches worth keeping when zero context is forced on.
+The set diff-hl itself keeps: they pick the algorithm, not the format.")
+
+(defun nitpick--zero-context (orig &rest args)
+  "Call ORIG with git's diff switches forced to zero context.
+diff-hl reads a hunk header as if every diff were `-U0', taking the header's
+start line as the first line that changed.  It does ask for `-U0' itself, but
+on a compiled build that binding does not reach git - the call goes out with
+the global switches - and then a hunk with context anchors its changes at the
+context line it starts on.  Three lines of context, three lines too high."
+  (let ((vc-git-diff-switches
+         (cons "-U0" (seq-filter
+                      (lambda (switch)
+                        (member switch nitpick--git-diff-algorithm-switches))
+                      ;; unbound until vc-git loads, and t means "use the
+                      ;; global default", neither of which is a list
+                      (and (boundp 'vc-git-diff-switches)
+                           (listp vc-git-diff-switches)
+                           vc-git-diff-switches)))))
+    (apply orig args)))
+
+;;;###autoload
+(define-minor-mode nitpick-diff-hl-zero-context-mode
+  "Correct the lines diff-hl marks, by forcing `-U0' on the diffs it parses.
+Off, the fringe and the painted lines can sit above the change they belong
+to.  A workaround for the build, not for diff-hl's design; it goes when the
+binding reaches git on its own."
+  :global t
+  :group 'nitpick
+  (if nitpick-diff-hl-zero-context-mode
+      (advice-add 'diff-hl-changes-buffer :around #'nitpick--zero-context)
+    (advice-remove 'diff-hl-changes-buffer #'nitpick--zero-context)))
 
 ;;;; diff-hl: annotate the worktree with the PR's own changes
 

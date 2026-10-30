@@ -663,6 +663,34 @@ concurrent updates overwrite each other's results."
 (ert-deftest nitpick-test-mode-is-off-until-enabled ()
   (should-not nitpick-mode))
 
+;; `defvar' with no value marks a variable special only inside the file that
+;; writes it, so the bindings below need their own declaration to be dynamic.
+(defvar vc-git-diff-switches)
+
+(ert-deftest nitpick-test-zero-context-forces-u0 ()
+  "The switch diff-hl's parser assumes, which its own binding does not deliver."
+  (let ((vc-git-diff-switches '("--histogram" "--stat" "-U5"))
+        seen)
+    (apply #'nitpick--zero-context
+           (lambda (&rest _) (setq seen vc-git-diff-switches))
+           '("f" Git))
+    ;; -U0 first, the algorithm switch kept, the format ones dropped
+    (should (equal seen '("-U0" "--histogram")))))
+
+(ert-deftest nitpick-test-zero-context-survives-an-unset-switch-list ()
+  "t and void both mean no list of switches; neither may leak into the call."
+  (let ((vc-git-diff-switches t) seen)
+    (apply #'nitpick--zero-context
+           (lambda (&rest _) (setq seen vc-git-diff-switches))
+           '("f" Git))
+    (should (equal seen '("-U0")))))
+
+(ert-deftest nitpick-test-zero-context-mode-adds-and-removes-its-advice ()
+  (nitpick-diff-hl-zero-context-mode 1)
+  (should (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))
+  (nitpick-diff-hl-zero-context-mode -1)
+  (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer)))
+
 ;;;; diff-hl: what the prompt suggests
 
 (ert-deftest nitpick-test-suggested-base-prefers-the-remembered-revision ()
