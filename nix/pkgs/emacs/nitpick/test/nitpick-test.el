@@ -530,7 +530,9 @@ Magit, diff-hl and the project are faked; `nitpick-diff-hl--bases' starts empty.
             (project-current (lambda (&optional _ _) '(transient . "/tmp/wt/")))
             (diff-hl-set-reference-rev-in-project-internal
              (lambda (rev _proj) (setq nitpick-test--pointed-at rev)))
-            (magit-rev-verify (lambda (_) nil)))
+            ;; the revision resolves; what diff-hl is pointed at is the
+            ;; revision itself, so this only has to be non-nil
+            (magit-rev-verify (lambda (_) "cafe1234")))
          ,@body))))
 
 (defvar nitpick-test--pointed-at nil
@@ -602,19 +604,40 @@ concurrent updates overwrite each other's results."
     ;; keyed by one spelling, so a root without the trailing slash still hits
     (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt/") "develop"))))
 
-(ert-deftest nitpick-test-diff-hl-set-base-takes-the-revision-as-given ()
+(ert-deftest nitpick-test-diff-hl-set-base-points-at-the-revision-itself ()
+  "The default is `git diff REVISION': its tip, as typed, and no merge-base."
   (nitpick-test--with-set-base
     (nitpick-test--with-stubs
         ((magit-git-string
           (lambda (&rest args) (setq nitpick-test--merge-base-args args) "cafe1234")))
+      (setq nitpick-test--merge-base-args nil)
       ;; no remote glued on: origin/master and master are different answers
       (nitpick-diff-hl-set-base "/tmp/wt/" "origin/master")
-      (should (equal nitpick-test--merge-base-args '("merge-base" "origin/master" "HEAD")))
+      (should (equal nitpick-test--pointed-at "origin/master"))
       (nitpick-diff-hl-set-base "/tmp/wt/" "master")
-      (should (equal nitpick-test--merge-base-args '("merge-base" "master" "HEAD")))
+      (should (equal nitpick-test--pointed-at "master"))
       ;; and HEAD is just one of the revisions you can pick
       (nitpick-diff-hl-set-base "/tmp/wt/" "HEAD")
-      (should (equal nitpick-test--merge-base-args '("merge-base" "HEAD" "HEAD"))))))
+      (should (equal nitpick-test--pointed-at "HEAD"))
+      ;; git was never asked for a merge-base along the way
+      (should-not nitpick-test--merge-base-args))))
+
+(ert-deftest nitpick-test-diff-hl-set-base-takes-three-dots-for-the-merge-base ()
+  "The explicit case, spelled as git spells it."
+  (nitpick-test--with-set-base
+    (nitpick-test--with-stubs
+        ((magit-git-string
+          (lambda (&rest args) (setq nitpick-test--merge-base-args args) "cafe1234")))
+      (nitpick-diff-hl-set-base "/tmp/wt/" "master...")
+      (should (equal nitpick-test--merge-base-args '("merge-base" "master" "HEAD")))
+      ;; and what diff-hl gets is the fork point, not the branch
+      (should (equal nitpick-test--pointed-at "cafe1234")))))
+
+(ert-deftest nitpick-test-diff-hl-set-base-remembers-the-three-dots ()
+  "The prompt comes back with the range you asked for, not what it resolved to."
+  (nitpick-test--with-set-base
+    (nitpick-diff-hl-set-base "/tmp/wt/" "master...")
+    (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt/") "master..."))))
 
 ;;;; Entry points
 

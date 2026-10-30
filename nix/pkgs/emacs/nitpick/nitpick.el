@@ -518,6 +518,19 @@ binding reaches git on its own."
 ;;;; diff-hl: annotate the worktree with the PR's own changes
 
 ;;;###autoload
+(defconst nitpick--merge-base-suffix "..."
+  "What a revision ends with to ask for the merge-base, as git spells it.")
+
+(defun nitpick--base-revision (revision)
+  "Return what diff-hl should compare against for REVISION.
+REVISION as typed, so the default matches `git diff REVISION'.  A trailing
+`...' resolves to the merge-base with HEAD instead, the explicit case in git
+too.  Nil when it ends there and the merge-base cannot be worked out."
+  (if (string-suffix-p nitpick--merge-base-suffix revision)
+      (let ((rev (substring revision 0 (- (length nitpick--merge-base-suffix)))))
+        (magit-git-string "merge-base" rev "HEAD"))
+    revision))
+
 (defun nitpick-diff-hl-set-base (root revision)
   "Diff the ROOT project against REVISION instead of its checked-out state.
 
@@ -526,10 +539,14 @@ REVISION is used as picked - a local branch, a remote-tracking ref like
 `origin/master' are different answers.  Pick HEAD for the usual view of your
 own uncommitted edits.
 
-What lands in diff-hl is the merge-base of REVISION and HEAD, a 3-dot diff
-like the forge's \"Files changed\": for a revision already in your history that
-is the revision itself, and for a divergent ref it keeps other people's
-commits out of your fringe.  Set project-locally, so newly opened files
+REVISION is compared as `git diff REVISION' does, against its tip, so what
+you see here is what magit's diff of the same revision shows.  A trailing
+`...' asks for the merge-base instead, the way git's own three-dot range
+does: `master' is every line that differs from master now, `master...' is
+only what this branch changed since it left master.
+
+diff-hl is pointed at the revision itself, not at a resolved sha, so a
+branch that moves is followed.  Set project-locally, so newly opened files
 inherit it and other projects are untouched.
 
 The revision only.  Whole lines instead of fringe marks is
@@ -541,8 +558,8 @@ The revision only.  Whole lines instead of fringe marks is
                    "Diff against" (nitpick-diff-hl--suggested-base root))))))
   (condition-case err
       (let* ((default-directory root)
-             (rev (or (magit-git-string "merge-base" revision "HEAD")
-                      (magit-rev-verify revision)))
+             (base (nitpick--base-revision revision))
+             (rev (and base (magit-rev-verify base)))
              (proj (project-current nil root))
              (remember
               (lambda ()
@@ -554,7 +571,7 @@ The revision only.  Whole lines instead of fringe marks is
           (message "diff-hl: could not resolve %s" revision))
          ((and proj (fboundp 'diff-hl-set-reference-rev-in-project-internal))
           (funcall remember)
-          (diff-hl-set-reference-rev-in-project-internal rev proj)
+          (diff-hl-set-reference-rev-in-project-internal base proj)
           (nitpick-diff-hl--repaint proj)
           (message "diff-hl: %s now shows changes vs %s (%s)"
                    (file-name-nondirectory (directory-file-name root))
@@ -562,7 +579,7 @@ The revision only.  Whole lines instead of fringe marks is
          ((fboundp 'diff-hl-set-reference-rev)
           ;; Older diff-hl without per-project references: fall back to global.
           (funcall remember)
-          (diff-hl-set-reference-rev rev)
+          (diff-hl-set-reference-rev base)
           (nitpick-diff-hl--repaint nil)
           (message "diff-hl: showing changes vs %s (%s) [global]"
                    revision (magit-rev-abbrev rev)))))

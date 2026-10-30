@@ -59,6 +59,13 @@ Two decisions, one each:
   your own uncommitted edits. Checking out a PR worktree sets it to the PR's
   base as the remote has it, and each worktree's last answer is what the
   prompt suggests next time.
+
+  The comparison is `git diff <revision>`, against its tip, so it agrees with
+  magit's diff of the same revision. A trailing `...` asks for the merge base
+  instead, as in git: `master` is every line that differs from master now,
+  `master...` is only what this branch changed since it left master - the
+  forge's "Files changed". diff-hl is pointed at the revision rather than a
+  resolved sha, so a branch that moves is followed.
 - **How it is drawn.** `nitpick-diff-hl-line-mode` paints the changed lines
   with a background, which reads better than fringe marks alone on a big diff.
   It is global and independent: the command above never touches it.
