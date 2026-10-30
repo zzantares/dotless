@@ -67,12 +67,19 @@
   ;; PR review commands live under the "V" (reView) prefix: "R" is already
   ;; Doom's `vc-revert' and "r" is `+vc-gutter/save-and-revert-hunk', so neither
   ;; can be a prefix. The cons label makes which-key show "review".
-  (map! :leader :prefix "g" (:prefix ("V" . "review") :desc "Comment on PR line(s)" :m "c" #'nitpick-comment))
-  (map! :leader :prefix "g" (:prefix ("V" . "review") :desc "List pending review" :m "l" #'nitpick-list))
-  (map! :leader :prefix "g" (:prefix ("V" . "review") :desc "Submit review (comment)" :m "s" #'nitpick-submit))
-  (map! :leader :prefix "g" (:prefix ("V" . "review") :desc "Refresh review to PR head" :m "f" #'nitpick-refresh))
-  (map! :leader :prefix "g" (:prefix ("V" . "review") :desc "Set the diff base" :m "b" #'nitpick-diff-hl-set-base))
-  (map! :leader :prefix "g" (:prefix ("V" . "review") :desc "Paint changed lines" :m "H" #'nitpick-diff-hl-line-mode)))
+  ;;
+  ;; One `map!' for the whole group, and it has to stay that way: a cons-label
+  ;; prefix builds a fresh keymap on every call, so a second `map!' naming
+  ;; ("V" . "review") discards what the first bound. A plain string prefix
+  ;; merges; this one cannot.
+  (map! :leader :prefix "g"
+        (:prefix ("V" . "review")
+         :desc "Comment on PR line(s)"     :m "c" #'nitpick-comment
+         :desc "List pending review"       :m "l" #'nitpick-list
+         :desc "Submit review (comment)"   :m "s" #'nitpick-submit
+         :desc "Refresh review to PR head" :m "f" #'nitpick-refresh
+         :desc "Set the diff base"         :m "b" #'nitpick-diff-hl-set-base
+         :desc "Paint changed lines"       :m "H" #'nitpick-diff-hl-line-mode)))
 
 (after! agitjo
   (agitjo-setup "#"))
