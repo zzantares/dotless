@@ -552,6 +552,50 @@ Magit, diff-hl and the project are faked; `nitpick-diff-hl--bases' starts empty.
 (ert-deftest nitpick-test-diff-hl-set-base-is-a-command ()
   (should (commandp 'nitpick-diff-hl-set-base)))
 
+(ert-deftest nitpick-test-diff-hl-set-base-repaints-the-project ()
+  "diff-hl's own update after a reference change paints nothing, so a repaint
+of the project is scheduled on top of it."
+  (nitpick-test--with-set-base
+    (let (repainted)
+      (nitpick-test--with-stubs
+          ((nitpick-diff-hl--repaint (lambda (proj) (setq repainted (list proj)))))
+        (nitpick-diff-hl-set-base "/tmp/wt/" "master")
+        (should (equal repainted '((transient . "/tmp/wt/"))))))))
+
+(ert-deftest nitpick-test-diff-hl-repaint-waits-for-the-command-to-return ()
+  "The redraw runs from an idle timer, not inside the setting command."
+  (let (timer-args)
+    (nitpick-test--with-stubs
+        ((run-with-idle-timer (lambda (&rest args) (setq timer-args args))))
+      (nitpick-diff-hl--repaint nil)
+      (should (equal (seq-take timer-args 2) '(0 nil)))
+      (should (functionp (nth 2 timer-args))))))
+
+(ert-deftest nitpick-test-diff-hl-repaint-updates-one-buffer-at-a-time ()
+  "Synchronously: diff-hl's async diffs share two fixed buffer names, so
+concurrent updates overwrite each other's results."
+  (let ((painted (generate-new-buffer " *nitpick-test-painted*"))
+        (scratch (generate-new-buffer " *nitpick-test-no-file*"))
+        timer-fn seen)
+    (unwind-protect
+        (progn
+          (with-current-buffer painted
+            (setq buffer-file-name "/tmp/wt/painted.el")
+            (setq-local diff-hl-mode t))
+          (with-current-buffer scratch (setq-local diff-hl-mode t))
+          (nitpick-test--with-stubs
+              ((run-with-idle-timer (lambda (_ _ fn) (setq timer-fn fn)))
+               (buffer-list (lambda (&optional _) (list painted scratch)))
+               (diff-hl-update
+                (lambda () (push (cons (buffer-name) diff-hl-update-async) seen))))
+            (let ((diff-hl-update-async t))
+              (nitpick-diff-hl--repaint nil)
+              (funcall timer-fn))))
+      (kill-buffer painted)
+      (kill-buffer scratch))
+    ;; the buffer with a file, with async off; the one without a file skipped
+    (should (equal seen '((" *nitpick-test-painted*" . nil))))))
+
 (ert-deftest nitpick-test-diff-hl-set-base-remembers-the-revision ()
   (nitpick-test--with-set-base
     (nitpick-diff-hl-set-base "/tmp/wt" "develop")

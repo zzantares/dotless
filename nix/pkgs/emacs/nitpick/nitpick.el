@@ -40,8 +40,10 @@
 (declare-function diff-hl-highlight-on-fringe "diff-hl" (ovl type shape))
 (declare-function diff-hl-highlight-on-fringe-flat "diff-hl" (ovl type shape))
 (declare-function diff-hl-update "diff-hl" ())
+(declare-function project-buffers "project" (project))
 (defvar diff-hl-mode)
 (defvar diff-hl-reference-revision)
+(defvar diff-hl-update-async)
 (defvar diff-hl-highlight-function)
 (defvar diff-hl-highlight-reference-function)
 (declare-function projectile-invalidate-cache "projectile" (prompt))
@@ -480,6 +482,7 @@ The revision only.  Whole lines instead of fringe marks is
          ((and proj (fboundp 'diff-hl-set-reference-rev-in-project-internal))
           (funcall remember)
           (diff-hl-set-reference-rev-in-project-internal rev proj)
+          (nitpick-diff-hl--repaint proj)
           (message "diff-hl: %s now shows changes vs %s (%s)"
                    (file-name-nondirectory (directory-file-name root))
                    revision (magit-rev-abbrev rev)))
@@ -487,10 +490,30 @@ The revision only.  Whole lines instead of fringe marks is
           ;; Older diff-hl without per-project references: fall back to global.
           (funcall remember)
           (diff-hl-set-reference-rev rev)
+          (nitpick-diff-hl--repaint nil)
           (message "diff-hl: showing changes vs %s (%s) [global]"
                    revision (magit-rev-abbrev rev)))))
     (error
      (message "diff-hl base not set: %s" (error-message-string err)))))
+
+(defun nitpick-diff-hl--repaint (proj)
+  "Redraw diff-hl in PROJ's file buffers, or every file buffer when PROJ is nil.
+diff-hl's own setters update each buffer after changing the reference, but
+those updates write their git diffs into two buffers with fixed names, so
+several in a row overwrite each other's results and the fringe stays as it
+was.  Which is why a base set on a project with more than one buffer open
+only showed up after the next save or revert.
+
+Synchronously, one buffer at a time, for that same reason.  On an idle timer
+so the command that set the base returns first."
+  (run-with-idle-timer
+   0 nil
+   (lambda ()
+     (dolist (buf (if proj (project-buffers proj) (buffer-list)))
+       (when (buffer-live-p buf)
+         (with-current-buffer buf
+           (when (and (buffer-file-name) (bound-and-true-p diff-hl-mode))
+             (let ((diff-hl-update-async nil)) (diff-hl-update)))))))))
 
 (defun nitpick-diff-hl--root (root)
   "Return ROOT in the one spelling the base-ref cache is keyed by."
