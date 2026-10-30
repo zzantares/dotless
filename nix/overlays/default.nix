@@ -142,6 +142,15 @@ in
         					m.activePanel = FileTreePanel
         				}
         			}'
+
+        # Delta styles the plus and minus line-number columns for the whole
+        # hunk, so a 5-line removal under a 6-line addition paints an 11-row
+        # green bar: the added count reads as 11. Drop the backgrounds and
+        # keep the coloured digits, which is delta's own default.
+        substituteInPlace pkg/ui/panes/diffviewer/diffviewer.go \
+          --replace-fail 'fmt.Sprintf("--line-numbers-plus-style='"'"'\"%s\" \"%s\"'"'"'", plusLine, green),' 'fmt.Sprintf("--line-numbers-plus-style='"'"'\"%s\"'"'"'", plusLine),' \
+          --replace-fail 'fmt.Sprintf("--line-numbers-minus-style=\"%s\" \"%s\"", minusLine, red),' 'fmt.Sprintf("--line-numbers-minus-style=\"%s\"", minusLine),' \
+          --replace-fail 'fmt.Sprintf("--line-numbers-minus-style='"'"'\"%s\" \"%s\"", minusLine, red),' 'fmt.Sprintf("--line-numbers-minus-style='"'"'\"%s\"", minusLine),'
       '';
   });
 
