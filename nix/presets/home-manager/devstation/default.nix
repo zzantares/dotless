@@ -111,12 +111,12 @@
   # still toggles per session.
   #
   # The theme also picks the diff colours: added lines take the tint's Green
-  # darkened 80%, removed lines its Red. tokyo_night's `Green` is a teal, so
-  # both land at one luminance; dracula keeps them a green and a red.
+  # darkened 80%, removed its Red, changed words the Bright pair halved.
+  # tokyo_night's `Green` is a teal; dracula's is neon.
   xdg.configFile."diffnav/config.yml".text = ''
     ui:
       sideBySide: false
-      theme: dracula
+      theme: nord
   '';
 
   programs.gh-dash.enable = true;
