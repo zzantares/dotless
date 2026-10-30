@@ -15,8 +15,8 @@ annotated with the PR's changes."
     (apply orig-fun orig-args)
     (projectile-add-known-project the-path)
     (projectile-switch-project-by-name the-path)
-    (when (fboundp 'revu-diff-hl-set-from-pullreq)
-      (revu-diff-hl-set-from-pullreq the-path the-pullreq))))
+    (when (fboundp 'nitpick-diff-hl-set-from-pullreq)
+      (nitpick-diff-hl-set-from-pullreq the-path the-pullreq))))
 
 (advice-add 'forge-checkout-worktree :around #'zz-forge-checkout-worktree)
 

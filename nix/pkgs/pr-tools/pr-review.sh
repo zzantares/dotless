@@ -8,7 +8,7 @@
 # Bound to `R` in gh-dash (dotless's devstation preset), the writing half of
 # what `d` shows: octo.nvim for inline comments, suggestions, approve and
 # request-changes. nvim deliberately, whatever GIT_PR_EDITOR says elsewhere -
-# `revu` is the Emacs review path and keeps its own bindings.
+# `nitpick` is the Emacs review path and keeps its own bindings.
 #
 # The checkout is `git pr`, the same worktree `d` sends diffnav into, so both
 # keys land on one checkout at the PR head. octo is configured use_local_fs,

@@ -257,7 +257,7 @@ in
         "claude-code-ide"
         "linear"
         "frames"
-        "revu"
+        "nitpick"
         "forge-worktree"
         "kiwix"
       ];

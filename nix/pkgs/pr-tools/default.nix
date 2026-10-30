@@ -21,7 +21,7 @@
 #
 # `pr-review` needs octo.nvim configured in your own neovim; dotless does not
 # wire that up, since it owns no neovim config (unlike Emacs, where it ships
-# `revu` outright). Without octo, `R` opens nvim and `Octo` is undefined.
+# `nitpick` outright). Without octo, `R` opens nvim and `Octo` is undefined.
 #
 # zoxide and claude stay out of runtimeInputs: git-pr only uses them when they
 # are already on the caller's PATH, and pinning either would pull a second copy

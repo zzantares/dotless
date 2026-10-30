@@ -100,9 +100,9 @@ in
           ]
         ))
 
-        # Batched PR reviews from Emacs; see nix/pkgs/emacs/revu. Its default
-        # bindings are opt-in: `(revu-mode 1)' in your own config.
-        revu
+        # Batched PR reviews from Emacs; see nix/pkgs/emacs/nitpick. Its default
+        # bindings are opt-in: `(nitpick-mode 1)' in your own config.
+        nitpick
       ];
   };
 

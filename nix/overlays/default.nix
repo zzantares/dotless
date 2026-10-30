@@ -22,15 +22,15 @@ in
 
   boom = final.callPackage ./../pkgs/boom { };
 
-  # Ship `revu' through the emacs package scope so any consumer can pull it
-  # in with `programs.emacs.extraPackages = epkgs: [ epkgs.revu ];'.
+  # Ship `nitpick' through the emacs package scope so any consumer can pull it
+  # in with `programs.emacs.extraPackages = epkgs: [ epkgs.nitpick ];'.
   emacsPackagesFor =
     emacs:
     (prev.emacsPackagesFor emacs).overrideScope (
       efinal: _eprev: {
         # `gh' is passed from the top-level set: the emacs scope has its own
         # `gh' (an elisp library), which is not the GitHub CLI we shell out to.
-        revu = efinal.callPackage ./../pkgs/emacs/revu { inherit (final) gh; };
+        nitpick = efinal.callPackage ./../pkgs/emacs/nitpick { inherit (final) gh; };
       }
     );
 

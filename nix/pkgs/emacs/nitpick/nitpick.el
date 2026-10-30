@@ -1,4 +1,4 @@
-;;; revu.el --- Batched pull request reviews from Emacs -*- lexical-binding: t; -*-
+;;; nitpick.el --- Batched pull request reviews from Emacs -*- lexical-binding: t; -*-
 
 ;; Author: dotless
 ;; Version: 0.1.0
@@ -13,16 +13,15 @@
 ;; with a verdict.  Drafts live on the forge from the moment they are added, so
 ;; they survive a crash and stay submittable from the web UI.
 ;;
-;; Commands: `revu-comment', `revu-list', `revu-submit',
-;; `revu-refresh'.  `revu-mode' puts them on `revu-keymap-prefix' (C-c v by
-;; default); leave it off to bind `revu-prefix-map' yourself.
+;; Commands: `nitpick-comment', `nitpick-list', `nitpick-submit',
+;; `nitpick-refresh'.  `nitpick-mode' puts them on `nitpick-keymap-prefix' (C-c v by
+;; default); leave it off to bind `nitpick-prefix-map' yourself.
 ;;
 ;; GitHub via the `gh' CLI is the only backend today; the public names are
 ;; backend-neutral so another forge can be added behind them.
 
 ;;; Code:
 
-(require 'cl-lib)
 (require 'json)
 (require 'seq)
 (require 'project)
@@ -33,11 +32,11 @@
 (declare-function magit-rev-verify "magit-git" (rev))
 (declare-function magit-main-branch "magit-git" ())
 (declare-function magit-rev-abbrev "magit-git" (rev))
+(declare-function magit-read-branch-or-commit "magit-git" (prompt &optional secondary-default exclude))
 (declare-function magit-run-git "magit-process" (&rest args))
 (declare-function forge--get-remote "forge-repo" (&optional remote))
 (declare-function diff-hl-set-reference-rev "diff-hl" (rev))
 (declare-function diff-hl-set-reference-rev-in-project-internal "diff-hl" (rev project))
-(declare-function diff-hl-reset-reference-rev "diff-hl" (&optional global))
 (declare-function diff-hl-highlight-on-fringe "diff-hl" (ovl type shape))
 (declare-function diff-hl-highlight-on-fringe-flat "diff-hl" (ovl type shape))
 (declare-function diff-hl-update "diff-hl" ())
@@ -48,42 +47,42 @@
 (declare-function projectile-invalidate-cache "projectile" (prompt))
 (declare-function eieio-oref "eieio-core" (obj slot))
 
-(defgroup revu nil
+(defgroup nitpick nil
   "Batched pull request reviews from the files on disk."
   :group 'tools
-  :prefix "revu-")
+  :prefix "nitpick-")
 
-(defcustom revu-gh-executable "gh"
+(defcustom nitpick-gh-executable "gh"
   "The `gh' CLI used to talk to GitHub.  Nix pins this to a store path."
   :type 'string
-  :group 'revu)
+  :group 'nitpick)
 
-(defun revu--gh ()
+(defun nitpick--gh ()
   "Return the usable `gh' executable, or signal a user error."
-  (or (if (file-name-absolute-p revu-gh-executable)
-          (and (file-executable-p revu-gh-executable) revu-gh-executable)
-        (executable-find revu-gh-executable))
-      (user-error "The `gh' CLI is not available (see `revu-gh-executable')")))
+  (or (if (file-name-absolute-p nitpick-gh-executable)
+          (and (file-executable-p nitpick-gh-executable) nitpick-gh-executable)
+        (executable-find nitpick-gh-executable))
+      (user-error "The `gh' CLI is not available (see `nitpick-gh-executable')")))
 
-(defun revu--remote ()
+(defun nitpick--remote ()
   "Return the git remote to resolve branches against."
   (or (and (fboundp 'forge--get-remote) (forge--get-remote)) "origin"))
 
-(defvar-local revu--comment-ctx nil
+(defvar-local nitpick--comment-ctx nil
   "Context alist for the inline PR comment being composed.")
-(defvar-local revu--submit-ctx nil
+(defvar-local nitpick--submit-ctx nil
   "Context alist (root, review, event, number) for a review being submitted.")
 
 ;;;; Backend: GitHub GraphQL over the `gh' CLI
 
-(defun revu--graphql (query variables)
+(defun nitpick--graphql (query variables)
   "Run GraphQL QUERY with VARIABLES (an alist) via `gh'; return the `data' alist.
 Arrays parse to lists, objects to alists.  Signals an error on transport failure
 or a GraphQL `errors' array (gh returns those with a non-zero exit)."
-  (let ((gh (revu--gh))
+  (let ((gh (nitpick--gh))
         (payload (json-encode `((query . ,query)
                                 (variables . ,(or variables (make-hash-table))))))
-        (out (generate-new-buffer " *revu-graphql*")))
+        (out (generate-new-buffer " *nitpick-graphql*")))
     (unwind-protect
         (let ((exit (with-temp-buffer
                       (insert payload)
@@ -101,15 +100,15 @@ or a GraphQL `errors' array (gh returns those with a non-zero exit)."
               (alist-get 'data resp))))
       (kill-buffer out))))
 
-(defun revu--pr-ctx (&optional root)
+(defun nitpick--pr-ctx (&optional root)
   "Return an alist of PR context for ROOT (default `magit-toplevel').
 Keys: `id' (node id), `number', `base' (base branch), `head' (head SHA).
 Errors if the current branch has no associated open PR."
   (let* ((default-directory (or root (magit-toplevel)
                                 (user-error "Not inside a git repository")))
-         (out (generate-new-buffer " *revu-pr-view*")))
+         (out (generate-new-buffer " *nitpick-pr-view*")))
     (unwind-protect
-        (if (/= 0 (call-process (revu--gh) nil out nil "pr" "view"
+        (if (/= 0 (call-process (nitpick--gh) nil out nil "pr" "view"
                                 "--json" "id,number,baseRefName,headRefOid"))
             (error "gh pr view failed (does this branch have an open PR?):\n%s"
                    (with-current-buffer out (buffer-string)))
@@ -122,27 +121,27 @@ Errors if the current branch has no associated open PR."
                     (cons 'head (alist-get 'headRefOid j))))))
       (kill-buffer out))))
 
-(defun revu--pending-review (pr-id)
+(defun nitpick--pending-review (pr-id)
   "Return the viewer's pending review node id for PR-ID, or nil.
 Pending reviews are private to their author, so states:[PENDING] returns only
 our own."
   (let* ((q "query($pr:ID!){ node(id:$pr){ ... on PullRequest {
                reviews(first:20, states:[PENDING]){ nodes { id } } } } }")
-         (data (revu--graphql q `((pr . ,pr-id))))
+         (data (nitpick--graphql q `((pr . ,pr-id))))
          (nodes (alist-get 'nodes (alist-get 'reviews (alist-get 'node data)))))
     (alist-get 'id (car nodes))))
 
-(defun revu--ensure-review (pr-id head)
+(defun nitpick--ensure-review (pr-id head)
   "Return the viewer's pending review id for PR-ID, creating one pinned to HEAD."
-  (or (revu--pending-review pr-id)
+  (or (nitpick--pending-review pr-id)
       (let* ((q "mutation($pr:ID!,$oid:GitObjectID!){
                    addPullRequestReview(input:{pullRequestId:$pr, commitOID:$oid}){
                      pullRequestReview { id } } }")
-             (data (revu--graphql q `((pr . ,pr-id) (oid . ,head)))))
+             (data (nitpick--graphql q `((pr . ,pr-id) (oid . ,head)))))
         (alist-get 'id (alist-get 'pullRequestReview
                                   (alist-get 'addPullRequestReview data))))))
 
-(defun revu--add-thread (review-id path line start-line body)
+(defun nitpick--add-thread (review-id path line start-line body)
   "Add a RIGHT-side draft thread to REVIEW-ID at PATH.
 It covers LINE, or the range START-LINE..LINE when START-LINE differs."
   (let* ((range (and start-line (/= start-line line)))
@@ -156,16 +155,16 @@ It covers LINE, or the range START-LINE..LINE when START-LINE differs."
                      body:$b,line:$l,side:RIGHT}){ thread { id } } }"))
          (vars (append `((r . ,review-id) (p . ,path) (b . ,body) (l . ,line))
                        (when range `((s . ,start-line))))))
-    (revu--graphql q vars)))
+    (nitpick--graphql q vars)))
 
 ;;;; Commands
 
 ;;;###autoload
-(defun revu-comment (beg end)
+(defun nitpick-comment (beg end)
   "Add an inline review comment on the current file's line(s) as a draft.
 It is saved to your pending review immediately (created if needed), so it is
 server-side and crash-safe.  Publish the whole review later via
-`revu-submit' or Forge's approve / request-changes.  With an active region,
+`nitpick-submit' or Forge's approve / request-changes.  With an active region,
 target the line range BEG..END; otherwise the current line.
 
 The line(s) must be part of the PR's diff (a changed line, or context inside a
@@ -173,7 +172,7 @@ hunk); the forge rejects anything outside it."
   (interactive
    (if (use-region-p) (list (region-beginning) (region-end))
      (list (line-beginning-position) (line-end-position))))
-  (revu--gh)
+  (nitpick--gh)
   (unless buffer-file-name (user-error "Buffer is not visiting a file"))
   (when (buffer-modified-p)
     (user-error "Save the buffer first: line numbers must match the PR head"))
@@ -186,61 +185,61 @@ hunk); the forge rejects anything outside it."
                      (when (and (> end beg) (bolp)) (backward-char))
                      (line-number-at-pos)))
          (multi (/= start-line end-line))
-         (buf (get-buffer-create "*revu-comment*")))
+         (buf (get-buffer-create "*nitpick-comment*")))
     (with-current-buffer buf
       (erase-buffer)
       (when (fboundp 'gfm-mode) (gfm-mode))
-      (setq revu--comment-ctx
+      (setq nitpick--comment-ctx
             (list (cons 'root root) (cons 'path path)
                   (cons 'line end-line) (cons 'start-line (and multi start-line))))
       (setq header-line-format
             (format " Draft PR comment on %s:%s  -  C-c C-c add - C-c C-k cancel"
                     path (if multi (format "%d-%d" start-line end-line)
                            (number-to-string end-line))))
-      (local-set-key (kbd "C-c C-c") #'revu--comment-add)
-      (local-set-key (kbd "C-c C-k") #'revu-cancel))
+      (local-set-key (kbd "C-c C-c") #'nitpick--comment-add)
+      (local-set-key (kbd "C-c C-k") #'nitpick-cancel))
     (pop-to-buffer buf)
     (message "Write your comment, then C-c C-c to add it to the pending review")))
 
 ;;;###autoload
-(defun revu-cancel ()
+(defun nitpick-cancel ()
   "Abort the comment / review composer."
   (interactive)
   (let ((b (current-buffer))) (quit-window) (kill-buffer b)))
 
-(defun revu--comment-add ()
+(defun nitpick--comment-add ()
   "Add the composed comment as a draft thread on the PR's pending review."
   (interactive)
-  (let* ((ctx revu--comment-ctx)
+  (let* ((ctx nitpick--comment-ctx)
          (body (string-trim (buffer-substring-no-properties (point-min) (point-max))))
          (default-directory (alist-get 'root ctx)))
     (when (string-empty-p body) (user-error "Comment body is empty"))
-    (let* ((pr (revu--pr-ctx default-directory))
+    (let* ((pr (nitpick--pr-ctx default-directory))
            (local (string-trim (shell-command-to-string "git rev-parse HEAD"))))
       (when (and (stringp (alist-get 'head pr))
                  (not (string-prefix-p local (alist-get 'head pr)))
                  (not (string-prefix-p (alist-get 'head pr) local)))
-        (message "Warning: worktree HEAD differs from PR head - run `revu-refresh'"))
-      (revu--add-thread
-       (revu--ensure-review (alist-get 'id pr) (alist-get 'head pr))
+        (message "Warning: worktree HEAD differs from PR head - run `nitpick-refresh'"))
+      (nitpick--add-thread
+       (nitpick--ensure-review (alist-get 'id pr) (alist-get 'head pr))
        (alist-get 'path ctx) (alist-get 'line ctx) (alist-get 'start-line ctx) body)
       (let ((b (current-buffer))) (quit-window) (kill-buffer b))
       (message "Added draft comment to pending review of PR #%s" (alist-get 'number pr)))))
 
 ;;;###autoload
-(defun revu-list ()
+(defun nitpick-list ()
   "List the draft comments in this PR's pending review, read live from the forge."
   (interactive)
   (let* ((root (or (magit-toplevel) (user-error "Not inside a git repository")))
          (default-directory root)
-         (pr (revu--pr-ctx root))
-         (rid (revu--pending-review (alist-get 'id pr))))
+         (pr (nitpick--pr-ctx root))
+         (rid (nitpick--pending-review (alist-get 'id pr))))
     (unless rid (user-error "No pending review for PR #%s" (alist-get 'number pr)))
     (let* ((q "query($r:ID!){ node(id:$r){ ... on PullRequestReview {
                  comments(first:100){ nodes { path line startLine outdated body } } } } }")
            (items (alist-get 'nodes (alist-get 'comments
-                    (alist-get 'node (revu--graphql q `((r . ,rid)))))))
-           (buf (get-buffer-create "*revu*")))
+                    (alist-get 'node (nitpick--graphql q `((r . ,rid)))))))
+           (buf (get-buffer-create "*nitpick*")))
       (with-current-buffer buf
         (setq buffer-read-only nil)
         (erase-buffer)
@@ -261,7 +260,7 @@ hunk); the forge rejects anything outside it."
       (pop-to-buffer buf))))
 
 ;;;###autoload
-(defun revu-submit (&optional event)
+(defun nitpick-submit (&optional event)
   "Submit this PR's pending review.
 EVENT is `comment' (default), `approve', or `request-changes'.  Opens a composer
 for the summary body; C-c C-c publishes all draft comments together with the
@@ -270,30 +269,30 @@ verdict."
   (let* ((event (or event 'comment))
          (root (or (magit-toplevel) (user-error "Not inside a git repository")))
          (default-directory root)
-         (pr (revu--pr-ctx root))
-         (rid (revu--pending-review (alist-get 'id pr)))
+         (pr (nitpick--pr-ctx root))
+         (rid (nitpick--pending-review (alist-get 'id pr)))
          (gh-event (pcase event
                      ('approve "APPROVE") ('request-changes "REQUEST_CHANGES") (_ "COMMENT"))))
     (unless rid (user-error "No pending review to submit for PR #%s" (alist-get 'number pr)))
-    (let ((buf (get-buffer-create "*revu-submit*")))
+    (let ((buf (get-buffer-create "*nitpick-submit*")))
       (with-current-buffer buf
         (erase-buffer)
         (when (fboundp 'gfm-mode) (gfm-mode))
-        (setq revu--submit-ctx
+        (setq nitpick--submit-ctx
               (list (cons 'root root) (cons 'review rid)
                     (cons 'event gh-event) (cons 'number (alist-get 'number pr))))
         (setq header-line-format
               (format " Submit %s review of PR #%s  -  C-c C-c publish - C-c C-k cancel"
                       gh-event (alist-get 'number pr)))
-        (local-set-key (kbd "C-c C-c") #'revu--submit-send)
-        (local-set-key (kbd "C-c C-k") #'revu-cancel))
+        (local-set-key (kbd "C-c C-c") #'nitpick--submit-send)
+        (local-set-key (kbd "C-c C-k") #'nitpick-cancel))
       (pop-to-buffer buf)
       (message "Optional summary, then C-c C-c to publish the %s review" gh-event))))
 
-(defun revu--submit-send ()
+(defun nitpick--submit-send ()
   "Publish the pending review with the chosen event and summary body."
   (interactive)
-  (let* ((ctx revu--submit-ctx)
+  (let* ((ctx nitpick--submit-ctx)
          (body (string-trim (buffer-substring-no-properties (point-min) (point-max))))
          (default-directory (alist-get 'root ctx))
          (q "mutation($r:ID!,$e:PullRequestReviewEvent!,$b:String){
@@ -301,7 +300,7 @@ verdict."
                  pullRequestReview { url state } } }")
          (vars (append `((r . ,(alist-get 'review ctx)) (e . ,(alist-get 'event ctx)))
                        (unless (string-empty-p body) `((b . ,body)))))
-         (data (revu--graphql q vars))
+         (data (nitpick--graphql q vars))
          (url (alist-get 'url (alist-get 'pullRequestReview
                                          (alist-get 'submitPullRequestReview data))))
          (b (current-buffer)))
@@ -312,7 +311,7 @@ verdict."
              (if url (concat ": " url) ""))))
 
 ;;;###autoload
-(defun revu-refresh ()
+(defun nitpick-refresh ()
   "Resync the worktree and diff-hl to the PR's latest head, report stale drafts.
 Run after the author pushes new commits mid-review.  Aborts if the worktree has
 uncommitted changes (a review worktree should have none)."
@@ -321,111 +320,103 @@ uncommitted changes (a review worktree should have none)."
          (default-directory root))
     (unless (string-empty-p (string-trim (shell-command-to-string "git status --porcelain")))
       (user-error "Worktree has local changes; commit or stash before refreshing"))
-    (let* ((pr (revu--pr-ctx root))
+    (let* ((pr (nitpick--pr-ctx root))
            (new-head (alist-get 'head pr)))
       (magit-run-git "fetch")
       (magit-run-git "reset" "--hard" new-head)
       (when (fboundp 'projectile-invalidate-cache) (projectile-invalidate-cache nil))
-      (revu-diff-hl-set-base root (alist-get 'base pr))
-      (let ((rid (revu--pending-review (alist-get 'id pr))))
+      (nitpick-diff-hl-set-base root (alist-get 'base pr))
+      (let ((rid (nitpick--pending-review (alist-get 'id pr))))
         (if (not rid)
             (message "Resynced PR #%s to %s (no pending review)"
                      (alist-get 'number pr) (substring new-head 0 7))
           (let* ((q "query($r:ID!){ node(id:$r){ ... on PullRequestReview {
                        comments(first:100){ nodes { outdated } } } } }")
                  (items (alist-get 'nodes (alist-get 'comments
-                          (alist-get 'node (revu--graphql q `((r . ,rid)))))))
+                          (alist-get 'node (nitpick--graphql q `((r . ,rid)))))))
                  (n-out (seq-count (lambda (c) (eq t (alist-get 'outdated c))) items)))
             (message "Resynced PR #%s to %s - %d/%d draft comment(s) now outdated%s"
                      (alist-get 'number pr) (substring new-head 0 7)
                      n-out (length items)
-                     (if (> n-out 0) " (`revu-list' to review)" ""))))))))
+                     (if (> n-out 0) " (`nitpick-list' to review)" ""))))))))
 
 ;;;; diff-hl: paint the changed lines, not only the fringe
 
-(defface revu-diff-hl-line-insert
+(defface nitpick-diff-hl-line-insert
   '((((background dark))  :extend t :background "#1e2d1e")
     (((background light)) :extend t :background "#e3f7e3"))
   "Background for whole lines the PR adds."
-  :group 'revu)
+  :group 'nitpick)
 
-(defface revu-diff-hl-line-change
+(defface nitpick-diff-hl-line-change
   '((((background dark))  :extend t :background "#20293d")
     (((background light)) :extend t :background "#e0e8ff"))
   "Background for whole lines the PR modifies."
-  :group 'revu)
+  :group 'nitpick)
 
-(defcustom revu-diff-hl-line-faces
-  '((insert . revu-diff-hl-line-insert)
-    (change . revu-diff-hl-line-change))
+(defcustom nitpick-diff-hl-line-faces
+  '((insert . nitpick-diff-hl-line-insert)
+    (change . nitpick-diff-hl-line-change))
   "Face per diff-hl change type.  A type absent here keeps the fringe only.
 `delete' is absent on purpose: the overlay sits on the line after the removed
 text, so painting it would mark a line the PR never touched."
   :type '(alist :key-type symbol :value-type face)
-  :group 'revu)
+  :group 'nitpick)
 
-(defcustom revu-diff-hl-line-priority -60
+(defcustom nitpick-diff-hl-line-priority -60
   "Overlay priority of the line backgrounds.
 Below `hl-line''s -50, so the cursor line keeps its own colour."
   :type 'integer
-  :group 'revu)
+  :group 'nitpick)
 
-(defcustom revu-diff-hl-line-highlight t
-  "Whether `revu-diff-hl-set-base' also turns on `revu-diff-hl-line-mode'."
-  :type 'boolean
-  :group 'revu)
+(defvar nitpick-diff-hl--bases nil
+  "Alist of (ROOT . REVISION) last given to `nitpick-diff-hl-set-base'.
+The preselected answer next time, so a worktree does not ask the forge twice.
+It never decides what is drawn; diff-hl's own reference is the only state.")
 
-(defvar revu-diff-hl--bases nil
-  "Alist of (ROOT . BASE-REF) last pointed at by `revu-diff-hl-set-base'.
-A memo that outlives the view being switched off, so `revu-diff-hl-toggle'
-can switch it back on without asking the forge for the base branch again.")
-
-(defvar revu-diff-hl--pointed nil
-  "Roots whose diff-hl currently points at a PR base rather than HEAD.")
-
-(defvar revu-diff-hl--saved nil
-  "The two diff-hl highlight functions `revu-diff-hl-line-mode' replaced.
+(defvar nitpick-diff-hl--saved nil
+  "The two diff-hl highlight functions `nitpick-diff-hl-line-mode' replaced.
 A cons of the working-tree one and the reference one.  Kept so the mode
 delegates to them instead of assuming fringes, and puts them back on exit.")
 
-(defun revu-diff-hl--inner (reference)
+(defun nitpick-diff-hl--inner (reference)
   "Return the highlight function wrapped for the REFERENCE or working pass."
-  (or (if reference (cdr revu-diff-hl--saved) (car revu-diff-hl--saved))
+  (or (if reference (cdr nitpick-diff-hl--saved) (car nitpick-diff-hl--saved))
       (if reference #'diff-hl-highlight-on-fringe-flat #'diff-hl-highlight-on-fringe)))
 
-(defun revu-diff-hl--paint-line (ovl type)
+(defun nitpick-diff-hl--paint-line (ovl type)
   "Stretch OVL over its whole line and paint it for diff-hl's TYPE.
 Point is at the start of the line diff-hl is highlighting.  The trailing
 newline is included so the `:extend' faces reach the window edge."
-  (if-let* ((face (alist-get type revu-diff-hl-line-faces)))
+  (if-let* ((face (alist-get type nitpick-diff-hl-line-faces)))
       (progn
         (move-overlay ovl (line-beginning-position)
                       (min (point-max) (1+ (line-end-position))))
         (overlay-put ovl 'face face)
-        (overlay-put ovl 'priority revu-diff-hl-line-priority))
+        (overlay-put ovl 'priority nitpick-diff-hl-line-priority))
     ;; diff-hl recycles overlays between its two passes; clear a stale face.
     (overlay-put ovl 'face nil)))
 
-(defun revu-diff-hl-highlight-line (ovl type shape)
+(defun nitpick-diff-hl-highlight-line (ovl type shape)
   "Highlight OVL as diff-hl would, then paint its whole line.
 For the working-tree pass; TYPE and SHAPE are diff-hl's."
-  (funcall (revu-diff-hl--inner nil) ovl type shape)
-  (revu-diff-hl--paint-line ovl type))
+  (funcall (nitpick-diff-hl--inner nil) ovl type shape)
+  (nitpick-diff-hl--paint-line ovl type))
 
-(defun revu-diff-hl-highlight-line-flat (ovl type shape)
+(defun nitpick-diff-hl-highlight-line-flat (ovl type shape)
   "Highlight OVL as diff-hl would, then paint its whole line.
 For the reference-revision pass; TYPE and SHAPE are diff-hl's."
-  (funcall (revu-diff-hl--inner t) ovl type shape)
-  (revu-diff-hl--paint-line ovl type))
+  (funcall (nitpick-diff-hl--inner t) ovl type shape)
+  (nitpick-diff-hl--paint-line ovl type))
 
-(defun revu-diff-hl--redraw ()
+(defun nitpick-diff-hl--redraw ()
   "Rebuild the diff-hl overlays of every buffer that has them."
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (bound-and-true-p diff-hl-mode) (diff-hl-update)))))
 
 ;;;###autoload
-(define-minor-mode revu-diff-hl-line-mode
+(define-minor-mode nitpick-diff-hl-line-mode
   "Show diff-hl changes as whole-line backgrounds, not just fringe marks.
 
 Both of diff-hl's highlight slots are swapped: `diff-hl-highlight-function'
@@ -435,230 +426,206 @@ second one, so setting only the first would leave the PR's own lines bare.
 
 Whatever those slots held still runs, so the fringe or margin marks stay."
   :global t
-  :group 'revu
-  (if revu-diff-hl-line-mode
+  :group 'nitpick
+  (if nitpick-diff-hl-line-mode
       (progn
-        (unless revu-diff-hl--saved
-          (setq revu-diff-hl--saved (cons diff-hl-highlight-function
+        (unless nitpick-diff-hl--saved
+          (setq nitpick-diff-hl--saved (cons diff-hl-highlight-function
                                           diff-hl-highlight-reference-function)))
-        (setq diff-hl-highlight-function #'revu-diff-hl-highlight-line
-              diff-hl-highlight-reference-function #'revu-diff-hl-highlight-line-flat))
-    (when revu-diff-hl--saved
-      (setq diff-hl-highlight-function (car revu-diff-hl--saved)
-            diff-hl-highlight-reference-function (cdr revu-diff-hl--saved)
-            revu-diff-hl--saved nil)))
-  (revu-diff-hl--redraw))
+        (setq diff-hl-highlight-function #'nitpick-diff-hl-highlight-line
+              diff-hl-highlight-reference-function #'nitpick-diff-hl-highlight-line-flat))
+    (when nitpick-diff-hl--saved
+      (setq diff-hl-highlight-function (car nitpick-diff-hl--saved)
+            diff-hl-highlight-reference-function (cdr nitpick-diff-hl--saved)
+            nitpick-diff-hl--saved nil)))
+  (nitpick-diff-hl--redraw))
 
 ;;;; diff-hl: annotate the worktree with the PR's own changes
 
 ;;;###autoload
-(defun revu-diff-hl-set-base (root base-ref)
-  "Point diff-hl at the merge-base of BASE-REF and HEAD for the ROOT project.
+(defun nitpick-diff-hl-set-base (root revision)
+  "Diff the ROOT project against REVISION instead of its checked-out state.
 
-BASE-REF is a branch name like \"master\"; the reference revision is
-`<remote>/BASE-REF' merge-based with HEAD (a 3-dot diff, like the forge's \"Files
-changed\").  Set project-locally so it does not bleed into other projects, and
-newly opened files inherit it.
+REVISION is used as picked - a local branch, a remote-tracking ref like
+`origin/master', a tag, a sha.  Nothing is prefixed for you, so `master' and
+`origin/master' are different answers.  Pick HEAD for the usual view of your
+own uncommitted edits.
 
-Also turns on `revu-diff-hl-line-mode' unless `revu-diff-hl-line-highlight'
-is nil; `revu-diff-hl-reset' undoes both."
+What lands in diff-hl is the merge-base of REVISION and HEAD, a 3-dot diff
+like the forge's \"Files changed\": for a revision already in your history that
+is the revision itself, and for a divergent ref it keeps other people's
+commits out of your fringe.  Set project-locally, so newly opened files
+inherit it and other projects are untouched.
+
+The revision only.  Whole lines instead of fringe marks is
+`nitpick-diff-hl-line-mode', switched on its own."
+  (interactive
+   (let ((root (or (magit-toplevel) (user-error "Not inside a git repository"))))
+     (list root (let ((default-directory root))
+                  (magit-read-branch-or-commit
+                   "Diff against" (nitpick-diff-hl--suggested-base root))))))
   (condition-case err
       (let* ((default-directory root)
-             (base (concat (revu--remote) "/" base-ref))
-             (rev (or (magit-git-string "merge-base" base "HEAD")
-                      (magit-rev-verify base)))
-             (proj (project-current nil root)))
+             (rev (or (magit-git-string "merge-base" revision "HEAD")
+                      (magit-rev-verify revision)))
+             (proj (project-current nil root))
+             (remember
+              (lambda ()
+                (setf (alist-get (nitpick-diff-hl--root root) nitpick-diff-hl--bases
+                                 nil nil #'string-equal)
+                      revision))))
         (cond
          ((not rev)
-          (message "diff-hl: could not resolve PR base %s" base))
+          (message "diff-hl: could not resolve %s" revision))
          ((and proj (fboundp 'diff-hl-set-reference-rev-in-project-internal))
-          (setf (alist-get (revu-diff-hl--root root) revu-diff-hl--bases
-                           nil nil #'string-equal)
-                base-ref)
-          (cl-pushnew (revu-diff-hl--root root) revu-diff-hl--pointed
-                      :test #'string-equal)
-          (when revu-diff-hl-line-highlight (revu-diff-hl-line-mode 1))
+          (funcall remember)
           (diff-hl-set-reference-rev-in-project-internal rev proj)
-          (message "diff-hl: %s now shows PR changes vs %s (%s)"
+          (message "diff-hl: %s now shows changes vs %s (%s)"
                    (file-name-nondirectory (directory-file-name root))
-                   base (magit-rev-abbrev rev)))
+                   revision (magit-rev-abbrev rev)))
          ((fboundp 'diff-hl-set-reference-rev)
           ;; Older diff-hl without per-project references: fall back to global.
-          (setf (alist-get (revu-diff-hl--root root) revu-diff-hl--bases
-                           nil nil #'string-equal)
-                base-ref)
-          (cl-pushnew (revu-diff-hl--root root) revu-diff-hl--pointed
-                      :test #'string-equal)
-          (when revu-diff-hl-line-highlight (revu-diff-hl-line-mode 1))
+          (funcall remember)
           (diff-hl-set-reference-rev rev)
-          (message "diff-hl: showing PR changes vs %s (%s) [global]"
-                   base (magit-rev-abbrev rev)))))
+          (message "diff-hl: showing changes vs %s (%s) [global]"
+                   revision (magit-rev-abbrev rev)))))
     (error
-     (message "diff-hl PR reference not set: %s" (error-message-string err)))))
+     (message "diff-hl base not set: %s" (error-message-string err)))))
 
-;;;###autoload
-(defun revu-diff-hl-toggle ()
-  "Toggle the review view of the worktree at point.
-
-On: diff-hl points at the PR's base, so the fringe and - unless
-`revu-diff-hl-line-highlight' is nil - the lines themselves show what the PR
-changed.  Off: diff-hl goes back to HEAD and stops painting lines.
-
-The base branch comes from the last `revu-diff-hl-set-base' for this
-worktree, else the open PR, else the repository's default branch - so this
-works on a branch with no PR yet."
-  (interactive)
-  (let ((root (or (magit-toplevel) (user-error "Not inside a git repository"))))
-    (if (revu-diff-hl--active-p root)
-        (revu-diff-hl--reset root)
-      (revu-diff-hl-set-base root (revu-diff-hl--base-ref root)))))
-
-(defun revu-diff-hl--root (root)
+(defun nitpick-diff-hl--root (root)
   "Return ROOT in the one spelling the base-ref cache is keyed by."
   (file-name-as-directory (expand-file-name root)))
 
-(defun revu-diff-hl--active-p (root)
-  "Whether diff-hl is pointed somewhere other than HEAD for ROOT."
-  (or (and (member (revu-diff-hl--root root) revu-diff-hl--pointed) t)
-      ;; set by hand, or in a buffer opened after the project was pointed
-      (and (bound-and-true-p diff-hl-reference-revision) t)))
+(defun nitpick-diff-hl--suggested-base (root)
+  "Return the revision to preselect when asking what to diff ROOT against.
+This worktree's last answer, else the open PR's base, else ROOT's default
+branch - the last two as the remote has them, which is the forge's own view
+of the branch.  Nil when none of the three can be worked out: the prompt
+still opens, it just suggests nothing."
+  (or (alist-get (nitpick-diff-hl--root root) nitpick-diff-hl--bases nil nil #'string-equal)
+      (let ((branch (or (ignore-errors (alist-get 'base (nitpick--pr-ctx root)))
+                        (nitpick-diff-hl--default-base root))))
+        (and branch (let ((default-directory root))
+                      (concat (nitpick--remote) "/" branch))))))
 
-(defun revu-diff-hl--base-ref (root)
-  "Return the base branch to diff ROOT against.
-This worktree's last base, else the open PR's, else ROOT's default branch.
-The PR is only where a base is written down; a branch without one still gets
-an answer, while a stacked or release-targeting PR still needs the forge."
-  (or (alist-get (revu-diff-hl--root root) revu-diff-hl--bases nil nil #'string-equal)
-      (ignore-errors (alist-get 'base (revu--pr-ctx root)))
-      (revu-diff-hl--default-base root)
-      (user-error "No open PR and no default branch to diff against")))
-
-(defun revu-diff-hl--default-base (root)
+(defun nitpick-diff-hl--default-base (root)
   "Return ROOT's default branch, or nil.
 `magit-main-branch' first, then the remote's HEAD - that ref is written at
 clone time and is absent from plenty of clones."
   (let* ((default-directory root)
-         (remote (revu--remote))
+         (remote (nitpick--remote))
          (head (magit-git-string "symbolic-ref" "--short"
                                  (format "refs/remotes/%s/HEAD" remote))))
     (or (and (fboundp 'magit-main-branch) (magit-main-branch))
         (and head (string-remove-prefix (concat remote "/") head)))))
 
-(defun revu-diff-hl--reset (root)
-  "Point diff-hl back at HEAD for ROOT and stop painting whole lines."
-  (setq revu-diff-hl--pointed
-        (delete (revu-diff-hl--root root) revu-diff-hl--pointed))
-  (when (fboundp 'diff-hl-reset-reference-rev)
-    ;; the prefix argument also discards diff-hl's per-project references,
-    ;; which is where `revu-diff-hl-set-base' put ours
-    (diff-hl-reset-reference-rev '(4)))
-  (revu-diff-hl-line-mode -1)
-  (message "diff-hl: back to HEAD"))
-
 ;;;###autoload
-(defun revu-diff-hl-set-from-pullreq (worktree-path pullreq)
+(defun nitpick-diff-hl-set-from-pullreq (worktree-path pullreq)
   "Point diff-hl at PULLREQ's merge-base for the WORKTREE-PATH project.
-Thin wrapper over `revu-diff-hl-set-base' that reads the base branch from
+Thin wrapper over `nitpick-diff-hl-set-base' that reads the base branch from
 the Forge PULLREQ object.  The worktree files then show exactly what the PR
 changed while LSP and jump-to-definition keep working on the real files."
   ;; Slot name via a variable: a literal makes the byte-compiler check it
   ;; against Forge classes it cannot see at build time.
-  (let ((slot 'base-ref))
-    (revu-diff-hl-set-base worktree-path (eieio-oref pullreq slot))))
+  (let* ((slot 'base-ref)
+         (default-directory worktree-path))
+    (nitpick-diff-hl-set-base
+     worktree-path (concat (nitpick--remote) "/" (eieio-oref pullreq slot)))))
 
 ;;;; Forge integration
 
-(defun revu--maybe-submit-via-forge (event orig-fun args)
+(defun nitpick--maybe-submit-via-forge (event orig-fun args)
   "Submit the pending review with EVENT, else call ORIG-FUN with ARGS."
   (let* ((root (ignore-errors (magit-toplevel)))
          (rid (and root
                    (ignore-errors
                      (let ((default-directory root))
-                       (revu--pending-review (alist-get 'id (revu--pr-ctx root))))))))
+                       (nitpick--pending-review (alist-get 'id (nitpick--pr-ctx root))))))))
     (if rid
-        (revu-submit event)
+        (nitpick-submit event)
       (apply orig-fun args))))
 
-(defun revu--forge-approve-advice (orig-fun &rest args)
+(defun nitpick--forge-approve-advice (orig-fun &rest args)
   "Route `forge-approve-pullreq' (ORIG-FUN, ARGS) through the batch submitter."
-  (revu--maybe-submit-via-forge 'approve orig-fun args))
+  (nitpick--maybe-submit-via-forge 'approve orig-fun args))
 
-(defun revu--forge-request-changes-advice (orig-fun &rest args)
+(defun nitpick--forge-request-changes-advice (orig-fun &rest args)
   "Route `forge-request-changes' (ORIG-FUN, ARGS) through the batch submitter."
-  (revu--maybe-submit-via-forge 'request-changes orig-fun args))
+  (nitpick--maybe-submit-via-forge 'request-changes orig-fun args))
 
 ;;;###autoload
-(define-minor-mode revu-forge-mode
+(define-minor-mode nitpick-forge-mode
   "Submit pending reviews through Forge's own approve / request-changes.
 Advises the public commands, and falls back to Forge's native (comment-less)
 behaviour when there is no pending review."
   :global t
-  :group 'revu
-  (if revu-forge-mode
+  :group 'nitpick
+  (if nitpick-forge-mode
       (progn
-        (advice-add 'forge-approve-pullreq :around #'revu--forge-approve-advice)
-        (advice-add 'forge-request-changes :around #'revu--forge-request-changes-advice))
-    (advice-remove 'forge-approve-pullreq #'revu--forge-approve-advice)
-    (advice-remove 'forge-request-changes #'revu--forge-request-changes-advice)))
+        (advice-add 'forge-approve-pullreq :around #'nitpick--forge-approve-advice)
+        (advice-add 'forge-request-changes :around #'nitpick--forge-request-changes-advice))
+    (advice-remove 'forge-approve-pullreq #'nitpick--forge-approve-advice)
+    (advice-remove 'forge-request-changes #'nitpick--forge-request-changes-advice)))
 
 ;;;; Keymap
 
 ;;;###autoload
-(defvar revu-prefix-map
+(defvar nitpick-prefix-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "c" #'revu-comment)
-    (define-key map "l" #'revu-list)
-    (define-key map "s" #'revu-submit)
-    (define-key map "f" #'revu-refresh)
-    (define-key map "h" #'revu-diff-hl-toggle)
+    (define-key map "c" #'nitpick-comment)
+    (define-key map "l" #'nitpick-list)
+    (define-key map "s" #'nitpick-submit)
+    (define-key map "f" #'nitpick-refresh)
+    (define-key map "b" #'nitpick-diff-hl-set-base)
+    (define-key map "H" #'nitpick-diff-hl-line-mode)
     map)
   "Keymap of PR review commands, meant to be bound to a prefix key.")
 
-(defvar revu-mode-map (make-sparse-keymap)
-  "Keymap for `revu-mode'.
-`revu-keymap-prefix' is installed into it; the mode only decides whether
+(defvar nitpick-mode-map (make-sparse-keymap)
+  "Keymap for `nitpick-mode'.
+`nitpick-keymap-prefix' is installed into it; the mode only decides whether
 the binding is live, so nothing is touched globally while it is off.")
 
-(defvar revu--installed-prefix nil
-  "The prefix currently bound in `revu-mode-map', or nil.")
+(defvar nitpick--installed-prefix nil
+  "The prefix currently bound in `nitpick-mode-map', or nil.")
 
 ;; The option and its setter refer to each other, and a warning fails the
 ;; build, so declare the variable before the function reads it.
-(defvar revu-keymap-prefix)
+(defvar nitpick-keymap-prefix)
 
-(defun revu--install-prefix ()
-  "Bind `revu-keymap-prefix' to `revu-prefix-map' in `revu-mode-map'.
+(defun nitpick--install-prefix ()
+  "Bind `nitpick-keymap-prefix' to `nitpick-prefix-map' in `nitpick-mode-map'.
 Removes the prefix an earlier call installed, so setting the option twice
 does not leave the old key behind."
-  (when revu--installed-prefix
-    (keymap-unset revu-mode-map revu--installed-prefix t)
-    (setq revu--installed-prefix nil))
-  (when revu-keymap-prefix
-    (keymap-set revu-mode-map revu-keymap-prefix revu-prefix-map)
-    (setq revu--installed-prefix revu-keymap-prefix)))
+  (when nitpick--installed-prefix
+    (keymap-unset nitpick-mode-map nitpick--installed-prefix t)
+    (setq nitpick--installed-prefix nil))
+  (when nitpick-keymap-prefix
+    (keymap-set nitpick-mode-map nitpick-keymap-prefix nitpick-prefix-map)
+    (setq nitpick--installed-prefix nitpick-keymap-prefix)))
 
-(defcustom revu-keymap-prefix "C-c v"
-  "Prefix key that `revu-mode' binds `revu-prefix-map' to.
-Set it to nil to have `revu-mode' bind nothing, and bind
-`revu-prefix-map' wherever you like instead."
+(defcustom nitpick-keymap-prefix "C-c v"
+  "Prefix key that `nitpick-mode' binds `nitpick-prefix-map' to.
+Set it to nil to have `nitpick-mode' bind nothing, and bind
+`nitpick-prefix-map' wherever you like instead."
   :type '(choice (key :tag "Prefix key")
                  (const :tag "None" nil))
-  :group 'revu
+  :group 'nitpick
   :set (lambda (symbol value)
          (set-default symbol value)
-         (revu--install-prefix)))
+         (nitpick--install-prefix)))
 
 ;; The default value of a defcustom does not run :set, so install it once here.
-(revu--install-prefix)
+(nitpick--install-prefix)
 
 ;;;###autoload
-(define-minor-mode revu-mode
-  "Put the PR review commands on `revu-keymap-prefix'.
+(define-minor-mode nitpick-mode
+  "Put the PR review commands on `nitpick-keymap-prefix'.
 Default bindings are opt-in: enable this mode to take them, or leave it
-off and bind `revu-prefix-map' yourself."
+off and bind `nitpick-prefix-map' yourself."
   :global t
-  :group 'revu
-  :keymap revu-mode-map)
+  :group 'nitpick
+  :keymap nitpick-mode-map)
 
-(provide 'revu)
-;;; revu.el ends here
+(provide 'nitpick)
+;;; nitpick.el ends here
