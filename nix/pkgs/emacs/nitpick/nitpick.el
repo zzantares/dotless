@@ -469,6 +469,10 @@ context line it starts on.  Three lines of context, three lines too high."
                            vc-git-diff-switches)))))
     (apply orig args)))
 
+(defun nitpick--diff-hl-advise ()
+  "Put `nitpick--zero-context' around diff-hl's diff, at most once."
+  (advice-add 'diff-hl-changes-buffer :around #'nitpick--zero-context))
+
 ;;;###autoload
 (define-minor-mode nitpick-diff-hl-zero-context-mode
   "Correct the lines diff-hl marks, by forcing `-U0' on the diffs it parses.
@@ -478,7 +482,15 @@ binding reaches git on its own."
   :global t
   :group 'nitpick
   (if nitpick-diff-hl-zero-context-mode
-      (advice-add 'diff-hl-changes-buffer :around #'nitpick--zero-context)
+      ;; Only once diff-hl is loaded.  This mode is turned on from a config
+      ;; file, where diff-hl is usually still waiting to be autoloaded, and
+      ;; advice put on it before that does not survive its load: the advice
+      ;; is still listed afterwards and never runs again.
+      (if (featurep 'diff-hl)
+          (nitpick--diff-hl-advise)
+        (eval-after-load 'diff-hl
+          (lambda ()
+            (when nitpick-diff-hl-zero-context-mode (nitpick--diff-hl-advise)))))
     (advice-remove 'diff-hl-changes-buffer #'nitpick--zero-context)))
 
 ;;;; diff-hl: annotate the worktree with the PR's own changes

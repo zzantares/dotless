@@ -686,10 +686,38 @@ concurrent updates overwrite each other's results."
     (should (equal seen '("-U0")))))
 
 (ert-deftest nitpick-test-zero-context-mode-adds-and-removes-its-advice ()
-  (nitpick-diff-hl-zero-context-mode 1)
-  (should (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))
-  (nitpick-diff-hl-zero-context-mode -1)
-  (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer)))
+  (nitpick-test--with-stubs ((featurep (lambda (f) (eq f 'diff-hl))))
+    (nitpick-diff-hl-zero-context-mode 1)
+    (should (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))
+    (nitpick-diff-hl-zero-context-mode -1)
+    (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))))
+
+(ert-deftest nitpick-test-zero-context-mode-waits-for-diff-hl-to-load ()
+  "Advice added before diff-hl loads is listed but never runs, so the mode
+defers until the load instead."
+  (let (deferred)
+    (nitpick-test--with-stubs
+        ((featurep (lambda (_) nil))
+         (eval-after-load (lambda (file fn) (setq deferred (cons file fn)))))
+      (nitpick-diff-hl-zero-context-mode 1))
+    (unwind-protect
+        (progn
+          (should (eq (car deferred) 'diff-hl))
+          (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))
+          ;; the load arrives, and only then is the advice put on
+          (funcall (cdr deferred))
+          (should (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer)))
+      (nitpick-diff-hl-zero-context-mode -1))))
+
+(ert-deftest nitpick-test-zero-context-mode-turned-off-before-the-load-stays-off ()
+  (let (deferred)
+    (nitpick-test--with-stubs
+        ((featurep (lambda (_) nil))
+         (eval-after-load (lambda (file fn) (setq deferred (cons file fn)))))
+      (nitpick-diff-hl-zero-context-mode 1))
+    (nitpick-diff-hl-zero-context-mode -1)
+    (funcall (cdr deferred))
+    (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))))
 
 ;;;; diff-hl: what the prompt suggests
 
