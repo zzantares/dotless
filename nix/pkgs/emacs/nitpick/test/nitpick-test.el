@@ -685,39 +685,49 @@ concurrent updates overwrite each other's results."
            '("f" Git))
     (should (equal seen '("-U0")))))
 
-(ert-deftest nitpick-test-zero-context-mode-adds-and-removes-its-advice ()
-  (nitpick-test--with-stubs ((featurep (lambda (f) (eq f 'diff-hl))))
-    (nitpick-diff-hl-zero-context-mode 1)
-    (should (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))
-    (nitpick-diff-hl-zero-context-mode -1)
-    (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))))
+(defun nitpick-test--zero-context-advised ()
+  "The diff-hl functions currently carrying the zero-context advice."
+  (seq-filter (lambda (entry)
+                (advice-member-p #'nitpick--zero-context (cdr entry)))
+              nitpick--diff-hl-diff-functions))
 
-(ert-deftest nitpick-test-zero-context-mode-waits-for-diff-hl-to-load ()
-  "Advice added before diff-hl loads is listed but never runs, so the mode
-defers until the load instead."
+(ert-deftest nitpick-test-zero-context-mode-adds-and-removes-its-advice ()
+  "Both functions, not just the one flydiff overrides away."
+  (nitpick-test--with-stubs ((featurep (lambda (_) t)))
+    (nitpick-diff-hl-zero-context-mode 1)
+    (should (equal (nitpick-test--zero-context-advised)
+                   nitpick--diff-hl-diff-functions))
+    (nitpick-diff-hl-zero-context-mode -1)
+    (should-not (nitpick-test--zero-context-advised))))
+
+(ert-deftest nitpick-test-zero-context-mode-waits-for-each-feature ()
+  "Advice added before a feature loads is listed but never runs, so the mode
+defers one wrapping per feature instead."
   (let (deferred)
     (nitpick-test--with-stubs
         ((featurep (lambda (_) nil))
-         (eval-after-load (lambda (file fn) (setq deferred (cons file fn)))))
+         (eval-after-load (lambda (file fn) (push (cons file fn) deferred))))
       (nitpick-diff-hl-zero-context-mode 1))
     (unwind-protect
         (progn
-          (should (eq (car deferred) 'diff-hl))
-          (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))
-          ;; the load arrives, and only then is the advice put on
-          (funcall (cdr deferred))
-          (should (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer)))
+          (should (equal (sort (mapcar #'car deferred) #'string<)
+                         (sort (mapcar #'car nitpick--diff-hl-diff-functions) #'string<)))
+          (should-not (nitpick-test--zero-context-advised))
+          ;; the loads arrive, and only then is each wrapped
+          (dolist (d deferred) (funcall (cdr d)))
+          (should (equal (nitpick-test--zero-context-advised)
+                         nitpick--diff-hl-diff-functions)))
       (nitpick-diff-hl-zero-context-mode -1))))
 
 (ert-deftest nitpick-test-zero-context-mode-turned-off-before-the-load-stays-off ()
   (let (deferred)
     (nitpick-test--with-stubs
         ((featurep (lambda (_) nil))
-         (eval-after-load (lambda (file fn) (setq deferred (cons file fn)))))
+         (eval-after-load (lambda (file fn) (push (cons file fn) deferred))))
       (nitpick-diff-hl-zero-context-mode 1))
     (nitpick-diff-hl-zero-context-mode -1)
-    (funcall (cdr deferred))
-    (should-not (advice-member-p #'nitpick--zero-context 'diff-hl-changes-buffer))))
+    (dolist (d deferred) (funcall (cdr d)))
+    (should-not (nitpick-test--zero-context-advised))))
 
 ;;;; diff-hl: what the prompt suggests
 

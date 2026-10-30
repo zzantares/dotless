@@ -41,6 +41,7 @@
 (declare-function diff-hl-highlight-on-fringe-flat "diff-hl" (ovl type shape))
 (declare-function diff-hl-update "diff-hl" ())
 (declare-function diff-hl-changes-buffer "diff-hl" (file backend &optional new-rev bufname))
+(declare-function diff-hl-flydiff-changes-buffer "diff-hl-flydiff" (file backend &optional new-rev buffer))
 (declare-function project-buffers "project" (project))
 (defvar diff-hl-mode)
 (defvar diff-hl-reference-revision)
@@ -469,9 +470,34 @@ context line it starts on.  Three lines of context, three lines too high."
                            vc-git-diff-switches)))))
     (apply orig args)))
 
+(defconst nitpick--diff-hl-diff-functions
+  '((diff-hl . diff-hl-changes-buffer)
+    (diff-hl-flydiff . diff-hl-flydiff-changes-buffer))
+  "diff-hl functions that run git, each with the feature that defines it.
+Both need wrapping: `diff-hl-flydiff-mode' puts an `:override' on the first
+that calls the second, and an `:override' never reaches what it covers, so
+wrapping only the first does nothing for as long as flydiff is on.")
+
+;; The deferred wrapping reads the mode the mode body turns on, and a warning
+;; fails the build, so declare it before the function reads it.
+(defvar nitpick-diff-hl-zero-context-mode)
+
 (defun nitpick--diff-hl-advise ()
-  "Put `nitpick--zero-context' around diff-hl's diff, at most once."
-  (advice-add 'diff-hl-changes-buffer :around #'nitpick--zero-context))
+  "Wrap each of `nitpick--diff-hl-diff-functions', as its feature loads."
+  (dolist (entry nitpick--diff-hl-diff-functions)
+    (let ((feature (car entry))
+          (fn (cdr entry)))
+      (if (featurep feature)
+          (advice-add fn :around #'nitpick--zero-context)
+        (eval-after-load feature
+          (lambda ()
+            (when nitpick-diff-hl-zero-context-mode
+              (advice-add fn :around #'nitpick--zero-context))))))))
+
+(defun nitpick--diff-hl-unadvise ()
+  "Take `nitpick--zero-context' off every function it was put on."
+  (dolist (entry nitpick--diff-hl-diff-functions)
+    (advice-remove (cdr entry) #'nitpick--zero-context)))
 
 ;;;###autoload
 (define-minor-mode nitpick-diff-hl-zero-context-mode
@@ -481,17 +507,13 @@ to.  A workaround for the build, not for diff-hl's design; it goes when the
 binding reaches git on its own."
   :global t
   :group 'nitpick
+  ;; Each function is wrapped as its own feature loads: this mode is turned
+  ;; on from a config file, where diff-hl is usually still waiting to be
+  ;; autoloaded, and advice put on it before that is listed afterwards but
+  ;; never runs again.
   (if nitpick-diff-hl-zero-context-mode
-      ;; Only once diff-hl is loaded.  This mode is turned on from a config
-      ;; file, where diff-hl is usually still waiting to be autoloaded, and
-      ;; advice put on it before that does not survive its load: the advice
-      ;; is still listed afterwards and never runs again.
-      (if (featurep 'diff-hl)
-          (nitpick--diff-hl-advise)
-        (eval-after-load 'diff-hl
-          (lambda ()
-            (when nitpick-diff-hl-zero-context-mode (nitpick--diff-hl-advise)))))
-    (advice-remove 'diff-hl-changes-buffer #'nitpick--zero-context)))
+      (nitpick--diff-hl-advise)
+    (nitpick--diff-hl-unadvise)))
 
 ;;;; diff-hl: annotate the worktree with the PR's own changes
 
