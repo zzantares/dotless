@@ -448,6 +448,14 @@ in
       ];
     };
 
+    lean = final.buildEnv {
+      name = "lean-toolchain";
+      # `lake' ships inside the lean4 derivation. The scoped `lean4' is the
+      # binary-patched one, so `lake serve' (the LSP) resolves the wrapped
+      # `lake' - that patch is what makes the InfoView work.
+      paths = [ final.leanPackages.lean4 ];
+    };
+
     ops = final.buildEnv {
       name = "ops-toolchain";
       paths =

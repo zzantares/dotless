@@ -37,6 +37,7 @@
       tea-dash
       tealdeer
       toolchains.android
+      toolchains.lean
       toolchains.lisp
       toolchains.lua
       toolchains.markdown

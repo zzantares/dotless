@@ -177,6 +177,7 @@ in
         "(haskell +lsp)"
         "json"
         "(javascript +lsp)"
+        "(lean +lsp)"
         "(lua +lsp)"
         "markdown"
         "(nix +lsp)"
