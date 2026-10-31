@@ -396,6 +396,14 @@
         command = [ (lib.getExe' pkgs.nixd "nixd") ];
         extensions = [ ".nix" ];
       };
+
+      lean = {
+        command = [
+          (lib.getExe' pkgs.toolchains.lean "lake")
+          "serve"
+        ];
+        extensions = [ ".lean" ];
+      };
     };
   };
 

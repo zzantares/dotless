@@ -14,6 +14,13 @@
     "dark": "Modus Operandi Deuteranopia"
   },
 
+  // Zed has no packaging story Nix can drive, so extensions are declared
+  // here and Zed fetches them on first launch. The Lean 4 one finds `lake`
+  // on PATH, which `toolchains.lean` puts there, and ships its own grammar.
+  "auto_install_extensions": {
+    "lean4": true
+  },
+
   // By default clang and gcc by will recognize *.C and *.H (uppercase extensions)
   // as C++ and not C and so Zed too follows this convention. This overrides it.
   "file_types": {

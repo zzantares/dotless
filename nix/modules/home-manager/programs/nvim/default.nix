@@ -2,6 +2,7 @@
   profile,
   config,
   lib,
+  pkgs,
   ...
 }:
 
@@ -12,6 +13,16 @@ let
   # `require("dotless.*")` resolves from it, and so do its `lsp/`, `ftplugin/`
   # and `colors/` files. Never linked into ~/.config/nvim.
   rtp = ./../../../../../config/nvim;
+
+  # Parsers nvim-treesitter does not ship, built by Nix instead of fetched and
+  # compiled on first use. nvim loads `parser/<lang>.so` from any runtimepath
+  # entry, so a second rtp root is all it takes.
+  parserRtp = pkgs.linkFarm "dotless-nvim-parsers" (
+    map (lang: {
+      name = "parser/${lang}.so";
+      path = "${pkgs.tree-sitter-grammars."tree-sitter-${lang}"}/parser";
+    }) cfg.treesitterGrammars
+  );
 
   # The pieces the generated init.lua requires, in order.
   moduleNames = [
@@ -31,6 +42,7 @@ let
   pluginNames = [
     "base"
     "fzf-lua"
+    "lean"
     "mini"
     "none-ls"
     "octo"
@@ -85,6 +97,7 @@ let
       [
         header
         ''vim.opt.rtp:prepend("${rtp}")''
+        ''vim.opt.rtp:prepend("${parserRtp}")''
       ]
       ++ map setupCall enabledModules
       ++ lib.optional (cfg.extraConfig != "") cfg.extraConfig
@@ -157,6 +170,17 @@ in
       default = "";
       example = ''vim.keymap.set("n", "<leader>op", ":Explore<cr>")'';
       description = "Lua appended to the generated init.lua, after dotless's own requires.";
+    };
+
+    treesitterGrammars = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "lean" ];
+      description = ''
+        Tree-sitter languages to take from `pkgs.tree-sitter-grammars` rather
+        than from nvim-treesitter. Each name is the part after `tree-sitter-`.
+        For a language nvim-treesitter already ships, use its own
+        `ensure_installed` instead.
+      '';
     };
   };
 

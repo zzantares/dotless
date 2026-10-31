@@ -180,6 +180,16 @@ in
           ".nix" = "nix";
         };
       };
+
+      # `lake serve` is the Lean 4 server. It has no separate binary and takes
+      # the project from its working directory. Store path, like the rest.
+      lean = {
+        command = lib.getExe' pkgs.toolchains.lean "lake";
+        args = [ "serve" ];
+        extensionToLanguage = {
+          ".lean" = "lean";
+        };
+      };
     };
 
     # See the HomeManager module docs for extra options they all look very interesting
