@@ -1,13 +1,13 @@
 ;;; parts/frames.el -*- lexical-binding: t; -*-
 
-;; `fullscreen' frame parameter both hooks apply. Set it from a later layer to
-;; change how frames open - macOS wants `maximized', since native fullscreen
-;; moves the frame to its own Space.
-(defvar zz/frame-fullscreen 'fullboth
+;; `fullscreen' frame parameter both hooks apply. Forge skips fullscreen
+;; windows, so nil (tile) on Linux; macOS wants `maximized' - native
+;; fullscreen gets its own Space.
+(defvar zz/frame-fullscreen (if (eq system-type 'darwin) 'maximized nil)
   "Value for the `fullscreen' frame parameter applied to new frames.")
 
-;; When connecting via emacsclient, start the frame fullscreen and fix theme cursor colors.
-;; We use `set-frame-parameter' instead of `toggle-frame-fullscreen' to avoid toggling —
+;; When connecting via emacsclient, set the frame geometry and fix theme cursor colors.
+;; We use `set-frame-parameter' instead of `toggle-frame-fullscreen' to avoid toggling -
 ;; tools like Magit's with-editor can trigger this hook a second time (for their own
 ;; internal frames), and a toggle would exit fullscreen on the existing frame.
 ;; Avoid `(add-to-list 'default-frame-alist '(fullscreen . fullboth))' as that triggers
