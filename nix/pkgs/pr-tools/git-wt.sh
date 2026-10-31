@@ -10,6 +10,9 @@
 #                             merged: remove the worktree, delete the branch,
 #                             kill the session, drop the projectile project.
 #                             Branch defaults to the one checked out in $PWD.
+#   git wt path [branch]      Print where a branch's worktree is, for commands
+#                             that take a directory: git -C "$(git wt path x)"
+#                             rebase master. Without a branch, pick with fzf.
 #
 # This is the new-branch counterpart to `git pr` (which checks out an
 # existing PR). Shared worktree/mux/emacs primitives come from dotless; nested
@@ -37,6 +40,10 @@ usage:
                             session and drop the projectile project. Refuses
                             unless the branch has merged into main; -f overrides.
                             Branch defaults to the one checked out in $PWD.
+  git wt path [branch]      print the path of that branch's worktree, so it can
+                            be handed to a command that takes a directory:
+                            git -C "$(git wt path feat/foo)" rebase master.
+                            Without a branch, pick one with fzf.
 EOF
 }
 
@@ -163,7 +170,7 @@ cmd_finish() {
 
 	# We cannot remove the worktree we are standing in - step out to the repo root.
 	case "$PWD/" in
-		"$dest"/*) cd "$root" ;;
+		"$dest"/*) cd "$root" || die "finish: could not leave $dest" ;;
 	esac
 
 	# Worktree: remove if present. --force only when the caller asked, so we do
@@ -190,6 +197,27 @@ cmd_finish() {
 	wt_emacs_remove "$slug" "$dest"
 }
 
+# Nothing but a path on stdout, so this composes in a command substitution:
+# every message goes to stderr, and a miss is a non-zero exit rather than an
+# empty string the caller would hand on as the current directory.
+cmd_path() {
+	local branch="${1:-}" dest
+
+	if [[ -z "$branch" ]]; then
+		command -v fzf >/dev/null 2>&1 ||
+			die "path: no branch given and fzf is not installed"
+		dest="$(git worktree list | fzf --prompt='worktree> ' --height=40% --reverse |
+			awk '{ print $1 }')"
+		[[ -n "$dest" ]] || die "path: nothing picked"
+		echo "$dest"
+		return 0
+	fi
+
+	dest="$(wt_for_branch "$branch")"
+	[[ -n "$dest" ]] || die "path: no worktree checked out for '$branch'"
+	echo "$dest"
+}
+
 sub="${1:-}"
 case "$sub" in
 	start)
@@ -200,6 +228,10 @@ case "$sub" in
 		shift
 		cmd_finish "$@"
 		;;
+	path)
+		shift
+		cmd_path "$@"
+		;;
 	-h | --help | help)
 		usage
 		exit 0
@@ -209,6 +241,6 @@ case "$sub" in
 		exit 1
 		;;
 	*)
-		die "unknown subcommand '$sub' (try: git wt start <branch> | git wt finish [branch])"
+		die "unknown subcommand '$sub' (try: git wt start <branch> | git wt finish [branch] | git wt path [branch])"
 		;;
 esac
