@@ -49,6 +49,8 @@
 (defvar vc-git-diff-switches)
 (defvar diff-hl-highlight-function)
 (defvar diff-hl-highlight-reference-function)
+(defvar diff-hl-fringe-flat-bmp)
+(defvar diff-hl-spec-cache)
 (declare-function projectile-invalidate-cache "projectile" (prompt))
 (declare-function eieio-oref "eieio-core" (obj slot))
 
@@ -368,6 +370,27 @@ text, so painting it would mark a line the PR never touched."
   :type '(alist :key-type symbol :value-type face)
   :group 'nitpick)
 
+(defun nitpick-diff-hl--forget-specs ()
+  "Empty diff-hl's cache of fringe specs.
+`diff-hl-fringe-spec' keys on the change type and the two functions that
+pick a face and a bitmap, not on the bitmap itself, so a spec built before
+`nitpick-diff-hl-delete-bmp' applied is handed back for ever otherwise."
+  (when (boundp 'diff-hl-spec-cache)
+    (clrhash diff-hl-spec-cache)))
+
+(defcustom nitpick-diff-hl-delete-bmp 'diff-hl-bmp-delete
+  "Fringe bitmap marking a removal against the base.
+diff-hl draws changes against a reference with `diff-hl-fringe-flat-bmp',
+which is empty by default because the whole-line background is the marker.
+A removal gets no background - it would colour the line after the deleted
+text, which the branch never touched - so with the empty bitmap it has
+nothing at all.  Set to `diff-hl-bmp-empty' to go back to that."
+  :type 'symbol
+  :group 'nitpick
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (nitpick-diff-hl--forget-specs)))
+
 (defcustom nitpick-diff-hl-line-priority -60
   "Overlay priority of the line backgrounds.
 Below `hl-line''s -50, so the cursor line keeps its own colour."
@@ -410,8 +433,14 @@ For the working-tree pass; TYPE and SHAPE are diff-hl's."
 
 (defun nitpick-diff-hl-highlight-line-flat (ovl type shape)
   "Highlight OVL as diff-hl would, then paint its whole line.
-For the reference-revision pass; TYPE and SHAPE are diff-hl's."
-  (funcall (nitpick-diff-hl--inner t) ovl type shape)
+For the reference-revision pass; TYPE and SHAPE are diff-hl's.
+A removal is drawn with `nitpick-diff-hl-delete-bmp' instead of the flat
+bitmap, which is the one change that would otherwise be invisible."
+  (let ((diff-hl-fringe-flat-bmp
+         (if (eq type 'delete)
+             nitpick-diff-hl-delete-bmp
+           (bound-and-true-p diff-hl-fringe-flat-bmp))))
+    (funcall (nitpick-diff-hl--inner t) ovl type shape))
   (nitpick-diff-hl--paint-line ovl type))
 
 (defun nitpick-diff-hl--redraw ()
@@ -443,6 +472,7 @@ Whatever those slots held still runs, so the fringe or margin marks stay."
       (setq diff-hl-highlight-function (car nitpick-diff-hl--saved)
             diff-hl-highlight-reference-function (cdr nitpick-diff-hl--saved)
             nitpick-diff-hl--saved nil)))
+  (nitpick-diff-hl--forget-specs)
   (nitpick-diff-hl--redraw))
 
 ;;;; diff-hl: give it the zero-context diffs it parses

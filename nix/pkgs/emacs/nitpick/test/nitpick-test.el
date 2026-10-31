@@ -516,6 +516,38 @@ hold are faked; the suite asserts on the overlays nitpick produces."
                        '(reference working)))
         (should (eq (overlay-get ovl 'face) 'nitpick-diff-hl-line-insert))))))
 
+(defvar diff-hl-fringe-flat-bmp)
+
+(defvar diff-hl-spec-cache)
+
+(ert-deftest nitpick-test-diff-hl-line-mode-forgets-cached-specs ()
+  "diff-hl caches a fringe spec per change type and hands the same one back,
+so the cache has to go when the bitmap a removal gets changes."
+  (let ((diff-hl-spec-cache (make-hash-table :test 'equal)))
+    (puthash '(delete nil left) "stale" diff-hl-spec-cache)
+    (nitpick-test--with-diff-hl
+      (nitpick-diff-hl-line-mode 1)
+      (should (zerop (hash-table-count diff-hl-spec-cache)))
+      (puthash '(delete nil left) "stale again" diff-hl-spec-cache)
+      (nitpick-diff-hl-line-mode -1)
+      (should (zerop (hash-table-count diff-hl-spec-cache))))))
+
+(ert-deftest nitpick-test-diff-hl-removals-get-a-visible-bitmap ()
+  "A removal has no line background to be seen by, so it needs the fringe."
+  (nitpick-test--with-diff-hl
+    (let ((diff-hl-fringe-flat-bmp 'diff-hl-bmp-empty)
+          (nitpick-diff-hl-delete-bmp 'zz-visible)
+          seen)
+      (nitpick-test--with-stubs
+          ((diff-hl-highlight-on-fringe-flat
+            (lambda (&rest _) (push diff-hl-fringe-flat-bmp seen))))
+        (nitpick-test--in-buffer
+          (let ((ovl (nitpick-test--line-overlay 2)))
+            (nitpick-diff-hl-highlight-line-flat ovl 'delete 'single)
+            (nitpick-diff-hl-highlight-line-flat ovl 'insert 'single))))
+      ;; the removal is drawn with the visible one, the rest stay flat
+      (should (equal seen '(diff-hl-bmp-empty zz-visible))))))
+
 (defmacro nitpick-test--with-set-base (&rest body)
   "Run BODY with `nitpick-diff-hl-set-base' stubbed down to its own logic.
 Magit, diff-hl and the project are faked; `nitpick-diff-hl--bases' starts empty."
