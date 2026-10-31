@@ -51,6 +51,7 @@
 (defvar diff-hl-highlight-reference-function)
 (defvar diff-hl-fringe-flat-bmp)
 (defvar diff-hl-spec-cache)
+(defvar diff-hl-fringe-face-function)
 (declare-function projectile-invalidate-cache "projectile" (prompt))
 (declare-function eieio-oref "eieio-core" (obj slot))
 
@@ -361,6 +362,15 @@ uncommitted changes (a review worktree should have none)."
   "Background for whole lines the PR modifies."
   :group 'nitpick)
 
+(defface nitpick-diff-hl-delete
+  '((((background dark))  :foreground "#bf616a")
+    (((background light)) :foreground "#a33a3a"))
+  "Fringe colour for a line the base has and this revision does not.
+`diff-hl-delete' is what diff-hl would use, and it carries no colour of its
+own: themes that leave it alone paint the marker in the fringe's own
+foreground, which reads as neither added nor removed."
+  :group 'nitpick)
+
 (defcustom nitpick-diff-hl-line-faces
   '((insert . nitpick-diff-hl-line-insert)
     (change . nitpick-diff-hl-line-change))
@@ -431,15 +441,22 @@ For the working-tree pass; TYPE and SHAPE are diff-hl's."
   (funcall (nitpick-diff-hl--inner nil) ovl type shape)
   (nitpick-diff-hl--paint-line ovl type))
 
+(defun nitpick-diff-hl--delete-face (&rest _)
+  "Return the face for a removal's fringe marker.
+A function, and a named one, because that is what `diff-hl-fringe-spec'
+asks for and what it keys its cache on."
+  'nitpick-diff-hl-delete)
+
 (defun nitpick-diff-hl-highlight-line-flat (ovl type shape)
   "Highlight OVL as diff-hl would, then paint its whole line.
 For the reference-revision pass; TYPE and SHAPE are diff-hl's.
-A removal is drawn with `nitpick-diff-hl-delete-bmp' instead of the flat
-bitmap, which is the one change that would otherwise be invisible."
-  (let ((diff-hl-fringe-flat-bmp
-         (if (eq type 'delete)
-             nitpick-diff-hl-delete-bmp
-           (bound-and-true-p diff-hl-fringe-flat-bmp))))
+A removal is drawn with `nitpick-diff-hl-delete-bmp' in
+`nitpick-diff-hl-delete': the one change with no line background to be seen
+by, so it is also the one that needs the fringe to carry the colour."
+  (if (eq type 'delete)
+      (let ((diff-hl-fringe-flat-bmp nitpick-diff-hl-delete-bmp)
+            (diff-hl-fringe-face-function #'nitpick-diff-hl--delete-face))
+        (funcall (nitpick-diff-hl--inner t) ovl type shape))
     (funcall (nitpick-diff-hl--inner t) ovl type shape))
   (nitpick-diff-hl--paint-line ovl type))
 

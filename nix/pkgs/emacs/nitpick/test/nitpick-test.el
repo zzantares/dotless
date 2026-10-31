@@ -517,6 +517,7 @@ hold are faked; the suite asserts on the overlays nitpick produces."
         (should (eq (overlay-get ovl 'face) 'nitpick-diff-hl-line-insert))))))
 
 (defvar diff-hl-fringe-flat-bmp)
+(defvar diff-hl-fringe-face-function)
 
 (defvar diff-hl-spec-cache)
 
@@ -547,6 +548,23 @@ so the cache has to go when the bitmap a removal gets changes."
             (nitpick-diff-hl-highlight-line-flat ovl 'insert 'single))))
       ;; the removal is drawn with the visible one, the rest stay flat
       (should (equal seen '(diff-hl-bmp-empty zz-visible))))))
+
+(ert-deftest nitpick-test-diff-hl-removals-carry-their-own-colour ()
+  "`diff-hl-delete' is colourless in plenty of themes, so the marker brings
+its own face rather than inheriting whatever the fringe paints with."
+  (nitpick-test--with-diff-hl
+    (let (seen)
+      (nitpick-test--with-stubs
+          ((diff-hl-highlight-on-fringe-flat
+            (lambda (&rest _)
+              (push (funcall diff-hl-fringe-face-function 'delete nil) seen))))
+        (nitpick-test--in-buffer
+          (let ((ovl (nitpick-test--line-overlay 2))
+                (diff-hl-fringe-face-function #'ignore))
+            (nitpick-diff-hl-highlight-line-flat ovl 'delete 'single)
+            ;; and a change is left to diff-hl's own face function
+            (nitpick-diff-hl-highlight-line-flat ovl 'change 'single))))
+      (should (equal seen '(nil nitpick-diff-hl-delete))))))
 
 (defmacro nitpick-test--with-set-base (&rest body)
   "Run BODY with `nitpick-diff-hl-set-base' stubbed down to its own logic.
