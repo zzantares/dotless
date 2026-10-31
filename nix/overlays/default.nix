@@ -4,12 +4,56 @@ final: prev:
 
 let
   system = prev.stdenv.hostPlatform.system;
+
+  hsLib = final.haskell.lib.compose;
+
+  # nixpkgs generates its Haskell set from a Hackage snapshot pinned in
+  # pkgs/data/misc/hackage/pin.json, months behind Hackage, so a recent
+  # release is absent from every compiler's set. Overridden for this set
+  # only, leaving pkgs.all-cabal-hashes and its other consumers alone.
+  hackagePin = import ../hackage-snapshot.nix;
+
+  hackageSnapshot = final.fetchurl {
+    url = "https://github.com/commercialhaskell/all-cabal-hashes/archive/${hackagePin.rev}.tar.gz";
+    inherit (hackagePin) hash;
+  };
+
+  # hs-bindgen and its Well-Typed siblings all postdate nixpkgs' snapshot,
+  # so the whole family comes from the newer one above.
+  haskellOverrides = hself: hsuper: {
+    c-expr-runtime = hself.callHackage "c-expr-runtime" "0.2.0.0" { };
+    c-expr-dsl = hself.callHackage "c-expr-dsl" "0.2.0.0" { };
+    doxygen-parser = hself.callHackage "doxygen-parser" "0.1.2" { };
+    hs-bindgen-runtime = hself.callHackage "hs-bindgen-runtime" "1.0.0.0" { };
+
+    # Its test suite needs optics, whose own tests fail on ghc912 in
+    # nixpkgs, and build-tool-depends on the hs-bindgen-cli it builds.
+    hs-bindgen = hsLib.dontCheck (hself.callHackage "hs-bindgen" "1.0.0.0" { });
+
+    # build-type: Configure; its script probes for llvm-config on PATH.
+    # Its test suite pins tasty <1.5.4 against nixpkgs' 1.5.4.
+    libclang-bindings = hsLib.dontCheck (
+      hsLib.addBuildTool final.llvmPackages.llvm.dev (
+        hsLib.addBuildDepends [
+          final.llvmPackages.libclang.lib
+          final.llvmPackages.libclang.dev
+        ] (hself.callHackage "libclang-bindings" "0.2.0.0" { })
+      )
+    );
+
+    # Unrelated to the above: a timing-sensitive concurrency suite that
+    # fails at random, on 9.10 too, taking the batteries closure with it.
+    threads = hsLib.dontCheck hsuper.threads;
+  };
 in
 
 {
   nix = final.nixVersions.latest;
 
-  myHaskellPackages = final.haskell.packages.ghc910;
+  myHaskellPackages = final.haskell.packages.ghc912.override {
+    all-cabal-hashes = hackageSnapshot;
+    overrides = haskellOverrides;
+  };
 
   aspell-with-dicts = final.aspellWithDicts (
     ds: with ds; [
@@ -644,6 +688,7 @@ in
       # listing them here
       HUnit
       QuickCheck
+      accelerate
       aeson
       async
       attoparsec
@@ -665,6 +710,7 @@ in
       haskell-language-server
       haskell-src-exts
       hedgehog
+      hs-bindgen
       hspec
       hspec-expectations
       hspec-wai
