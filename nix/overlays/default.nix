@@ -50,6 +50,17 @@ in
 {
   nix = final.nixVersions.latest;
 
+  # Our nixpkgs pin predates the fix for afew's `man` output, which sphinxHook
+  # leaves empty, failing the build. Mirrors nixpkgs master (NixOS/nixpkgs#573479);
+  # drop it on the next nixpkgs bump.
+  afew = prev.afew.overrideAttrs (old: {
+    sphinxRoot = "docs";
+    postInstall = (old.postInstall or "") + ''
+      sphinx-build -b man docs docs/build/man
+      install -Dm644 docs/build/man/*.1 -t $man/share/man/man1/
+    '';
+  });
+
   myHaskellPackages = final.haskell.packages.ghc912.override {
     all-cabal-hashes = hackageSnapshot;
     overrides = haskellOverrides;
