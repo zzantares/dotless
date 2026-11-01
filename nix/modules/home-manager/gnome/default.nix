@@ -11,7 +11,6 @@ let
   # TODO these are managed outised of HM (I could try removing and put them in here instead)
   # Getting them from nixpkgs would get me versions not compatible with GNOME Shell version
   # - desktop-icons-ng-ding
-  # - x11-gestures
 
   gnome-extensions = with pkgs.gnomeExtensions; [
     forge
@@ -21,7 +20,6 @@ let
     blur-my-shell # Aesthetic gaussian blur on the panel, overview, and app grid
     appindicator # Legacy tray/status icons for background apps (Discord, Slack, …)
     vitals # System resource metrics (CPU, memory, temperature, network) in the panel
-    x11-gestures
     # GNOME slides the viewport left/right on workspace switch, which fakes a
     # linear ordering that's misleading with our fixed, app-pinned slots (you
     # jump around by <Super>+letter, not along a row). GNOME has no dconf key to
