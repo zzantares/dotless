@@ -326,11 +326,16 @@ in
   '';
 
   # Flags the current session as needing input, for the Claude Code Notification
-  # hook. tmux: an option the status bar reads. wezterm: a marker on the tab title,
-  # cleared again by wezterm.lua when you switch to that workspace.
+  # hook. herdr: its own notification, which prefix+shift+O then focuses. tmux: an
+  # option the status bar reads. wezterm: a marker on the tab title, cleared again
+  # by wezterm.lua when you switch to that workspace.
+  #
+  # herdr comes first: it runs inside a terminal, so WEZTERM_PANE is set there too.
   claude-attention = final.writeShellScriptBin "claude-attention" ''
     #!/usr/bin/env bash
-    if [ -n "''${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    if [ "''${HERDR_ENV:-}" = 1 ] && command -v herdr >/dev/null 2>&1; then
+      herdr notification show "Claude - Needs Input" --sound request >/dev/null 2>&1
+    elif [ -n "''${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
       tmux set-option @claude_attention 1
     elif [ -n "''${WEZTERM_PANE:-}" ] && command -v wezterm >/dev/null 2>&1; then
       title=$(wezterm cli list --format json 2>/dev/null |

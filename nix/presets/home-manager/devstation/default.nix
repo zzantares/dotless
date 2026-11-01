@@ -13,6 +13,7 @@
     ./../../../modules/home-manager/programs/git
     ./../../../modules/home-manager/programs/jujutsu
     ./../../../modules/home-manager/programs/tmux
+    ./../../../modules/home-manager/programs/herdr
     ./../../../modules/home-manager/programs/zsh
     ./../../../modules/home-manager/programs/bat
     ./../../../modules/home-manager/email

@@ -86,6 +86,7 @@
         zsh = ./nix/modules/home-manager/programs/zsh;
         zsh-bare = ./nix/modules/home-manager/programs/zsh-bare;
         tmux = ./nix/modules/home-manager/programs/tmux;
+        herdr = ./nix/modules/home-manager/programs/herdr;
         bat = ./nix/modules/home-manager/programs/bat;
         alacritty = ./nix/modules/home-manager/programs/alacritty;
         emacs = ./nix/modules/home-manager/programs/emacs;
