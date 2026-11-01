@@ -8,6 +8,18 @@
 
 # This module is only meant to be used in non-NixOS systems (i.e. generic linux distros)
 
+let
+  # nixpkgs dropped `pcre` (EOL), but nixGL's checkPhase still calls pcregrep.
+  # Serve that name out of pcre2 - same syntax for nixGL's one pattern.
+  pcregrep = pkgs.runCommand "pcregrep-pcre2" { } ''
+    mkdir -p $out/bin
+    ln -s ${lib.getExe' pkgs.pcre2 "pcre2grep"} $out/bin/pcregrep
+  '';
+
+  # Calling nixGL.nix instead of its default.nix is what lets pcre be
+  # substituted; default.nix only forwards the nvidia defaults picked up here.
+  nixgl = pkgs.callPackage "${inputs.nixGL}/nixGL.nix" { pcre = pcregrep; };
+in
 {
   home.sessionVariables = {
     # So that CLI tools can use any locale other than "C"
@@ -24,7 +36,7 @@
     enable = lib.mkDefault true;
 
     # This instructs the HM nixGL module to actually use nixGL rather than bypass it
-    nixGL.packages = inputs.nixGL.packages;
+    nixGL.packages = nixgl;
   };
 
   # TODO is this necessary? the nix module does this?
