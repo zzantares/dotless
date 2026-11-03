@@ -125,6 +125,14 @@ in
           --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
           --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
 
+        # The diff pane scrolls through its own viewport keymap, not keys.go
+        # above, so it needs the same Colemak nav.
+        substituteInPlace pkg/ui/panes/diffviewer/diffviewer.go \
+          --replace-fail 'key.WithKeys("up", "k", "ctrl+y"),' 'key.WithKeys("up", "h", "ctrl+y"),' \
+          --replace-fail 'key.WithKeys("down", "j", "ctrl+e"),' 'key.WithKeys("down", "k", "ctrl+e"),' \
+          --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
+          --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),'
+
         # Expand and Toggle, for the `o` and tab cases below.
         substituteInPlace pkg/ui/panes/filetree/filetree.go \
           --replace-fail '
