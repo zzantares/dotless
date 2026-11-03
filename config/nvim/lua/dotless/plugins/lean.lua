@@ -5,8 +5,12 @@ return {
 		-- `lsp/leanls.lua` runs `lake serve`, so all it needs is
 		-- `toolchains.lean` on PATH.
 		"Julian/lean.nvim",
-		opts = {
-			mappings = true,
-		},
+		-- `init`, not `opts`: upstream dropped `setup()`, and its ftplugin
+		-- self-activates, so the global must be set before a .lean buffer.
+		init = function()
+			vim.g.lean_config = {
+				mappings = true,
+			}
+		end,
 	},
 }
