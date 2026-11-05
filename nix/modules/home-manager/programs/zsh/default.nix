@@ -27,7 +27,6 @@
     hsfmt = "fd -e hs -X fourmolu --color always --check-idempotence --mode check";
     check = "cabal build --disable-optimization --ghc-options=\"+RTS -A256m -I0 -RTS -fno-code\"";
     recheck = "git diff --name-only | rg '\.hs$' | zz-hs-file-components | rg ':lib:' | xargs --no-run-if-empty cabal build --disable-optimization --ghc-options=\"+RTS -A256m -I0 -RTS -fno-code\"";
-    dev = "ghcid --command \"cabal repl $@\"";
   }
   // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
     doom-reload = "doom sync && systemctl --user restart emacs.service";
