@@ -4,7 +4,9 @@ function M.setup()
 	local g = vim.g
 	local o = vim.opt
 
+	-- Doom's leader keys. Set here, before keymap.lua runs.
 	g.mapleader = " "
+	g.maplocalleader = " m"
 
 	o.termguicolors = true
 	o.cursorline = false -- highlight current line

@@ -63,7 +63,7 @@ function M.setup(opts)
 
 	-- Set before lazy loads, so mappings declared in specs resolve correctly.
 	vim.g.mapleader = " "
-	vim.g.maplocalleader = "\\"
+	vim.g.maplocalleader = " m"
 
 	local config = vim.tbl_deep_extend("force", M.opts, opts)
 	config.spec = opts.spec or M.specs
