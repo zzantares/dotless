@@ -1294,5 +1294,76 @@ MERGED is the branches `git branch --merged' would list."
          (magit-main-branch (lambda () "master")))
       (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt") "master...")))))
 
+;;;; Changed-file tree: painting what it lists
+
+(ert-deftest nitpick-test-tree-paint-turns-on-the-line-mode ()
+  "Opening the pane spares you `nitpick-diff-hl-line-mode' by hand."
+  (let ((nitpick-tree-paint-lines t)
+        (called nil))
+    ;; diff-hl is not in the suite's load path, and `nitpick-tree--paint' is
+    ;; right to stop without it: say it is there instead of loading it.
+    (nitpick-test--with-stubs
+        ((nitpick-tree--diff-hl-available-p (lambda () t))
+         (nitpick-diff-hl-line-mode (lambda (&rest args) (setq called args))))
+      (let ((nitpick-diff-hl-line-mode nil))
+        (nitpick-tree--paint)
+        (should (equal called '(1)))))))
+
+(ert-deftest nitpick-test-tree-paint-does-nothing-without-diff-hl ()
+  "The line mode reads diff-hl's highlight slots as it starts, so it cannot
+run before diff-hl has defined them."
+  (let ((nitpick-tree-paint-lines t)
+        (called nil))
+    (nitpick-test--with-stubs
+        ((nitpick-diff-hl-line-mode (lambda (&rest args) (setq called args))))
+      (let ((nitpick-diff-hl-line-mode nil))
+        (nitpick-tree--paint)
+        (should-not called)))))
+
+(ert-deftest nitpick-test-tree-paint-leaves-the-line-mode-alone-when-on ()
+  "Already painting: nothing to do, and no redraw to pay for."
+  (let ((nitpick-tree-paint-lines t)
+        (called nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--diff-hl-available-p (lambda () t))
+         (nitpick-diff-hl-line-mode (lambda (&rest args) (setq called args))))
+      (let ((nitpick-diff-hl-line-mode t))
+        (nitpick-tree--paint)
+        (should-not called)))))
+
+(ert-deftest nitpick-test-tree-paint-obeys-its-option ()
+  "The option is how you say no to both halves of the painting."
+  (let ((nitpick-tree-paint-lines nil)
+        (called nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--diff-hl-available-p (lambda () t))
+         (nitpick-diff-hl-line-mode (lambda (&rest args) (setq called args))))
+      (let ((nitpick-diff-hl-line-mode nil))
+        (nitpick-tree--paint)
+        (should-not called)))))
+
+(ert-deftest nitpick-test-tree-paint-buffer-turns-diff-hl-on-locally ()
+  "A file with diff-hl off has nothing to show, whatever the line mode does."
+  (let ((nitpick-tree-paint-lines t)
+        (called nil))
+    (nitpick-test--with-stubs
+        ((diff-hl-mode (lambda (&rest args) (setq called args))))
+      (with-temp-buffer
+        (setq buffer-file-name "/tmp/wt/a.el")
+        (let ((diff-hl-mode nil))
+          (nitpick-tree--paint-buffer)
+          (should (equal called '(1))))))))
+
+(ert-deftest nitpick-test-tree-paint-buffer-skips-what-is-not-a-file ()
+  "Nothing to diff in a buffer with no file behind it."
+  (let ((nitpick-tree-paint-lines t)
+        (called nil))
+    (nitpick-test--with-stubs
+        ((diff-hl-mode (lambda (&rest args) (setq called args))))
+      (with-temp-buffer
+        (let ((diff-hl-mode nil))
+          (nitpick-tree--paint-buffer)
+          (should-not called))))))
+
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

@@ -40,6 +40,7 @@
 (declare-function treemacs-icon-for-file "treemacs-icons" (file))
 (declare-function treemacs-icon-for-dir "treemacs-icons" (dir state))
 (declare-function treemacs-collapse-extension-node "treemacs-treelib" (&optional arg))
+(declare-function diff-hl-mode "diff-hl" (&optional arg))
 (declare-function diff-hl-update "diff-hl" ())
 (declare-function diff-hl-next-hunk "diff-hl" (&optional backward))
 (defvar diff-hl-mode)
@@ -82,6 +83,15 @@ Only when this worktree has no base yet, so an answer you gave stands.  With
 it the pane and the files you open from it agree on the first keystroke:
 without it the pane lists what the branch changed while the files still paint
 their uncommitted edits, until `nitpick-diff-hl-set-base' is run too."
+  :type 'boolean
+  :group 'nitpick)
+
+(defcustom nitpick-tree-paint-lines t
+  "Whether the pane makes sure the files it opens show their changes.
+`diff-hl-mode' in the file, so there is anything to see at all, and
+`nitpick-diff-hl-line-mode' for whole-line backgrounds rather than fringe
+marks alone, which is what a diff of any size wants.  The line mode is global,
+the way the command that toggles it is - this only spares you running it."
   :type 'boolean
   :group 'nitpick)
 
@@ -342,6 +352,29 @@ a letter."
   (let ((btn (treemacs-node-at-point)))
     (and btn (get-text-property btn :nitpick-node))))
 
+(defun nitpick-tree--diff-hl-available-p ()
+  "Whether diff-hl is there to be driven, loading it if it is not loaded yet."
+  (or (featurep 'diff-hl) (require 'diff-hl nil t)))
+
+(defun nitpick-tree--paint ()
+  "Turn on whole-line painting, unless it is on or unwanted.
+Nothing happens without diff-hl: the mode reads its highlight slots as it
+starts, so it cannot run before diff-hl has defined them."
+  (when (and nitpick-tree-paint-lines
+             (not (bound-and-true-p nitpick-diff-hl-line-mode))
+             (nitpick-tree--diff-hl-available-p))
+    (nitpick-diff-hl-line-mode 1)))
+
+(defun nitpick-tree--paint-buffer ()
+  "Turn on `diff-hl-mode' in the current buffer if it is off.
+Buffer-local, so a file opened from the pane shows its changes without
+diff-hl being turned on everywhere on the pane\='s behalf."
+  (when (and nitpick-tree-paint-lines
+             (not (bound-and-true-p diff-hl-mode))
+             (buffer-file-name)
+             (fboundp 'diff-hl-mode))
+    (diff-hl-mode 1)))
+
 (defun nitpick-tree--show-hunk ()
   "Move point to the first change in the current buffer, if it has one.
 diff-hl's own update is asked for synchronously first: a file opened a moment
@@ -382,6 +415,7 @@ no longer - read-only, the way magit shows a blob."
       (setq window (display-buffer buffer)))
     (when (and window (not stay))
       (select-window window)
+      (nitpick-tree--paint-buffer)
       (nitpick-tree--show-hunk))))
 
 (defun nitpick-tree-visit (&optional arg)
@@ -556,7 +590,9 @@ somewhere new.
 
 Unless `nitpick-tree-set-base' says otherwise, a worktree with no base yet
 gets pointed at REVISION, so the files opened from the pane paint the same
-changes the pane lists.  A base already picked is left alone.
+changes the pane lists.  A base already picked is left alone.  And unless
+`nitpick-tree-paint-lines' says otherwise, those changes are painted as whole
+lines rather than fringe marks alone.
 
 Called again it re-renders, which is also the refresh: committing, staging or
 unstaging redraws it, and nothing else does."
@@ -574,6 +610,7 @@ unstaging redraws it, and nothing else does."
                  (magit-read-branch-or-commit "Tree of changes vs" suggested)
                suggested)))))
   (nitpick-tree--define)
+  (nitpick-tree--paint)
   ;; Before reading the diff: this also caches the revision, which is what
   ;; stops a second opening from setting it again over an answer since given.
   (when (and nitpick-tree-set-base

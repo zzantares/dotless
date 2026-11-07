@@ -70,6 +70,12 @@ opened from the pane paint the same changes the pane lists - one keystroke
 instead of `nitpick-diff-hl-set-base` first. A base already picked is left
 alone, and `nitpick-tree-set-base` turns this off.
 
+Those changes are drawn as whole lines, not fringe marks alone: opening the
+pane turns on `nitpick-diff-hl-line-mode`, and a file opened from it gets
+`diff-hl-mode` buffer-locally if it was off, since otherwise there is nothing
+to paint. `nitpick-tree-paint-lines` turns both off. Nothing happens without
+diff-hl loaded - the line mode reads its highlight slots as it starts.
+
 Calling it again re-renders, and so is the refresh; committing, staging and
 unstaging redraw it too, because git gives no notification of its own and a
 pane of a diff goes stale exactly when the diff does.
