@@ -61,9 +61,14 @@ revision's changes. A prefix argument keeps the focus in the pane, so a review
 can be opened file by file without leaving it.
 
 The revision is the one this worktree last picked, through
-`nitpick-diff-hl-set-base` or through checking out a PR's worktree, so the pane
-lists exactly the files diff-hl is painting. `C-u` asks for another, and is
-also how the pane is pointed somewhere new.
+`nitpick-diff-hl-set-base` or through checking out a PR's worktree, and failing
+that the nearest ancestor branch (below). `C-u` asks for another, and is also
+how the pane is pointed somewhere new.
+
+A worktree with no base yet also gets pointed at that revision, so the files
+opened from the pane paint the same changes the pane lists - one keystroke
+instead of `nitpick-diff-hl-set-base` first. A base already picked is left
+alone, and `nitpick-tree-set-base` turns this off.
 
 Calling it again re-renders, and so is the refresh; committing, staging and
 unstaging redraw it too, because git gives no notification of its own and a
@@ -156,6 +161,22 @@ Two decisions, one each:
   your own uncommitted edits. Checking out a PR worktree sets it to the PR's
   base as the remote has it, and each worktree's last answer is what the
   prompt suggests next time.
+
+  Nothing answered yet, the base is **inferred from the commit graph**: of
+  every local branch, the one whose merge base sits closest to HEAD, with
+  `...` appended. That is the branch HEAD left last, so a stack resolves to
+  its parent - the parent's own tip *is* that merge base - and everything else
+  to the default branch. Two rules keep it honest: a branch already merged into
+  the default branch is not a candidate (a fast-forward merge leaves its tip
+  exactly on your fork point, where it would otherwise outrank the default
+  branch on nothing but its name), and the default branch wins a tie. On the
+  default branch itself, or a detached HEAD, nothing is inferred.
+
+  The order is: this worktree's last answer, the open PR's base, the graph,
+  then the default branch as the remote has it. The forge comes first because
+  it knows the answer where the graph only has evidence for it; the graph comes
+  before the remote's default branch because it is right about a stack, and
+  because a remote-tracking ref is only as current as the last fetch.
 
   The comparison is `git diff <revision>`, against its tip, so it agrees with
   magit's diff of the same revision. A trailing `...` asks for the merge base

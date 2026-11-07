@@ -76,6 +76,15 @@ carry no line counts, only the `?' marker."
   :type 'boolean
   :group 'nitpick)
 
+(defcustom nitpick-tree-set-base t
+  "Whether opening the pane also points diff-hl at the revision it lists.
+Only when this worktree has no base yet, so an answer you gave stands.  With
+it the pane and the files you open from it agree on the first keystroke:
+without it the pane lists what the branch changed while the files still paint
+their uncommitted edits, until `nitpick-diff-hl-set-base' is run too."
+  :type 'boolean
+  :group 'nitpick)
+
 (defcustom nitpick-tree-visit-jumps-to-hunk t
   "Whether opening a file from the pane moves point to its first change.
 The file opens at its first changed line instead of wherever it was left, so
@@ -540,9 +549,14 @@ separates it from a file tree with git colours on it.  RET opens the real file,
 where diff-hl is painting the same revision's changes.
 
 REVISION defaults to the one this worktree last picked - through
-`nitpick-diff-hl-set-base', or the PR a worktree was checked out for - so the
-pane lists the files diff-hl is already painting.  A prefix argument asks for
-another, and is also how the pane is pointed somewhere new.
+`nitpick-diff-hl-set-base', or the PR a worktree was checked out for - and
+failing that to the nearest ancestor branch, worked out from the commit graph.
+A prefix argument asks for another, and is also how the pane is pointed
+somewhere new.
+
+Unless `nitpick-tree-set-base' says otherwise, a worktree with no base yet
+gets pointed at REVISION, so the files opened from the pane paint the same
+changes the pane lists.  A base already picked is left alone.
 
 Called again it re-renders, which is also the refresh: committing, staging or
 unstaging redraws it, and nothing else does."
@@ -560,6 +574,12 @@ unstaging redraws it, and nothing else does."
                  (magit-read-branch-or-commit "Tree of changes vs" suggested)
                suggested)))))
   (nitpick-tree--define)
+  ;; Before reading the diff: this also caches the revision, which is what
+  ;; stops a second opening from setting it again over an answer since given.
+  (when (and nitpick-tree-set-base
+             (not (alist-get (nitpick-diff-hl--root root) nitpick-diff-hl--bases
+                             nil nil #'string-equal)))
+    (nitpick-diff-hl-set-base root revision))
   (let* ((files (nitpick-tree--changes root revision))
          (items (nitpick-tree--build files root))
          (stats (nitpick-tree--totals files))

@@ -32,6 +32,11 @@
 (declare-function magit-rev-verify "magit-git" (rev))
 (declare-function magit-main-branch "magit-git" ())
 (declare-function magit-rev-abbrev "magit-git" (rev))
+(declare-function magit-rev-parse "magit-git" (&rest args))
+(declare-function magit-git-lines "magit-git" (&rest args))
+(declare-function magit-git-success "magit-git" (&rest args))
+(declare-function magit-get-current-branch "magit-git" ())
+(declare-function magit-list-local-branch-names "magit-git" ())
 (declare-function magit-read-branch-or-commit "magit-git" (prompt &optional secondary-default exclude))
 (declare-function magit-run-git "magit-process" (&rest args))
 (declare-function forge--get-remote "forge-repo" (&optional remote))
@@ -656,15 +661,93 @@ so the command that set the base returns first."
   "Return ROOT in the one spelling the base-ref cache is keyed by."
   (file-name-as-directory (expand-file-name root)))
 
+(defun nitpick--nearest-branch (candidates main)
+  "Return the branch in CANDIDATES whose merge base sits closest to HEAD.
+CANDIDATES is a list of (BRANCH . DISTANCE), DISTANCE being the number of
+commits between that branch's merge base with HEAD and HEAD itself.  The
+smallest one is the branch HEAD most recently left: in a stack the parent's
+own tip is that merge base, so the parent wins over what it was branched from.
+
+MAIN wins a tie.  A branch merged with a fast-forward leaves its tip exactly
+at the fork point it shares with MAIN, which ties, and would otherwise be
+picked over MAIN on nothing but the order branches are listed in."
+  (let (best best-distance)
+    (dolist (candidate candidates)
+      (let ((branch (car candidate))
+            (distance (cdr candidate)))
+        (when (or (null best-distance)
+                  (< distance best-distance)
+                  (and (= distance best-distance) (equal branch main)))
+          (setq best branch
+                best-distance distance))))
+    best))
+
+(defun nitpick--base-candidates (main)
+  "Return (BRANCH . DISTANCE) for each local branch HEAD could have left.
+Branches already merged into MAIN are left out, MAIN itself excepted: they
+are finished work, and a fast-forward merge leaves one sitting exactly on a
+fork point where it would outrank MAIN.  So is anything HEAD is an ancestor
+of, which is a branch built on this one rather than the one under it."
+  (let* ((head (magit-get-current-branch))
+         (head-rev (magit-rev-parse "HEAD"))
+         (merged (and main (magit-git-lines "branch" "--format=%(refname:short)"
+                                            "--merged" main))))
+    (delq nil
+          (mapcar
+           (lambda (branch)
+             (unless (or (equal branch head)
+                         (and (not (equal branch main)) (member branch merged)))
+               (let ((base (magit-git-string "merge-base" "HEAD" branch)))
+                 (and base
+                      (not (equal base head-rev))
+                      (cons branch
+                            (string-to-number
+                             (or (magit-git-string "rev-list" "--count"
+                                                   (concat base "..HEAD"))
+                                 "0")))))))
+           (magit-list-local-branch-names)))))
+
+(defun nitpick--nearest-base (root)
+  "Return the revision ROOT's branch was most likely made from, or nil.
+The nearest ancestor branch with `...' appended, so what is compared is what
+this branch changed since it left that one - the forge's own \"Files
+changed\", and the answer wanted when reviewing a branch rather than catching
+up with where its base has gone since.
+
+Nil on the main branch itself and on a detached HEAD: neither was made from
+anything, so there is nothing to infer and the caller falls back."
+  (let* ((default-directory root)
+         (main (nitpick-diff-hl--default-base root))
+         (head (magit-get-current-branch)))
+    (cond
+     ((or (null head) (null main) (equal head main)) nil)
+     ;; Already merged: it has nothing of its own left, so compare against
+     ;; main and let the answer be the empty diff that it is.
+     ((magit-git-success "merge-base" "--is-ancestor" head main)
+      (concat main nitpick--merge-base-suffix))
+     (t (let ((nearest (nitpick--nearest-branch (nitpick--base-candidates main) main)))
+          (and nearest (concat nearest nitpick--merge-base-suffix)))))))
+
 (defun nitpick-diff-hl--suggested-base (root)
   "Return the revision to preselect when asking what to diff ROOT against.
-This worktree's last answer, else the open PR's base, else ROOT's default
-branch - the last two as the remote has them, which is the forge's own view
-of the branch.  Nil when none of the three can be worked out: the prompt
-still opens, it just suggests nothing."
+In order: this worktree's last answer; the open PR's base, as the remote has
+it, which is the forge's own view; the nearest ancestor branch, worked out
+from the commit graph by `nitpick--nearest-base'; else ROOT's default branch
+as the remote has it.
+
+The forge comes before the graph because it knows the answer while the graph
+only has evidence for it.  The graph comes before the remote's default branch
+because it is right about a stack, and because a remote-tracking ref is only
+as current as the last fetch.
+
+Nil when none of them can be worked out: the prompt still opens, it just
+suggests nothing."
   (or (alist-get (nitpick-diff-hl--root root) nitpick-diff-hl--bases nil nil #'string-equal)
-      (let ((branch (or (ignore-errors (alist-get 'base (nitpick--pr-ctx root)))
-                        (nitpick-diff-hl--default-base root))))
+      (let ((branch (ignore-errors (alist-get 'base (nitpick--pr-ctx root)))))
+        (and branch (let ((default-directory root))
+                      (concat (nitpick--remote) "/" branch))))
+      (nitpick--nearest-base root)
+      (let ((branch (nitpick-diff-hl--default-base root)))
         (and branch (let ((default-directory root))
                       (concat (nitpick--remote) "/" branch))))))
 

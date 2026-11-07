@@ -828,6 +828,8 @@ remote has it - the forge diffs against the remote's copy, not a local branch."
   (let ((nitpick-diff-hl--bases nil))
     (nitpick-test--with-stubs
         ((nitpick--pr-ctx (lambda (&rest _) (error "gh pr view failed")))
+         ;; the graph has nothing to offer either: that is this test's premise
+         (nitpick--nearest-base (lambda (&rest _) nil))
          (magit-main-branch (lambda () "master"))
          (magit-git-string (lambda (&rest _) nil)))
       (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt") "origin/master")))))
@@ -847,6 +849,7 @@ remote has it - the forge diffs against the remote's copy, not a local branch."
   (let ((nitpick-diff-hl--bases nil))
     (nitpick-test--with-stubs
         ((nitpick--pr-ctx (lambda (&rest _) (error "gh pr view failed")))
+         (nitpick--nearest-base (lambda (&rest _) nil))
          (magit-main-branch (lambda () nil))
          (magit-git-string (lambda (&rest _) nil)))
       (should-not (nitpick-diff-hl--suggested-base "/tmp/wt")))))
@@ -1181,6 +1184,115 @@ stub can answer the three calls a tree needs."
   "Nothing to reuse, so the caller falls back to `display-buffer'."
   (nitpick-test--with-windows (file)
     (should-not (nitpick-tree--visit-window file))))
+
+;;;; diff-hl: inferring the base from the commit graph
+
+(ert-deftest nitpick-test-nearest-branch-takes-the-closest-merge-base ()
+  "The branch HEAD left last is the one whose merge base is nearest to it."
+  (should (equal (nitpick--nearest-branch '(("master" . 9) ("feat-a" . 2)) "master")
+                 "feat-a")))
+
+(ert-deftest nitpick-test-nearest-branch-gives-a-tie-to-the-main-branch ()
+  "A fast-forward merge leaves a branch's tip on the fork point, tying with
+master; order of listing must not decide it."
+  (should (equal (nitpick--nearest-branch
+                  '(("emacs-forge-tiling" . 1) ("master" . 1)) "master")
+                 "master"))
+  ;; and the other way round, so it is the rule deciding and not the order
+  (should (equal (nitpick--nearest-branch
+                  '(("master" . 1) ("emacs-forge-tiling" . 1)) "master")
+                 "master")))
+
+(ert-deftest nitpick-test-nearest-branch-keeps-a-closer-branch-over-main ()
+  "A real stack parent is strictly closer, so the tie rule never reaches it."
+  (should (equal (nitpick--nearest-branch '(("master" . 2) ("feat-a" . 1)) "master")
+                 "feat-a")))
+
+(ert-deftest nitpick-test-nearest-branch-of-nothing-is-nothing ()
+  "No candidate is not an error."
+  (should-not (nitpick--nearest-branch nil "master")))
+
+(defun nitpick-test--graph-stubs (head graph &optional merged)
+  "Return stubs answering for HEAD over GRAPH, an alist of (BRANCH MB DISTANCE).
+MERGED is the branches `git branch --merged' would list."
+  (list (cons 'magit-get-current-branch (lambda () head))
+        (cons 'magit-rev-parse (lambda (&rest _) "headsha"))
+        (cons 'magit-list-local-branch-names (lambda () (mapcar #'car graph)))
+        (cons 'magit-git-lines (lambda (&rest _) merged))
+        (cons 'magit-git-string
+              (lambda (&rest args)
+                (pcase args
+                  (`("merge-base" "HEAD" ,branch) (nth 1 (assoc branch graph)))
+                  (`("rev-list" "--count" ,range)
+                   (let ((base (car (split-string range "\\.\\."))))
+                     (number-to-string
+                      (or (nth 2 (seq-find (lambda (g) (equal (nth 1 g) base)) graph))
+                          0))))
+                  (_ nil))))))
+
+(ert-deftest nitpick-test-base-candidates-drops-branches-merged-into-main ()
+  "Finished work is not what this branch was made from."
+  (nitpick-test--call-with-stubs
+   (nitpick-test--graph-stubs
+    "mine"
+    '(("master" "forkpoint" 1) ("done" "forkpoint" 1) ("mine" "headsha" 0))
+    '("done"))
+   (lambda ()
+     (should (equal (nitpick--base-candidates "master") '(("master" . 1)))))))
+
+(ert-deftest nitpick-test-base-candidates-drops-a-branch-built-on-this-one ()
+  "A branch whose merge base is HEAD itself sits above it, not under it."
+  (nitpick-test--call-with-stubs
+   (nitpick-test--graph-stubs
+    "mine"
+    '(("master" "forkpoint" 3) ("child" "headsha" 0) ("mine" "headsha" 0)))
+   (lambda ()
+     (should (equal (nitpick--base-candidates "master") '(("master" . 3)))))))
+
+(ert-deftest nitpick-test-nearest-base-appends-the-merge-base-suffix ()
+  "What the branch changed since it left, not how far its base has moved."
+  (nitpick-test--call-with-stubs
+   (append
+    (nitpick-test--graph-stubs
+     "feat-b" '(("master" "forkpoint" 4) ("feat-a" "atip" 1) ("feat-b" "headsha" 0)))
+    (list (cons 'nitpick-diff-hl--default-base (lambda (&rest _) "master"))
+          (cons 'magit-git-success (lambda (&rest _) nil))))
+   (lambda ()
+     (should (equal (nitpick--nearest-base "/tmp/wt") "feat-a...")))))
+
+(ert-deftest nitpick-test-nearest-base-is-nil-on-the-main-branch ()
+  "master was not made from anything: there is nothing to infer."
+  (nitpick-test--call-with-stubs
+   (list (cons 'magit-get-current-branch (lambda () "master"))
+         (cons 'nitpick-diff-hl--default-base (lambda (&rest _) "master")))
+   (lambda () (should-not (nitpick--nearest-base "/tmp/wt")))))
+
+(ert-deftest nitpick-test-nearest-base-of-a-merged-branch-is-main ()
+  "Nothing of its own is left, so let the answer be the empty diff it is."
+  (nitpick-test--call-with-stubs
+   (list (cons 'magit-get-current-branch (lambda () "landed"))
+         (cons 'nitpick-diff-hl--default-base (lambda (&rest _) "master"))
+         (cons 'magit-git-success (lambda (&rest _) t)))
+   (lambda () (should (equal (nitpick--nearest-base "/tmp/wt") "master...")))))
+
+(ert-deftest nitpick-test-suggested-base-prefers-the-forge-over-the-graph ()
+  "The forge knows the base; the graph only has evidence for it."
+  (let ((nitpick-diff-hl--bases nil))
+    (nitpick-test--with-stubs
+        ((nitpick--pr-ctx (lambda (&rest _) '((base . "feature/parent"))))
+         (nitpick--nearest-base (lambda (&rest _) "guessed..."))
+         (magit-main-branch (lambda () "master")))
+      (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt")
+                     "origin/feature/parent")))))
+
+(ert-deftest nitpick-test-suggested-base-prefers-the-graph-over-the-remote-head ()
+  "A remote-tracking ref is only as current as the last fetch."
+  (let ((nitpick-diff-hl--bases nil))
+    (nitpick-test--with-stubs
+        ((nitpick--pr-ctx (lambda (&rest _) (error "gh pr view failed")))
+         (nitpick--nearest-base (lambda (&rest _) "master..."))
+         (magit-main-branch (lambda () "master")))
+      (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt") "master...")))))
 
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here
