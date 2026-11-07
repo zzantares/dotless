@@ -126,6 +126,16 @@ in
           "l" = "vim::Right";
         };
       }
+      # `z v` parks the line 13 rows down, like Doom's scroll-line-to-quarter.
+      # Keystrokes, not an action: Zed has no scroll-to-offset. Replayed
+      # through this keymap, so h is up and k is down.
+      {
+        context = "vim_mode == normal || vim_mode == visual";
+        bindings."z v" = [
+          "workspace::SendKeystrokes"
+          "1 3 h z t 1 3 k"
+        ];
+      }
       # Possibly redundant: the `Editor && VimControl` block below binds the
       # same four keys and reaches further. Kept for focus inside a panel,
       # which that context does not cover. Drop it if that proves moot.
