@@ -5,4 +5,6 @@
 (when (require 'nitpick nil t)
   (nitpick-forge-mode 1)
   ;; without it diff-hl marks the wrong lines: see its docstring
-  (nitpick-diff-hl-zero-context-mode 1))
+  (nitpick-diff-hl-zero-context-mode 1)
+  ;; the changed-file pane; a second feature, and nix ships no autoloads
+  (require 'nitpick-tree nil t))

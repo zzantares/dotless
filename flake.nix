@@ -181,6 +181,11 @@
                 zed-editor
                 ;
             }
+            # Lives in the emacs package scope, not the top level, so name it
+            # by hand: `nix build .#nitpick' is what runs its test suite.
+            // {
+              nitpick = (pkgs.emacsPackagesFor pkgs.emacs).nitpick;
+            }
             # macOS only: the emacs-plus patches target the NS port, and the
             # client applet compiles against the host's osacompile.
             // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {

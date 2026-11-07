@@ -11,6 +11,7 @@
 (require 'ert)
 (require 'cl-lib)
 (require 'nitpick)
+(require 'nitpick-tree)
 
 ;;;; Stub helper
 
@@ -702,7 +703,8 @@ concurrent updates overwrite each other's results."
   (should (eq (lookup-key nitpick-prefix-map "s") #'nitpick-submit))
   (should (eq (lookup-key nitpick-prefix-map "f") #'nitpick-refresh))
   (should (eq (lookup-key nitpick-prefix-map "b") #'nitpick-diff-hl-set-base))
-  (should (eq (lookup-key nitpick-prefix-map "H") #'nitpick-diff-hl-line-mode)))
+  (should (eq (lookup-key nitpick-prefix-map "H") #'nitpick-diff-hl-line-mode))
+  (should (eq (lookup-key nitpick-prefix-map "t") #'nitpick-tree)))
 
 ;;;; Default bindings
 
@@ -848,6 +850,223 @@ remote has it - the forge diffs against the remote's copy, not a local branch."
          (magit-main-branch (lambda () nil))
          (magit-git-string (lambda (&rest _) nil)))
       (should-not (nitpick-diff-hl--suggested-base "/tmp/wt")))))
+
+;;;; Changed-file tree: reading git
+
+(defun nitpick-test--nul (&rest fields)
+  "Return FIELDS as git writes them with `-z': NUL after every one.
+Spelled out rather than written into the string literals, where a NUL ahead
+of a digit reads as one octal escape."
+  (mapconcat (lambda (field) (concat field "\0")) fields ""))
+
+(defun nitpick-test--git-stub (table)
+  "Return a `nitpick-tree--git-output' stub answering from TABLE.
+TABLE is an alist keyed by the git subcommand and its first switch, so one
+stub can answer the three calls a tree needs."
+  (lambda (&rest args)
+    (or (cdr (assoc (format "%s %s" (nth 0 args) (nth 1 args)) table)) "")))
+
+(ert-deftest nitpick-test-tree-parses-name-status ()
+  "A NUL-separated status and path per file."
+  (should (equal (nitpick-tree--parse-name-status
+                  (nitpick-test--nul "M" "a.el" "A" "dir/b.el"))
+                 '(("a.el" "M") ("dir/b.el" "A")))))
+
+(ert-deftest nitpick-test-tree-name-status-keeps-the-new-path-of-a-rename ()
+  "A rename names the old path then the new one; the new one is the file."
+  (should (equal (nitpick-tree--parse-name-status
+                  (nitpick-test--nul "R100" "old.el" "new.el" "M" "c.el"))
+                 '(("new.el" "R100" "old.el") ("c.el" "M")))))
+
+(ert-deftest nitpick-test-tree-name-status-of-an-empty-diff-is-empty ()
+  "Nothing changed is not a parse error."
+  (should-not (nitpick-tree--parse-name-status "")))
+
+(ert-deftest nitpick-test-tree-parses-numstat ()
+  "Counts and path share one field, TAB separated."
+  (should (equal (nitpick-tree--parse-numstat
+                  (nitpick-test--nul "3\t1\ta.el" "12\t0\tdir/b.el"))
+                 '(("a.el" 3 1) ("dir/b.el" 12 0)))))
+
+(ert-deftest nitpick-test-tree-numstat-counts-a-binary-file-as-nil ()
+  "git writes `-' for both counts of a binary file rather than a number."
+  (should (equal (nitpick-tree--parse-numstat (nitpick-test--nul "-\t-\tlogo.png"))
+                 '(("logo.png" nil nil)))))
+
+(ert-deftest nitpick-test-tree-numstat-of-a-rename-reads-the-two-paths-after-it ()
+  "A rename ends its field after the counts: the empty path is the marker."
+  (should (equal (nitpick-tree--parse-numstat
+                  ;; The counts, an empty path, then the two paths.
+                  (nitpick-test--nul "4\t2\t" "old.el" "new.el" "5\t0\tc.el"))
+                 '(("new.el" 4 2) ("c.el" 5 0)))))
+
+(ert-deftest nitpick-test-tree-changes-joins-the-status-with-the-counts ()
+  "Both git calls describe the same file; the tree wants them as one plist."
+  (nitpick-test--with-stubs
+      ((nitpick-tree--git-output
+        (nitpick-test--git-stub
+         `(("diff --name-status" . ,(nitpick-test--nul "M" "a.el"))
+           ("diff --numstat" . ,(nitpick-test--nul "3\t1\ta.el"))))))
+    (should (equal (nitpick-tree--changes "/tmp/wt" "origin/master")
+                   '((:file "a.el" :status "M" :from nil
+                      :added 3 :deleted 1 :binary nil))))))
+
+(ert-deftest nitpick-test-tree-changes-marks-a-binary-file ()
+  "Counted by neither side, but git did diff it: that is not `untracked'."
+  (nitpick-test--with-stubs
+      ((nitpick-tree--git-output
+        (nitpick-test--git-stub
+         `(("diff --name-status" . ,(nitpick-test--nul "M" "logo.png"))
+           ("diff --numstat" . ,(nitpick-test--nul "-\t-\tlogo.png"))))))
+    (should (plist-get (car (nitpick-tree--changes "/tmp/wt" "HEAD")) :binary))))
+
+(ert-deftest nitpick-test-tree-changes-appends-the-untracked-files ()
+  "A file never added is absent from every diff, and still worth listing."
+  (let ((nitpick-tree-show-untracked t))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--git-output
+          (nitpick-test--git-stub
+           `(("diff --name-status" . ,(nitpick-test--nul "M" "a.el"))
+             ("diff --numstat" . ,(nitpick-test--nul "3\t1\ta.el"))
+             ("ls-files --others" . ,(nitpick-test--nul "new.el"))))))
+      (let ((files (nitpick-tree--changes "/tmp/wt" "HEAD")))
+        (should (equal (mapcar (lambda (f) (plist-get f :file)) files)
+                       '("a.el" "new.el")))
+        (should (equal (plist-get (nth 1 files) :status) "?"))
+        (should-not (plist-get (nth 1 files) :added))))))
+
+(ert-deftest nitpick-test-tree-changes-can-leave-the-untracked-files-out ()
+  "The option off means only what git diffs, which is what the forge shows."
+  (let ((nitpick-tree-show-untracked nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--git-output
+          (nitpick-test--git-stub
+           `(("diff --name-status" . ,(nitpick-test--nul "M" "a.el"))
+             ("diff --numstat" . ,(nitpick-test--nul "3\t1\ta.el"))
+             ("ls-files --others" . ,(nitpick-test--nul "new.el"))))))
+      (should (equal (mapcar (lambda (f) (plist-get f :file))
+                             (nitpick-tree--changes "/tmp/wt" "HEAD"))
+                     '("a.el"))))))
+
+;;;; Changed-file tree: folding the paths
+
+(defun nitpick-test--shape (nodes)
+  "Return NODES as nested (NAME . CHILDREN) conses, or NAME for a file."
+  (mapcar (lambda (node)
+            (if (plist-get node :dir)
+                (cons (plist-get node :name)
+                      (nitpick-test--shape (plist-get node :children)))
+              (plist-get node :name)))
+          nodes))
+
+(ert-deftest nitpick-test-tree-build-nests-files-under-their-directories ()
+  "Files sharing a directory are one node's children, not two paths."
+  (let ((nitpick-tree-collapse-dirs nil))
+    (should (equal (nitpick-test--shape
+                    (nitpick-tree--build '((:file "src/a.el") (:file "src/b.el")
+                                           (:file "README.md"))
+                                         "/tmp/wt"))
+                   '(("src" "a.el" "b.el") "README.md")))))
+
+(ert-deftest nitpick-test-tree-build-sorts-directories-before-files ()
+  "Directories first, each group by name, as treemacs draws a real tree."
+  (let ((nitpick-tree-collapse-dirs nil))
+    (should (equal (nitpick-test--shape
+                    (nitpick-tree--build '((:file "z.el") (:file "a.el")
+                                           (:file "zz/c.el") (:file "aa/c.el"))
+                                         "/tmp/wt"))
+                   '(("aa" "c.el") ("zz" "c.el") "a.el" "z.el")))))
+
+(ert-deftest nitpick-test-tree-build-gives-a-file-its-absolute-path ()
+  "The node is visited by path, so it is the real file, not the git one."
+  (let ((node (car (nitpick-tree--build '((:file "src/a.el")) "/tmp/wt"))))
+    (should (equal (plist-get (car (plist-get node :children)) :path)
+                   "/tmp/wt/src/a.el"))))
+
+(ert-deftest nitpick-test-tree-build-collapses-a-chain-of-single-directories ()
+  "Three directories holding nothing but each other are one line."
+  (let ((nitpick-tree-collapse-dirs t))
+    (should (equal (nitpick-test--shape
+                    (nitpick-tree--build '((:file "nix/pkgs/emacs/a.el")) "/tmp/wt"))
+                   '(("nix/pkgs/emacs" "a.el"))))))
+
+(ert-deftest nitpick-test-tree-build-stops-collapsing-where-a-directory-branches ()
+  "A directory with two children is where the chain ends."
+  (let ((nitpick-tree-collapse-dirs t))
+    (should (equal (nitpick-test--shape
+                    (nitpick-tree--build '((:file "nix/pkgs/a/x.el")
+                                           (:file "nix/pkgs/b/y.el"))
+                                         "/tmp/wt"))
+                   '(("nix/pkgs" ("a" "x.el") ("b" "y.el")))))))
+
+(ert-deftest nitpick-test-tree-build-leaves-the-chain-alone-when-told-to ()
+  "The option off draws every directory on its own line."
+  (let ((nitpick-tree-collapse-dirs nil))
+    (should (equal (nitpick-test--shape
+                    (nitpick-tree--build '((:file "nix/pkgs/a.el")) "/tmp/wt"))
+                   '(("nix" ("pkgs" "a.el")))))))
+
+(ert-deftest nitpick-test-tree-collapsed-node-keeps-the-deepest-path ()
+  "The folded line stands for the last directory, so that is its path."
+  (let* ((nitpick-tree-collapse-dirs t)
+         (node (car (nitpick-tree--build '((:file "nix/pkgs/a.el")) "/tmp/wt"))))
+    (should (equal (plist-get node :path) "/tmp/wt/nix/pkgs"))))
+
+;;;; Changed-file tree: what a line says
+
+(ert-deftest nitpick-test-tree-label-omits-the-marker-of-a-modification ()
+  "`M' is most of a review; the counts already say it changed."
+  (should (equal (substring-no-properties
+                  (nitpick-tree--label '(:name "a.el" :status "M" :added 3 :deleted 1)))
+                 "a.el +3 -1")))
+
+(ert-deftest nitpick-test-tree-label-marks-anything-other-than-a-modification ()
+  "Added, deleted, untracked: one letter, git's own."
+  (should (equal (substring-no-properties
+                  (nitpick-tree--label '(:name "a.el" :status "A" :added 9 :deleted 0)))
+                 "a.el A +9"))
+  (should (equal (substring-no-properties
+                  (nitpick-tree--label '(:name "new.el" :status "?")))
+                 "new.el ?")))
+
+(ert-deftest nitpick-test-tree-label-names-where-a-rename-came-from ()
+  "The marker says it moved; only the old path says what it was."
+  (should (equal (substring-no-properties
+                  (nitpick-tree--label
+                   '(:name "new.el" :status "R100" :from "src/old.el"
+                     :added 1 :deleted 1)))
+                 "new.el R +1 -1 <- src/old.el")))
+
+(ert-deftest nitpick-test-tree-label-says-bin-instead-of-counting-a-binary ()
+  "git will not count it, so neither does the pane."
+  (should (equal (substring-no-properties
+                  (nitpick-tree--label '(:name "logo.png" :status "M" :binary t)))
+                 "logo.png bin")))
+
+(ert-deftest nitpick-test-tree-label-of-a-directory-is-its-name ()
+  "No counts on a directory: the files under it carry them."
+  (should (equal (substring-no-properties
+                  (nitpick-tree--label '(:name "src" :dir t)))
+                 "src")))
+
+(ert-deftest nitpick-test-tree-totals-add-up-the-counted-files ()
+  "An untracked or binary file counts as a file and adds no lines."
+  (should (equal (nitpick-tree--totals '((:file "a.el" :added 3 :deleted 1)
+                                         (:file "b.el" :added 2 :deleted 0)
+                                         (:file "new.el")))
+                 '(3 5 1))))
+
+(ert-deftest nitpick-test-tree-header-names-the-revision-and-the-totals ()
+  "What is being compared, said once, where it cannot scroll away."
+  (should (equal (substring-no-properties
+                  (nitpick-tree--header "origin/master..." '(2 5 1)))
+                 " vs origin/master...  2 files +5 -1")))
+
+(ert-deftest nitpick-test-tree-header-says-file-for-one-file ()
+  "One file, not one files."
+  (should (string-match-p "1 file "
+                          (substring-no-properties
+                           (nitpick-tree--header "HEAD" '(1 1 0))))))
 
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

@@ -730,6 +730,10 @@ behaviour when there is no pending review."
 ;;;; Keymap
 
 ;;;###autoload
+;; `nitpick-tree' lives in its own feature, autoloaded: the pane needs treemacs
+;; and most of a review does not.
+(declare-function nitpick-tree "nitpick-tree" (root revision))
+
 (defvar nitpick-prefix-map
   (let ((map (make-sparse-keymap)))
     (define-key map "c" #'nitpick-comment)
@@ -738,6 +742,7 @@ behaviour when there is no pending review."
     (define-key map "f" #'nitpick-refresh)
     (define-key map "b" #'nitpick-diff-hl-set-base)
     (define-key map "H" #'nitpick-diff-hl-line-mode)
+    (define-key map "t" #'nitpick-tree)
     map)
   "Keymap of PR review commands, meant to be bound to a prefix key.")
 

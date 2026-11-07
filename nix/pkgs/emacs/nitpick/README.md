@@ -20,11 +20,12 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-refresh` | Resync the worktree to the PR head after the author pushes |
 | `nitpick-diff-hl-set-base` | Diff the project against a revision you pick, instead of its checkout |
 | `nitpick-diff-hl-line-mode` | Paint the changed lines, not only the fringe |
+| `nitpick-tree` | Side pane of the files the review changed, and nothing else |
 
 ## Binding
 
 `nitpick-mode` is the default bindings, opt-in: it puts `nitpick-prefix-map` (`c`,
-`l`, `s`, `f`, `b`, `H`) on `nitpick-keymap-prefix`, which defaults to `C-c v`. So
+`l`, `s`, `f`, `b`, `H`, `t`) on `nitpick-keymap-prefix`, which defaults to `C-c v`. So
 `C-c v c` comments, `C-c v s` submits. Enable `nitpick-forge-mode` as well to
 route Forge's approve / request-changes through the batch submitter.
 
@@ -45,8 +46,57 @@ nothing is bound - then bind `nitpick-prefix-map` wherever you like:
        :desc "Submit review"         :m "s" #'nitpick-submit
        :desc "Refresh to PR head"    :m "f" #'nitpick-refresh
        :desc "Set the diff base"     :m "b" #'nitpick-diff-hl-set-base
-       :desc "Paint changed lines"   :m "H" #'nitpick-diff-hl-line-mode))
+       :desc "Paint changed lines"   :m "H" #'nitpick-diff-hl-line-mode
+       :desc "Tree of changed files" :m "t" #'nitpick-tree))
 ```
+
+## The changed-file pane
+
+`nitpick-tree` opens a treemacs side pane holding only the files that differ
+from the revision under review, nested by directory - what diffnav draws next
+to its diff. Each line carries the file's status marker and its line counts,
+and `RET` opens the real file, where diff-hl has already painted the same
+revision's changes. A prefix argument keeps the focus in the pane, so a review
+can be opened file by file without leaving it.
+
+The revision is the one this worktree last picked, through
+`nitpick-diff-hl-set-base` or through checking out a PR's worktree, so the pane
+lists exactly the files diff-hl is painting. `C-u` asks for another, and is
+also how the pane is pointed somewhere new.
+
+Calling it again re-renders, and so is the refresh; committing, staging and
+unstaging redraw it too, because git gives no notification of its own and a
+pane of a diff goes stale exactly when the diff does.
+
+What a line says:
+
+- `M` is left off, since most of a review is modifications and the counts
+  already say the file changed. `A`, `D`, `R`, `?` get their letter.
+- A rename names where it came from: the marker says it moved, only the old
+  path says what it was.
+- A binary file says `bin`. git diffs it without ever saying by how much.
+- An untracked file is listed with `?` and no counts. It is not part of
+  `git diff`, so the forge will not show it either - but a file you forgot to
+  add is the one most worth seeing before you submit. Set
+  `nitpick-tree-show-untracked` to nil for only what the forge sees.
+- A chain of directories holding nothing but each other is drawn as one line
+  (`nix/pkgs/emacs`). treemacs does this for real directories through
+  `treemacs-collapse-dirs`; an extension has to do its own, so this one has
+  `nitpick-tree-collapse-dirs`.
+
+A deleted file has nothing on disk to open, so it opens from the revision
+instead - the read-only blob magit would show.
+
+treemacs is needed at run time only, and the command loads it. Its extension
+API is macros, which a build without treemacs in scope could not compile -
+and putting treemacs in scope would shadow the copy the user's Emacs installs.
+So the node-type declaration is held as data and evaluated the first time the
+command runs, the same way nitpick waits for diff-hl before advising it.
+Everything that declaration calls is an ordinary byte-compiled function.
+
+One pane, re-rendered per project, the way treemacs shows one tree. It sits in
+slot 1 of treemacs' own side, so it sits alongside a treemacs tree rather than
+replacing it.
 
 ## Whole-line highlighting
 
@@ -104,7 +154,7 @@ Three things shape the result:
 ERT, run in `checkPhase` on every build:
 
 ```
-nix build .#emacsPackages.nitpick
+nix build .#nitpick
 ```
 
 To run them against a checkout:

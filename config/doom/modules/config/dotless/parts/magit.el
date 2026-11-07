@@ -74,6 +74,7 @@
   ;; merges; this one cannot.
   (map! :leader :prefix "g"
         (:prefix ("V" . "review")
+         :desc "Tree of changed files"     :m "t" #'nitpick-tree
          :desc "Comment on PR line(s)"     :m "c" #'nitpick-comment
          :desc "List pending review"       :m "l" #'nitpick-list
          :desc "Submit review (comment)"   :m "s" #'nitpick-submit
