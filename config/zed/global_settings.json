@@ -27,6 +27,9 @@
     "C": ["C", "H"]
   },
 
+  // Lets zt/zz/zb land exactly; the default margin of 3 clamps them.
+  "vertical_scroll_margin": 0,
+
   "vim": {
     "toggle_relative_line_numbers": true,
     "relative_line_numbers": true
