@@ -1145,5 +1145,10 @@ stub can answer the three calls a tree needs."
   "`d' is diff in the pane, not `treemacs-delete-file'."
   (should (eq (lookup-key nitpick-tree-mode-map "d") #'nitpick-tree-visit-diff)))
 
+(ert-deftest nitpick-test-tree-pane-refreshes-by-re-reading-the-diff ()
+  "`treemacs-refresh' would redraw the same nodes and claim success."
+  (should (eq (lookup-key nitpick-tree-mode-map "r") #'nitpick-tree-refresh))
+  (should (eq (lookup-key nitpick-tree-mode-map "g") #'nitpick-tree-refresh)))
+
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

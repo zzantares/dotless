@@ -420,6 +420,11 @@ With a prefix argument STAY the diff is shown but the pane keeps the focus."
     ;; wanted either way: `d' reads a diff everywhere else, and deleting a
     ;; file out of a review pane is no accident to invite.
     (define-key map "d" #'nitpick-tree-visit-diff)
+    ;; `g' and `r' are `treemacs-refresh', which redraws the nodes the pane
+    ;; already holds, reports "Refresh complete" and asks git nothing.  The
+    ;; pane is a snapshot, so its refresh has to re-read the diff.
+    (define-key map "g" #'nitpick-tree-refresh)
+    (define-key map "r" #'nitpick-tree-refresh)
     map)
   "Keymap of the changed-file pane, on top of `treemacs-mode-map'.")
 

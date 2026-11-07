@@ -112,6 +112,12 @@ them to recognise the rename, and asking for only the new path shows an
 addition, or nothing. An untracked file has no committed version to compare
 with, so `d` says so rather than opening an empty diff.
 
+`r` re-reads the diff, and `g` does too outside evil. treemacs binds both to
+`treemacs-refresh`, which redraws the nodes the pane already holds and reports
+success without asking git anything - fine for a file tree, wrong for a
+snapshot of a diff. `g` is left alone under evil, where it is a prefix and
+taking it would cost `gg`.
+
 `d` is `treemacs-delete-file` in a file tree, and dead under evil, whose
 motion state binds every plain letter to `undefined`. The pane shadows it
 either way, through `nitpick-tree-mode-map` - which also means evil users need
@@ -120,7 +126,8 @@ an auxiliary map for the key to be seen at all:
 ```elisp
 (after! treemacs-evil
   (evil-define-key 'treemacs nitpick-tree-mode-map
-    (kbd "d") #'nitpick-tree-visit-diff))
+    (kbd "d") #'nitpick-tree-visit-diff
+    (kbd "r") #'nitpick-tree-refresh))
 ```
 
 treemacs is needed at run time only, and the command loads it. Its extension

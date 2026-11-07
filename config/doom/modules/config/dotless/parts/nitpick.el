@@ -11,6 +11,9 @@
     ;; `nitpick-tree-mode-map' alone never sees `d': treemacs' evil state
     ;; enables motion state, which suppresses plain letters. An auxiliary map
     ;; on the minor mode is what evil consults first.
+    ;; `r' but not `g': `g' is a prefix in motion state, and taking it would
+    ;; cost `gg'. Non-evil users get `g' from the mode map itself.
     (after! treemacs-evil
       (evil-define-key 'treemacs nitpick-tree-mode-map
-        (kbd "d") #'nitpick-tree-visit-diff))))
+        (kbd "d") #'nitpick-tree-visit-diff
+        (kbd "r") #'nitpick-tree-refresh))))
