@@ -1,6 +1,15 @@
 ;;; parts/treemacs.el -*- lexical-binding: t; -*-
 
-(add-hook! '(treemacs-mode-hook evil-treemacs-state-entry-hook) #'hide-mode-line-mode)
+;; No mode line in the sidebar.  `hide-mode-line-mode' did this until Doom
+;; stopped shipping `hide-mode-line': nothing installs it now, so the hook
+;; aborted `treemacs-mode' itself with a void-function error.  Nilling the
+;; format is all that mode did here, and it needs no package.
+(defun zz-treemacs-hide-mode-line ()
+  "Drop the mode line in the current treemacs buffer."
+  (setq-local mode-line-format nil))
+
+(add-hook! '(treemacs-mode-hook evil-treemacs-state-entry-hook)
+           #'zz-treemacs-hide-mode-line)
 
 (defun zz-treemacs-create (dir?)
   "Create a file at point, or a directory with a prefix arg DIR?."
