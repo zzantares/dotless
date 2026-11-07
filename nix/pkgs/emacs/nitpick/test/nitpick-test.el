@@ -1150,5 +1150,37 @@ stub can answer the three calls a tree needs."
   (should (eq (lookup-key nitpick-tree-mode-map "r") #'nitpick-tree-refresh))
   (should (eq (lookup-key nitpick-tree-mode-map "g") #'nitpick-tree-refresh)))
 
+;;;; Changed-file tree: which window a file opens in
+
+(defmacro nitpick-test--with-windows (names &rest body)
+  "Run BODY with a fresh single-window layout and NAMES bound to new buffers."
+  (declare (indent 1))
+  `(let ,(mapcar (lambda (n) `(,n (generate-new-buffer ,(format "*nitpick-test-%s*" n))))
+                 names)
+     (unwind-protect
+         (save-window-excursion (delete-other-windows) ,@body)
+       ,@(mapcar (lambda (n) `(kill-buffer ,n)) names))))
+
+(ert-deftest nitpick-test-tree-visit-reuses-the-window-already-showing-the-file ()
+  "Opening a file twice must not put a second copy of it on screen."
+  (nitpick-test--with-windows (file)
+    (let ((other (split-window)))
+      (set-window-buffer other file)
+      (should (eq (nitpick-tree--visit-window file) other)))))
+
+(ert-deftest nitpick-test-tree-visit-picks-the-last-used-window ()
+  "Not the pane: `display-buffer' cannot use a side window and splits instead."
+  (nitpick-test--with-windows (file)
+    (let* ((pane (selected-window))
+           (work (split-window)))
+      (select-window work)
+      (select-window pane)
+      (should (eq (nitpick-tree--visit-window file) work)))))
+
+(ert-deftest nitpick-test-tree-visit-finds-no-window-when-it-is-alone ()
+  "Nothing to reuse, so the caller falls back to `display-buffer'."
+  (nitpick-test--with-windows (file)
+    (should-not (nitpick-tree--visit-window file))))
+
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

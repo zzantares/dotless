@@ -344,6 +344,15 @@ jump."
     (goto-char (point-min))
     (ignore-errors (diff-hl-next-hunk))))
 
+(defun nitpick-tree--visit-window (buffer)
+  "Return the window NODE's BUFFER should be shown in, or nil for none.
+The window already showing it, else the one last used - never a split, and
+never the pane, which `get-mru-window' passes over as dedicated and as the
+selected window.  `display-buffer' would split instead, because a side window
+cannot show anything but the pane and it will make room rather than reuse."
+  (or (get-buffer-window buffer)
+      (get-mru-window (selected-frame) nil :not-selected)))
+
 (defun nitpick-tree--visit-file (node stay)
   "Open NODE's file, selecting its window unless STAY is non-nil.
 A deleted file is opened from the revision instead of from disk, where it is
@@ -355,7 +364,13 @@ no longer - read-only, the way magit shows a blob."
                         (nitpick--base-revision nitpick-tree--revision)
                         (plist-get node :file)))
                    (find-file-noselect (plist-get node :path))))
-         (window (display-buffer buffer)))
+         (window (nitpick-tree--visit-window buffer)))
+    ;; `switch-to-buffer' in that window rather than `set-window-buffer', so
+    ;; the file lands in its history and `C-x left' works as it would have.
+    (if window
+        (with-selected-window window (switch-to-buffer buffer))
+      ;; The pane is the only window: there is nothing to reuse yet.
+      (setq window (display-buffer buffer)))
     (when (and window (not stay))
       (select-window window)
       (nitpick-tree--show-hunk))))

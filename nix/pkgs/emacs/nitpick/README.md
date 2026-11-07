@@ -100,6 +100,10 @@ and neither replaces the other:
   diff-hl marks the line *after* removed text in the fringe and has no way to
   draw the text that is gone, which is why `nitpick-diff-hl-line-mode`
   deliberately leaves deletions unpainted.
+- The **file** opens in the window last used, reusing the one already showing
+  it if there is one - never a split. `display-buffer` splits here, because a
+  side window can show nothing but the pane, so it makes room rather than
+  reuse.
 - The **diff** is the reading view - before and after together, removals as
   text, unchanged context folded away. On a directory node it is the diff of
   everything under it, so `d` on a collapsed `nix/pkgs/emacs` reads the whole
