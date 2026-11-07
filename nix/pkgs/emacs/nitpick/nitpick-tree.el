@@ -33,6 +33,8 @@
 (declare-function magit-git-insert "magit-git" (&rest args))
 (declare-function magit-read-branch-or-commit "magit-git" (prompt &optional secondary-default exclude))
 (declare-function magit-find-file-noselect "magit-files" (rev file &optional no-restore-position volatile))
+(declare-function magit-diff-range "magit-diff" (rev-or-range &optional args files))
+(declare-function magit-diff-arguments "magit-diff" (&optional mode))
 (declare-function treemacs-node-at-point "treemacs-core-utils" ())
 (declare-function treemacs-expand-extension-node "treemacs-treelib" (&optional arg))
 (declare-function treemacs-icon-for-file "treemacs-icons" (file))
@@ -372,6 +374,66 @@ review can be opened without leaving it."
       (treemacs-collapse-extension-node arg))
      (t (treemacs-expand-extension-node arg)))))
 
+(defun nitpick-tree--diff-paths (node root)
+  "Return the pathspec magit should limit NODE's diff to, relative to ROOT.
+A directory limits the diff to everything under it.  A rename names both of
+its paths: git pairs the two to recognise the rename, and asking for only
+the new one shows an addition, or nothing at all."
+  (if (plist-get node :dir)
+      (list (file-relative-name (plist-get node :path) root))
+    (delq nil (list (plist-get node :file) (plist-get node :from)))))
+
+(defun nitpick-tree-visit-diff (&optional stay)
+  "Show the diff of the line at point, instead of the file itself.
+
+The file's changes against the pane's own revision, in a magit diff buffer -
+the reading view, where removed lines are text and unchanged context is
+folded away, next to `nitpick-tree-visit''s editing view of the same change.
+On a directory it is the diff of everything under it.
+
+With a prefix argument STAY the diff is shown but the pane keeps the focus."
+  (interactive "P")
+  (let ((node (nitpick-tree--node-at-point)))
+    (when node
+      (when (equal (plist-get node :status) "?")
+        (user-error "%s is untracked: git has nothing to diff it against"
+                    (plist-get node :file)))
+      (let* ((root nitpick-tree--root)
+             (revision (nitpick--base-revision nitpick-tree--revision))
+             (files (nitpick-tree--diff-paths node root))
+             (default-directory root)
+             (show (lambda ()
+                     ;; The user's own magit diff settings, so this diff reads
+                     ;; like every other diff they look at.  `car': that
+                     ;; function answers (ARGS FILES) - it fills both of the
+                     ;; interactive slots - and its FILES is whatever the last
+                     ;; magit diff was limited to, which git would then read as
+                     ;; a revision.
+                     (magit-diff-range revision (car (magit-diff-arguments))
+                                       files))))
+        (if stay (save-selected-window (funcall show)) (funcall show))))))
+
+(defvar nitpick-tree-mode-map
+  (let ((map (make-sparse-keymap)))
+    ;; `d' is `treemacs-delete-file' in `treemacs-mode-map', and dead under
+    ;; evil, whose motion state suppresses plain letters.  Shadowing it is
+    ;; wanted either way: `d' reads a diff everywhere else, and deleting a
+    ;; file out of a review pane is no accident to invite.
+    (define-key map "d" #'nitpick-tree-visit-diff)
+    map)
+  "Keymap of the changed-file pane, on top of `treemacs-mode-map'.")
+
+(define-minor-mode nitpick-tree-mode
+  "Minor mode of the changed-file pane, for the keys that are only its own.
+Enabled by `nitpick-tree'; it carries no behaviour of its own, and exists so
+there is one keymap to rebind, and one mode for `evil-define-key' to hang an
+auxiliary map on - under evil the map below is shadowed until something does,
+because treemacs' evil state enables motion state, which binds every plain
+letter to `undefined'."
+  :lighter nil
+  :keymap nitpick-tree-mode-map
+  :group 'nitpick)
+
 ;;;; treemacs node types
 ;;
 ;; One monotyped node type, dispatching on whether an item is a directory,
@@ -415,7 +477,8 @@ STATS is what `nitpick-tree--totals' returned, for the header line."
                                nitpick-tree--revision revision
                                nitpick-tree--items items
                                treemacs-space-between-root-nodes nil
-                               header-line-format (nitpick-tree--header revision stats))))))
+                               header-line-format (nitpick-tree--header revision stats))
+                   (nitpick-tree-mode 1)))))
   "The treemacs definitions, held as data until treemacs is loaded.
 They are macro calls, so a build without treemacs in scope could not compile
 them - and putting treemacs in scope would shadow the copy the user's Emacs

@@ -21,6 +21,7 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-diff-hl-set-base` | Diff the project against a revision you pick, instead of its checkout |
 | `nitpick-diff-hl-line-mode` | Paint the changed lines, not only the fringe |
 | `nitpick-tree` | Side pane of the files the review changed, and nothing else |
+| `nitpick-tree-visit-diff` | Read the line at point as a diff instead of a file (`d` in the pane) |
 
 ## Binding
 
@@ -86,6 +87,41 @@ What a line says:
 
 A deleted file has nothing on disk to open, so it opens from the revision
 instead - the read-only blob magit would show.
+
+### Two views of the same change
+
+`RET` opens the file; `d` opens the diff - `nitpick-tree-visit-diff`, in a
+magit diff buffer limited to that one path. They answer different questions
+and neither replaces the other:
+
+- The **file** is where LSP works, where jump-to-definition and the type
+  errors live, and where a comment can be anchored to a real line. It is also
+  where you fix what the review turns up. What it cannot show is a removal:
+  diff-hl marks the line *after* removed text in the fringe and has no way to
+  draw the text that is gone, which is why `nitpick-diff-hl-line-mode`
+  deliberately leaves deletions unpainted.
+- The **diff** is the reading view - before and after together, removals as
+  text, unchanged context folded away. On a directory node it is the diff of
+  everything under it, so `d` on a collapsed `nix/pkgs/emacs` reads the whole
+  subtree as one diff.
+
+The diff is `git diff` against the pane's own revision, with your saved magit
+diff arguments, so it agrees with what the pane lists and reads like every
+other diff you look at. A rename is asked for by both of its paths: git pairs
+them to recognise the rename, and asking for only the new path shows an
+addition, or nothing. An untracked file has no committed version to compare
+with, so `d` says so rather than opening an empty diff.
+
+`d` is `treemacs-delete-file` in a file tree, and dead under evil, whose
+motion state binds every plain letter to `undefined`. The pane shadows it
+either way, through `nitpick-tree-mode-map` - which also means evil users need
+an auxiliary map for the key to be seen at all:
+
+```elisp
+(after! treemacs-evil
+  (evil-define-key 'treemacs nitpick-tree-mode-map
+    (kbd "d") #'nitpick-tree-visit-diff))
+```
 
 treemacs is needed at run time only, and the command loads it. Its extension
 API is macros, which a build without treemacs in scope could not compile -

@@ -1068,5 +1068,82 @@ stub can answer the three calls a tree needs."
                           (substring-no-properties
                            (nitpick-tree--header "HEAD" '(1 1 0))))))
 
+;;;; Changed-file tree: the diff view
+
+(ert-deftest nitpick-test-tree-diff-paths-of-a-file-is-the-one-path ()
+  "Nothing clever for the common case."
+  (should (equal (nitpick-tree--diff-paths '(:file "src/a.el") "/tmp/wt")
+                 '("src/a.el"))))
+
+(ert-deftest nitpick-test-tree-diff-paths-of-a-rename-names-both-sides ()
+  "git pairs the two paths to see the rename; asking for one shows an add."
+  (should (equal (nitpick-tree--diff-paths
+                  '(:file "new.el" :from "src/old.el") "/tmp/wt")
+                 '("new.el" "src/old.el"))))
+
+(ert-deftest nitpick-test-tree-diff-paths-of-a-directory-is-its-subtree ()
+  "A directory node diffs everything under it, named relative to the root."
+  (should (equal (nitpick-tree--diff-paths
+                  '(:dir t :name "pkgs" :path "/tmp/wt/nix/pkgs") "/tmp/wt")
+                 '("nix/pkgs"))))
+
+(ert-deftest nitpick-test-tree-diff-refuses-an-untracked-file ()
+  "git holds no version of it, so there is no diff to show - say so."
+  (let ((buffer (generate-new-buffer " *nitpick-test-pane*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (setq-local nitpick-tree--root "/tmp/wt"
+                      nitpick-tree--revision "master")
+          (nitpick-test--with-stubs
+              ((nitpick-tree--node-at-point
+                (lambda () '(:file "new.el" :status "?")))
+               (magit-diff-range (lambda (&rest _) (error "should not be called"))))
+            (should-error (nitpick-tree-visit-diff) :type 'user-error)))
+      (kill-buffer buffer))))
+
+(ert-deftest nitpick-test-tree-diff-asks-magit-for-the-panes-revision ()
+  "The same revision the pane lists, so the diff agrees with what it says."
+  (let ((buffer (generate-new-buffer " *nitpick-test-pane*"))
+        (sent nil))
+    (unwind-protect
+        (with-current-buffer buffer
+          (setq-local nitpick-tree--root "/tmp/wt"
+                      nitpick-tree--revision "origin/master")
+          (nitpick-test--with-stubs
+              ((nitpick-tree--node-at-point
+                (lambda () '(:file "src/a.el" :status "M")))
+               ;; (ARGS FILES), as magit answers outside a transient: it
+               ;; fills both interactive slots, and its FILES is the last
+               ;; diff's, which must not reach git as a revision.
+               (magit-diff-arguments (lambda (&rest _) '(("--stat") ("stale.el"))))
+               (magit-diff-range (lambda (rev args files)
+                                   (setq sent (list rev args files)))))
+            (nitpick-tree-visit-diff)
+            (should (equal sent '("origin/master" ("--stat") ("src/a.el"))))))
+      (kill-buffer buffer))))
+
+(ert-deftest nitpick-test-tree-diff-resolves-a-merge-base-revision ()
+  "A trailing `...' is the merge base here too, as everywhere in nitpick."
+  (let ((buffer (generate-new-buffer " *nitpick-test-pane*"))
+        (sent nil))
+    (unwind-protect
+        (with-current-buffer buffer
+          (setq-local nitpick-tree--root "/tmp/wt"
+                      nitpick-tree--revision "origin/master...")
+          (nitpick-test--with-stubs
+              ((nitpick-tree--node-at-point
+                (lambda () '(:file "a.el" :status "M")))
+               (magit-diff-arguments (lambda (&rest _) '(nil nil)))
+               (magit-git-string (lambda (&rest args)
+                                   (and (equal (car args) "merge-base") "abc123")))
+               (magit-diff-range (lambda (rev _args _files) (setq sent rev))))
+            (nitpick-tree-visit-diff)
+            (should (equal sent "abc123"))))
+      (kill-buffer buffer))))
+
+(ert-deftest nitpick-test-tree-pane-binds-d-to-the-diff ()
+  "`d' is diff in the pane, not `treemacs-delete-file'."
+  (should (eq (lookup-key nitpick-tree-mode-map "d") #'nitpick-tree-visit-diff)))
+
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here
