@@ -136,18 +136,6 @@ in
           "1 3 h z t 1 3 k"
         ];
       }
-      # Possibly redundant: the `Editor && VimControl` block below binds the
-      # same four keys and reaches further. Kept for focus inside a panel,
-      # which that context does not cover. Drop it if that proves moot.
-      {
-        context = "Dock";
-        bindings = {
-          "ctrl-w j" = "workspace::ActivatePaneLeft";
-          "ctrl-w l" = "workspace::ActivatePaneRight";
-          "ctrl-w h" = "workspace::ActivatePaneUp";
-          "ctrl-w k" = "workspace::ActivatePaneDown";
-        };
-      }
       {
         context = "vim_mode == normal || vim_mode == visual";
         bindings = {
@@ -282,11 +270,12 @@ in
         };
       }
 
-      # ctrl-w windows, colemak. An Editor context, so they work from the
-      # buffer. Zed's vim layer unbinds bare ctrl-w (vim.json), which is what
-      # keeps these sequences alive on Linux, where the default closes the tab.
+      # ctrl-w windows, colemak. Context copied from the block these override
+      # in Zed's vim.json: an Editor-only context drops the remap on panels,
+      # where the QWERTY defaults then take over. Zed's vim layer unbinds bare
+      # ctrl-w, which keeps the sequences alive on Linux (default closes tab).
       {
-        context = "Editor && VimControl";
+        context = "VimControl && !menu || !Editor && !Terminal";
         bindings = {
           "ctrl-w h" = "workspace::ActivatePaneUp";
           "ctrl-w k" = "workspace::ActivatePaneDown";
