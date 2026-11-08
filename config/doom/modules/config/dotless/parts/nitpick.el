@@ -16,4 +16,5 @@
     (after! treemacs-evil
       (evil-define-key 'treemacs nitpick-tree-mode-map
         (kbd "d") #'nitpick-tree-visit-diff
-        (kbd "r") #'nitpick-tree-refresh))))
+        (kbd "r") #'nitpick-tree-refresh
+        (kbd "q") #'nitpick-tree-close))))

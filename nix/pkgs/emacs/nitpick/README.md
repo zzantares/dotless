@@ -20,7 +20,7 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-refresh` | Resync the worktree to the PR head after the author pushes |
 | `nitpick-diff-hl-set-base` | Diff the project against a revision you pick, instead of its checkout |
 | `nitpick-diff-hl-line-mode` | Paint the changed lines, not only the fringe |
-| `nitpick-tree` | Side pane of the files the review changed, and nothing else |
+| `nitpick-tree` | Toggle the side pane of the files the review changed, and nothing else |
 | `nitpick-tree-visit-diff` | Read the line at point as a diff instead of a file (`d` in the pane) |
 
 ## Binding
@@ -76,9 +76,19 @@ pane turns on `nitpick-diff-hl-line-mode`, and a file opened from it gets
 to paint. `nitpick-tree-paint-lines` turns both off. Nothing happens without
 diff-hl loaded - the line mode reads its highlight slots as it starts.
 
-Calling it again re-renders, and so is the refresh; committing, staging and
-unstaging redraw it too, because git gives no notification of its own and a
-pane of a diff goes stale exactly when the diff does.
+Calling it again closes the pane and undoes the painting it turned on - one
+key for both directions. A painting you turned on yourself with
+`nitpick-diff-hl-line-mode` is yours and survives; so does the base, which is
+the revision under review rather than a way of drawing it. The buffer goes
+with the window, since it holds a diff read once.
+
+`C-u` always opens, so it is also how an open pane is pointed somewhere new,
+and `q` in the pane closes it the same way the toggle does - treemacs' own `q`
+would bury it and leave the painting on.
+
+`r` re-reads the diff; committing, staging and unstaging redraw it too,
+because git gives no notification of its own and a pane of a diff goes stale
+exactly when the diff does.
 
 What a line says:
 
@@ -127,9 +137,9 @@ them to recognise the rename, and asking for only the new path shows an
 addition, or nothing. An untracked file has no committed version to compare
 with, so `d` says so rather than opening an empty diff.
 
-`r` re-reads the diff, and `g` does too outside evil. treemacs binds both to
-`treemacs-refresh`, which redraws the nodes the pane already holds and reports
-success without asking git anything - fine for a file tree, wrong for a
+`r` re-reads the diff, and `g` does too outside evil, in place of treemacs'
+`treemacs-refresh` - which redraws the nodes the pane already holds and
+reports success without asking git anything. Fine for a file tree, wrong for a
 snapshot of a diff. `g` is left alone under evil, where it is a prefix and
 taking it would cost `gg`.
 

@@ -1365,5 +1365,70 @@ run before diff-hl has defined them."
           (nitpick-tree--paint-buffer)
           (should-not called))))))
 
+;;;; Changed-file tree: closing it again
+
+(ert-deftest nitpick-test-tree-unpaint-turns-off-what-the-pane-turned-on ()
+  "Closing undoes the pane's own painting."
+  (let ((nitpick-tree--painted t)
+        (called nil))
+    (nitpick-test--with-stubs
+        ((nitpick-diff-hl-line-mode (lambda (&rest args) (setq called args))))
+      (nitpick-tree--unpaint)
+      (should (equal called '(-1)))
+      (should-not nitpick-tree--painted))))
+
+(ert-deftest nitpick-test-tree-unpaint-leaves-the-users-own-painting-alone ()
+  "A mode turned on with the command for it is not the pane's to turn off."
+  (let ((nitpick-tree--painted nil)
+        (called nil))
+    (nitpick-test--with-stubs
+        ((nitpick-diff-hl-line-mode (lambda (&rest args) (setq called args))))
+      (nitpick-tree--unpaint)
+      (should-not called))))
+
+(ert-deftest nitpick-test-tree-close-takes-the-buffer-with-the-window ()
+  "It holds a diff read once; opening again reads a fresh one."
+  (let ((nitpick-tree-buffer-name "*nitpick-test-pane*")
+        (nitpick-tree--painted nil))
+    (get-buffer-create nitpick-tree-buffer-name)
+    (save-window-excursion
+      (delete-other-windows)
+      (set-window-buffer (split-window) nitpick-tree-buffer-name)
+      (should (nitpick-tree--window))
+      (nitpick-tree-close)
+      (should-not (get-buffer nitpick-tree-buffer-name)))))
+
+(ert-deftest nitpick-test-tree-close-is-fine-with-no-pane-at-all ()
+  "Nothing open is not an error, so the key is safe to lean on."
+  (let ((nitpick-tree-buffer-name "*nitpick-test-absent-pane*")
+        (nitpick-tree--painted nil))
+    (should-not (nitpick-tree-close))))
+
+(ert-deftest nitpick-test-tree-closes-when-called-with-no-revision ()
+  "The interactive form answers (nil nil) for a pane that is already open."
+  (let ((closed nil)
+        (opened nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree-close (lambda () (setq closed t)))
+         (nitpick-tree--open (lambda (&rest args) (setq opened args))))
+      (nitpick-tree nil nil)
+      (should closed)
+      (should-not opened))))
+
+(ert-deftest nitpick-test-tree-opens-when-given-a-revision ()
+  "And renders rather than closing when it was handed something to show."
+  (let ((closed nil)
+        (opened nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree-close (lambda () (setq closed t)))
+         (nitpick-tree--open (lambda (&rest args) (setq opened args))))
+      (nitpick-tree "/tmp/wt" "master...")
+      (should (equal opened '("/tmp/wt" "master...")))
+      (should-not closed))))
+
+(ert-deftest nitpick-test-tree-pane-binds-q-to-its-own-close ()
+  "`treemacs-quit' buries the pane and leaves the painting on."
+  (should (eq (lookup-key nitpick-tree-mode-map "q") #'nitpick-tree-close)))
+
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

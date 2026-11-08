@@ -123,6 +123,11 @@ reading a review is one RET per file.  Needs `diff-hl-mode' in that buffer."
 ;; Set from `:and-do', which runs after `treemacs-mode' has wiped the buffer's
 ;; locals and before the first `:children' call reads them back.
 
+(defvar nitpick-tree--painted nil
+  "Whether the pane is what turned `nitpick-diff-hl-line-mode' on.
+Closing undoes its own painting and nothing else: a mode turned on with the
+command for it is the user's, and stays on.")
+
 (defvar-local nitpick-tree--root nil
   "Project root the pane was rendered for.")
 
@@ -363,7 +368,15 @@ starts, so it cannot run before diff-hl has defined them."
   (when (and nitpick-tree-paint-lines
              (not (bound-and-true-p nitpick-diff-hl-line-mode))
              (nitpick-tree--diff-hl-available-p))
-    (nitpick-diff-hl-line-mode 1)))
+    (nitpick-diff-hl-line-mode 1)
+    (setq nitpick-tree--painted t)))
+
+(defun nitpick-tree--unpaint ()
+  "Turn whole-line painting back off, if the pane is what turned it on."
+  (when nitpick-tree--painted
+    (setq nitpick-tree--painted nil)
+    (when (fboundp 'nitpick-diff-hl-line-mode)
+      (nitpick-diff-hl-line-mode -1))))
 
 (defun nitpick-tree--paint-buffer ()
   "Turn on `diff-hl-mode' in the current buffer if it is off.
@@ -483,6 +496,9 @@ With a prefix argument STAY the diff is shown but the pane keeps the focus."
     ;; pane is a snapshot, so its refresh has to re-read the diff.
     (define-key map "g" #'nitpick-tree-refresh)
     (define-key map "r" #'nitpick-tree-refresh)
+    ;; `q' is `treemacs-quit', which buries the pane and leaves the painting
+    ;; on: the two ways of closing should not differ.
+    (define-key map "q" #'nitpick-tree-close)
     map)
   "Keymap of the changed-file pane, on top of `treemacs-mode-map'.")
 
@@ -562,6 +578,28 @@ treemacs proper pulls it in."
 
 ;;;; The pane
 
+(defun nitpick-tree--window ()
+  "Return the window showing the pane on this frame, or nil.
+This frame only: the key is asking about the frame it was pressed on, and a
+pane left open on another one is not in the way here."
+  (let ((buffer (get-buffer nitpick-tree-buffer-name)))
+    (and buffer (get-buffer-window buffer))))
+
+(defun nitpick-tree-close ()
+  "Close the pane and undo the painting it turned on.
+The buffer goes with the window: it holds a diff read once, and opening again
+reads a fresh one.  A base set along the way stays - that is the revision
+being reviewed rather than a way of drawing it, and
+`nitpick-diff-hl-set-base' is what changes it."
+  (interactive)
+  (let ((buffer (get-buffer nitpick-tree-buffer-name)))
+    (dolist (window (and buffer (get-buffer-window-list buffer nil t)))
+      (when (window-live-p window)
+        (delete-window window)))
+    (nitpick-tree--unpaint)
+    (when (buffer-live-p buffer)
+      (kill-buffer buffer))))
+
 (defun nitpick-tree--display (buffer)
   "Show BUFFER in a side window on treemacs' own side, and return the window.
 Slot 1, so the pane sits alongside a treemacs tree in slot 0 rather than
@@ -594,21 +632,33 @@ changes the pane lists.  A base already picked is left alone.  And unless
 `nitpick-tree-paint-lines' says otherwise, those changes are painted as whole
 lines rather than fringe marks alone.
 
-Called again it re-renders, which is also the refresh: committing, staging or
-unstaging redraws it, and nothing else does."
+Called with the pane already open it closes it again, undoing the painting it
+turned on.  A prefix argument always opens, so it is also how an open pane is
+pointed somewhere new.  `r' in the pane re-reads the diff, as does
+committing, staging or unstaging."
   (interactive
-   ;; The pane's own root first: `default-directory' in a treemacs buffer is
-   ;; whatever it was created with, so asking git there answers for the wrong
-   ;; project, or for none.
-   (let ((root (or nitpick-tree--root
-                   (magit-toplevel)
-                   (user-error "Not inside a git repository"))))
-     (list root
-           (let ((default-directory root)
-                 (suggested (nitpick-diff-hl--suggested-base root)))
-             (if (or current-prefix-arg (not suggested))
-                 (magit-read-branch-or-commit "Tree of changes vs" suggested)
-               suggested)))))
+   ;; Closing works nothing out: there is no revision to suggest and nothing
+   ;; to ask the forge for.  A prefix argument always means open.
+   (if (and (null current-prefix-arg) (nitpick-tree--window))
+       (list nil nil)
+     ;; The pane's own root first: `default-directory' in a treemacs buffer is
+     ;; whatever it was created with, so asking git there answers for the wrong
+     ;; project, or for none.
+     (let ((root (or nitpick-tree--root
+                     (magit-toplevel)
+                     (user-error "Not inside a git repository"))))
+       (list root
+             (let ((default-directory root)
+                   (suggested (nitpick-diff-hl--suggested-base root)))
+               (if (or current-prefix-arg (not suggested))
+                   (magit-read-branch-or-commit "Tree of changes vs" suggested)
+                 suggested))))))
+  (if (and (null root) (null revision))
+      (nitpick-tree-close)
+    (nitpick-tree--open root revision)))
+
+(defun nitpick-tree--open (root revision)
+  "Render ROOT's differences from REVISION in the pane, and select it."
   (nitpick-tree--define)
   (nitpick-tree--paint)
   ;; Before reading the diff: this also caches the revision, which is what
