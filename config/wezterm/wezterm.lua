@@ -438,12 +438,18 @@ config.keys = {
                 return
             end
             window:perform_action(
+                act.ActivateKeyTable({ name = "list_nav", one_shot = false }),
+                pane
+            )
+            window:perform_action(
                 act.InputSelector({
                     title = "Open workspace",
                     fuzzy = true,
                     fuzzy_description = "workspace> ",
                     choices = choices,
                     action = wezterm.action_callback(function(win, p, id)
+                        -- Fires on accept and on cancel, so the table always pops.
+                        win:perform_action(act.PopKeyTable, p)
                         if id then
                             open_dir_as_workspace(win, p, id)
                         end
@@ -496,6 +502,15 @@ end
 -- Key tables
 -- ============================================================================
 config.key_tables = {
+    -- Colemak-DH list navigation for the LEADER N picker: h = up, k = down, as
+    -- in resize mode below. The selector overlay hardcodes its own keys (CTRL+k
+    -- is up there), and a binding is looked up before the key reaches the
+    -- overlay, so remapping to the arrows it also accepts wins.
+    list_nav = {
+        { key = "h", mods = "CTRL", action = act.SendKey({ key = "UpArrow" }) },
+        { key = "k", mods = "CTRL", action = act.SendKey({ key = "DownArrow" }) },
+    },
+
     -- Repeatable resize mode entered via prefix + r.
     resize_pane = {
         { key = "h", action = act.AdjustPaneSize({ "Up", 2 }) },
