@@ -75,6 +75,10 @@
   (map! :leader :prefix "g"
         (:prefix ("V" . "review")
          :desc "Tree of changed files"     :m "t" #'nitpick-tree
+         ;; diff-hl's own: the file against the revision nitpick set, which is
+         ;; `d' in the pane for the file at point. `magit-diff-buffer-file'
+         ;; cannot do it - it diffs against the branch tip, never the base.
+         :desc "Diff file vs base"         :m "d" #'diff-hl-diff-reference-goto-hunk
          :desc "Comment on PR line(s)"     :m "c" #'nitpick-comment
          :desc "List pending review"       :m "l" #'nitpick-list
          :desc "Submit review (comment)"   :m "s" #'nitpick-submit
