@@ -1430,5 +1430,61 @@ run before diff-hl has defined them."
   "`treemacs-quit' buries the pane and leaves the painting on."
   (should (eq (lookup-key nitpick-tree-mode-map "q") #'nitpick-tree-close)))
 
+;;;; Diffing the file being visited
+
+(ert-deftest nitpick-test-diff-show-passes-only-the-args-half ()
+  "`magit-diff-arguments' answers (ARGS FILES); its FILES is the last diff's."
+  (let (sent)
+    (nitpick-test--with-stubs
+        ((magit-diff-arguments (lambda (&rest _) '(("--stat") ("stale.el"))))
+         (magit-diff-range (lambda (rev args files) (setq sent (list rev args files)))))
+      (nitpick-diff-show "abc123" '("a.el"))
+      (should (equal sent '("abc123" ("--stat") ("a.el")))))))
+
+(ert-deftest nitpick-test-diff-buffer-file-diffs-the-visited-file ()
+  "The revision this worktree picked, limited to the file in the buffer."
+  (let (sent)
+    (nitpick-test--with-stubs
+        ((magit-toplevel (lambda (&rest _) "/tmp/wt"))
+         (magit-file-relative-name (lambda (&rest _) "src/a.el"))
+         (nitpick-diff-hl--suggested-base (lambda (&rest _) "master"))
+         (magit-diff-arguments (lambda (&rest _) '(nil nil)))
+         (magit-diff-range (lambda (rev _args files) (setq sent (list rev files)))))
+      (nitpick-diff-buffer-file)
+      (should (equal sent '("master" ("src/a.el")))))))
+
+(ert-deftest nitpick-test-diff-buffer-file-resolves-a-merge-base ()
+  "A trailing `...' is the merge base here too, as everywhere in nitpick."
+  (let (sent)
+    (nitpick-test--with-stubs
+        ((magit-toplevel (lambda (&rest _) "/tmp/wt"))
+         (magit-file-relative-name (lambda (&rest _) "a.el"))
+         (nitpick-diff-hl--suggested-base (lambda (&rest _) "master..."))
+         (magit-git-string (lambda (&rest args)
+                             (and (equal (car args) "merge-base") "abc123")))
+         (magit-diff-arguments (lambda (&rest _) '(nil nil)))
+         (magit-diff-range (lambda (rev _args _files) (setq sent rev))))
+      (nitpick-diff-buffer-file)
+      (should (equal sent "abc123")))))
+
+(ert-deftest nitpick-test-diff-buffer-file-refuses-a-buffer-with-no-file ()
+  "Nothing to limit the diff to, so say so rather than diffing everything."
+  (nitpick-test--with-stubs
+      ((magit-toplevel (lambda (&rest _) "/tmp/wt"))
+       (magit-file-relative-name (lambda (&rest _) nil))
+       (magit-diff-range (lambda (&rest _) (error "should not be called"))))
+    (should-error (nitpick-diff-buffer-file) :type 'user-error)))
+
+(ert-deftest nitpick-test-diff-buffer-file-refuses-outside-a-repository ()
+  "No repository, no base, no diff."
+  (nitpick-test--with-stubs
+      ((magit-toplevel (lambda (&rest _) nil))
+       (magit-diff-range (lambda (&rest _) (error "should not be called"))))
+    (should-error (nitpick-diff-buffer-file) :type 'user-error)))
+
+(ert-deftest nitpick-test-prefix-map-binds-d-to-the-file-diff ()
+  "`d' is the file's diff wherever it is pressed: the pane, or the file."
+  (should (eq (lookup-key nitpick-prefix-map "d") #'nitpick-diff-buffer-file)))
+
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

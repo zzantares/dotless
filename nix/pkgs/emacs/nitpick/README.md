@@ -22,11 +22,12 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-diff-hl-line-mode` | Paint the changed lines, not only the fringe |
 | `nitpick-tree` | Toggle the side pane of the files the review changed, and nothing else |
 | `nitpick-tree-visit-diff` | Read the line at point as a diff instead of a file (`d` in the pane) |
+| `nitpick-diff-buffer-file` | The same diff for the file being visited, from anywhere |
 
 ## Binding
 
 `nitpick-mode` is the default bindings, opt-in: it puts `nitpick-prefix-map` (`c`,
-`l`, `s`, `f`, `b`, `H`, `t`) on `nitpick-keymap-prefix`, which defaults to `C-c v`. So
+`l`, `s`, `f`, `b`, `H`, `t`, `d`) on `nitpick-keymap-prefix`, which defaults to `C-c v`. So
 `C-c v c` comments, `C-c v s` submits. Enable `nitpick-forge-mode` as well to
 route Forge's approve / request-changes through the batch submitter.
 
@@ -48,7 +49,8 @@ nothing is bound - then bind `nitpick-prefix-map` wherever you like:
        :desc "Refresh to PR head"    :m "f" #'nitpick-refresh
        :desc "Set the diff base"     :m "b" #'nitpick-diff-hl-set-base
        :desc "Paint changed lines"   :m "H" #'nitpick-diff-hl-line-mode
-       :desc "Tree of changed files" :m "t" #'nitpick-tree))
+       :desc "Tree of changed files" :m "t" #'nitpick-tree
+       :desc "Diff file vs base"     :m "d" #'nitpick-diff-buffer-file))
 ```
 
 ## The changed-file pane
@@ -129,6 +131,11 @@ and neither replaces the other:
   text, unchanged context folded away. On a directory node it is the diff of
   everything under it, so `d` on a collapsed `nix/pkgs/emacs` reads the whole
   subtree as one diff.
+
+`nitpick-diff-buffer-file` is the same diff for the file being visited rather
+than the one at point, so a file reached any other way still reads as a diff.
+diff-hl's own `diff-hl-diff-reference-goto-hunk` compares the same two things
+and renders a `vc-diff` buffer instead of a magit one.
 
 The diff is `git diff` against the pane's own revision, with your saved magit
 diff arguments, so it agrees with what the pane lists and reads like every

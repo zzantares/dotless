@@ -33,8 +33,6 @@
 (declare-function magit-git-insert "magit-git" (&rest args))
 (declare-function magit-read-branch-or-commit "magit-git" (prompt &optional secondary-default exclude))
 (declare-function magit-find-file-noselect "magit-files" (rev file &optional no-restore-position volatile))
-(declare-function magit-diff-range "magit-diff" (rev-or-range &optional args files))
-(declare-function magit-diff-arguments "magit-diff" (&optional mode))
 (declare-function treemacs-node-at-point "treemacs-core-utils" ())
 (declare-function treemacs-expand-extension-node "treemacs-treelib" (&optional arg))
 (declare-function treemacs-icon-for-file "treemacs-icons" (file))
@@ -470,19 +468,10 @@ With a prefix argument STAY the diff is shown but the pane keeps the focus."
         (user-error "%s is untracked: git has nothing to diff it against"
                     (plist-get node :file)))
       (let* ((root nitpick-tree--root)
-             (revision (nitpick--base-revision nitpick-tree--revision))
-             (files (nitpick-tree--diff-paths node root))
-             (default-directory root)
-             (show (lambda ()
-                     ;; The user's own magit diff settings, so this diff reads
-                     ;; like every other diff they look at.  `car': that
-                     ;; function answers (ARGS FILES) - it fills both of the
-                     ;; interactive slots - and its FILES is whatever the last
-                     ;; magit diff was limited to, which git would then read as
-                     ;; a revision.
-                     (magit-diff-range revision (car (magit-diff-arguments))
-                                       files))))
-        (if stay (save-selected-window (funcall show)) (funcall show))))))
+             (default-directory root))
+        (nitpick-diff-show (nitpick--base-revision nitpick-tree--revision)
+                           (nitpick-tree--diff-paths node root)
+                           stay)))))
 
 (defvar nitpick-tree-mode-map
   (let ((map (make-sparse-keymap)))

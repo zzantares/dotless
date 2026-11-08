@@ -39,6 +39,8 @@
 (declare-function magit-list-local-branch-names "magit-git" ())
 (declare-function magit-read-branch-or-commit "magit-git" (prompt &optional secondary-default exclude))
 (declare-function magit-run-git "magit-process" (&rest args))
+(declare-function magit-diff-range "magit-diff" (rev-or-range &optional args files))
+(declare-function magit-diff-arguments "magit-diff" (&optional mode))
 (declare-function forge--get-remote "forge-repo" (&optional remote))
 (declare-function diff-hl-set-reference-rev "diff-hl" (rev))
 (declare-function diff-hl-set-reference-rev-in-project-internal "diff-hl" (rev project))
@@ -638,6 +640,49 @@ The revision only.  Whole lines instead of fringe marks is
     (error
      (message "diff-hl base not set: %s" (error-message-string err)))))
 
+(defun nitpick-diff-show (revision files &optional stay)
+  "Show FILES\=' changes against REVISION in a magit diff buffer.
+REVISION is passed as given, so resolve a `...\=' with
+`nitpick--base-revision\=' first.  FILES is a pathspec relative to the
+repository root.  Unless STAY is non-nil the diff buffer is selected, the way
+magit\='s own commands leave it.
+
+`car\=' of the arguments: `magit-diff-arguments\=' answers (ARGS FILES),
+filling both of the interactive slots it is written for, and its FILES is
+whatever the last magit diff was limited to - which git would then read as a
+revision.  Taking only ARGS keeps the user\='s diff settings without their
+last diff\='s paths."
+  (let ((show (lambda ()
+                (magit-diff-range revision (car (magit-diff-arguments)) files))))
+    (if stay (save-selected-window (funcall show)) (funcall show))))
+
+;;;###autoload
+(defun nitpick-diff-buffer-file (&optional stay)
+  "Show this file\='s changes against the revision under review.
+
+The same magit diff the changed-file pane opens with `d\=', for the file
+being visited rather than the one at point in the pane - so a file reached
+any other way still reads as a diff, with removed lines as text and
+unchanged context folded away.
+
+The revision is the one this worktree picked, and failing that whatever
+`nitpick-diff-hl-set-base\=' would suggest.  Not `magit-diff-buffer-file\=',
+which compares against the current branch or HEAD and so shows nothing of
+what the branch itself changed.
+
+With a prefix argument STAY the diff is shown but the current window keeps
+the focus."
+  (interactive "P")
+  (let* ((root (or (magit-toplevel) (user-error "Not inside a git repository")))
+         (file (or (magit-file-relative-name)
+                   (user-error "Buffer is not visiting a file in %s" root)))
+         (default-directory root)
+         (picked (or (nitpick-diff-hl--suggested-base root)
+                     (user-error "No revision to diff against")))
+         (revision (or (nitpick--base-revision picked)
+                       (user-error "Cannot work out a merge base for %s" picked))))
+    (nitpick-diff-show revision (list file) stay)))
+
 (defun nitpick-diff-hl--repaint (proj)
   "Redraw diff-hl in PROJ's file buffers, or every file buffer when PROJ is nil.
 diff-hl's own setters update each buffer after changing the reference, but
@@ -826,6 +871,7 @@ behaviour when there is no pending review."
     (define-key map "b" #'nitpick-diff-hl-set-base)
     (define-key map "H" #'nitpick-diff-hl-line-mode)
     (define-key map "t" #'nitpick-tree)
+    (define-key map "d" #'nitpick-diff-buffer-file)
     map)
   "Keymap of PR review commands, meant to be bound to a prefix key.")
 
