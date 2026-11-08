@@ -205,6 +205,72 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, cfg, hover, max_width)
     return string.format(" %d: %s ", tab.tab_index + 1, title)
 end)
 
+-- ---------------------------------------------------------------------------
+-- Zoxide-backed workspace picker (LEADER N).
+-- Name is always <parent>/<base>, which is how `git wt start` names sessions,
+-- so picking a worktree lands on the workspace it already made, not a copy.
+-- ---------------------------------------------------------------------------
+local function ws_name_for_dir(dir)
+    local parts = {}
+    for part in string.gmatch(dir, "[^/]+") do
+        table.insert(parts, part)
+    end
+    if #parts == 0 then
+        return dir
+    elseif #parts == 1 then
+        return parts[1]
+    end
+    return parts[#parts - 1] .. "/" .. parts[#parts]
+end
+
+-- Frecency order is zoxide's own, so never sort. $HOME folds to ~, and the
+-- path stays in the label so fuzzy matching sees it as well as the name.
+local function zoxide_choices()
+    local ok, stdout = wezterm.run_child_process({ "zoxide", "query", "-l" })
+    if not ok then
+        return {}
+    end
+    local home = os.getenv("HOME") or ""
+    local rows, width = {}, 0
+    for dir in string.gmatch(stdout, "[^\r\n]+") do
+        local name = ws_name_for_dir(dir)
+        local shown = dir
+        if home ~= "" and dir:sub(1, #home) == home then
+            shown = "~" .. dir:sub(#home + 1)
+        end
+        width = math.max(width, math.min(#name, 34))
+        table.insert(rows, { dir = dir, name = name, shown = shown })
+    end
+    local choices = {}
+    for _, r in ipairs(rows) do
+        table.insert(choices, {
+            id = r.dir,
+            label = string.format("%-" .. width .. "s  %s", r.name, r.shown),
+        })
+    end
+    return choices
+end
+
+local function ws_is_live(name)
+    for _, w in ipairs(wezterm.mux.get_workspace_names()) do
+        if w == name then
+            return true
+        end
+    end
+    return false
+end
+
+-- spawn only when the workspace does not exist yet: passing it for a live one
+-- stalls the repaint, same reason the user-var handler below never passes it.
+local function open_dir_as_workspace(window, pane, dir)
+    local name = ws_name_for_dir(dir)
+    local args = { name = name }
+    if not ws_is_live(name) then
+        args.spawn = { cwd = dir }
+    end
+    window:perform_action(act.SwitchToWorkspace(args), pane)
+end
+
 config.keys = {
     -- Send a literal CTRL+t to the program (tmux convention: prefix then prefix).
     -- Requires CTRL held on the 2nd key so it doesn't shadow `LEADER t` (the
@@ -356,21 +422,36 @@ config.keys = {
     -- Previous / next workspace  (tmux: prefix ( / ) )
     { key = "(", mods = "LEADER", action = act.SwitchWorkspaceRelative(-1) },
     { key = ")", mods = "LEADER", action = act.SwitchWorkspaceRelative(1) },
-    -- Create a new named workspace and switch to it
+    -- Open a zoxide directory as a workspace  (tmux: the `t` picker)
     {
         key = "N",
         mods = "LEADER",
-        action = act.PromptInputLine({
-            description = "New workspace name:",
-            action = wezterm.action_callback(function(window, pane, line)
-                if line and line ~= "" then
-                    window:perform_action(
-                        act.SwitchToWorkspace({ name = line }),
-                        pane
-                    )
-                end
-            end),
-        }),
+        action = wezterm.action_callback(function(window, pane)
+            local choices = zoxide_choices()
+            if #choices == 0 then
+                window:toast_notification(
+                    "wezterm",
+                    "zoxide returned no directories",
+                    nil,
+                    4000
+                )
+                return
+            end
+            window:perform_action(
+                act.InputSelector({
+                    title = "Open workspace",
+                    fuzzy = true,
+                    fuzzy_description = "workspace> ",
+                    choices = choices,
+                    action = wezterm.action_callback(function(win, p, id)
+                        if id then
+                            open_dir_as_workspace(win, p, id)
+                        end
+                    end),
+                }),
+                pane
+            )
+        end),
     },
     -- Rename current workspace  (tmux: prefix $)
     {
