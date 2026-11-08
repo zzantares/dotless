@@ -35,6 +35,7 @@
 (declare-function magit-rev-parse "magit-git" (&rest args))
 (declare-function magit-git-lines "magit-git" (&rest args))
 (declare-function magit-git-success "magit-git" (&rest args))
+(declare-function magit-current-section "magit-section" ())
 (declare-function magit-get-current-branch "magit-git" ())
 (declare-function magit-list-local-branch-names "magit-git" ())
 (declare-function magit-read-branch-or-commit "magit-git" (prompt &optional secondary-default exclude))
@@ -156,61 +157,202 @@ our own."
         (alist-get 'id (alist-get 'pullRequestReview
                                   (alist-get 'addPullRequestReview data))))))
 
-(defun nitpick--add-thread (review-id path line start-line body)
-  "Add a RIGHT-side draft thread to REVIEW-ID at PATH.
-It covers LINE, or the range START-LINE..LINE when START-LINE differs."
-  (let* ((range (and start-line (/= start-line line)))
+(defun nitpick--add-thread (review-id path line start-line body &optional side)
+  "Add a draft thread to REVIEW-ID at PATH, on SIDE (\"RIGHT\" unless given).
+It covers LINE, or the range START-LINE..LINE when START-LINE differs.  SIDE
+is \"RIGHT\" for the PR's own lines and \"LEFT\" for the base's."
+  (let* ((side (or side "RIGHT"))
+         (range (and start-line (/= start-line line)))
          (q (if range
-                "mutation($r:ID!,$p:String!,$b:String!,$l:Int!,$s:Int!){
+                "mutation($r:ID!,$p:String!,$b:String!,$l:Int!,$s:Int!,$d:DiffSide!){
                    addPullRequestReviewThread(input:{pullRequestReviewId:$r,path:$p,
-                     body:$b,line:$l,side:RIGHT,startLine:$s,startSide:RIGHT}){
+                     body:$b,line:$l,side:$d,startLine:$s,startSide:$d}){
                      thread { id } } }"
-              "mutation($r:ID!,$p:String!,$b:String!,$l:Int!){
+              "mutation($r:ID!,$p:String!,$b:String!,$l:Int!,$d:DiffSide!){
                    addPullRequestReviewThread(input:{pullRequestReviewId:$r,path:$p,
-                     body:$b,line:$l,side:RIGHT}){ thread { id } } }"))
-         (vars (append `((r . ,review-id) (p . ,path) (b . ,body) (l . ,line))
+                     body:$b,line:$l,side:$d}){ thread { id } } }"))
+         (vars (append `((r . ,review-id) (p . ,path) (b . ,body) (l . ,line)
+                         (d . ,side))
                        (when range `((s . ,start-line))))))
     (nitpick--graphql q vars)))
 
-;;;; Commands
+;;;; Targets: a file's own lines, or the hunk at point in a diff buffer
 
-;;;###autoload
-(defun nitpick-comment (beg end)
-  "Add an inline review comment on the current file's line(s) as a draft.
-It is saved to your pending review immediately (created if needed), so it is
-server-side and crash-safe.  Publish the whole review later via
-`nitpick-submit' or Forge's approve / request-changes.  With an active region,
-target the line range BEG..END; otherwise the current line.
+(defun nitpick--oref (object slot)
+  "Return SLOT of OBJECT.
+Through `eieio-oref' with the slot in a variable: a literal makes the
+byte-compiler check it against magit classes it cannot see at build time."
+  (eieio-oref object slot))
 
-The line(s) must be part of the PR's diff (a changed line, or context inside a
-hunk); the forge rejects anything outside it."
-  (interactive
-   (if (use-region-p) (list (region-beginning) (region-end))
-     (list (line-beginning-position) (line-end-position))))
-  (nitpick--gh)
+(defun nitpick--diff-buffer-p ()
+  "Non-nil in a magit diff buffer whose new side is the PR's own.
+Not a revision buffer: a commit's new-side line numbers are the PR head's
+only for the last commit on the branch.  Magit's status buffer is not a diff
+buffer at all, and its hunks are the worktree's changes."
+  (and (derived-mode-p 'magit-diff-mode)
+       (not (derived-mode-p 'magit-revision-mode))))
+
+(defun nitpick--diff-hunk-at-point ()
+  "Return the magit hunk section at point, or nil when point is not on one."
+  (and (nitpick--diff-buffer-p)
+       (fboundp 'magit-current-section)
+       (let ((section (magit-current-section)))
+         (and section
+              (eq (nitpick--oref section 'type) 'hunk)
+              section))))
+
+(defun nitpick--hunk-path (section)
+  "Return the path of the file SECTION belongs to.
+Its file section's value, which for a rename is the new name - the one the
+forge knows the file by."
+  (let* ((parent (nitpick--oref section 'parent))
+         (path (and parent (nitpick--oref parent 'value))))
+    (if (stringp path) path
+      (user-error "Cannot tell which file the hunk at point belongs to"))))
+
+(defun nitpick--hunk-body (section)
+  "Return SECTION's body as one (POS CHAR NEW OLD) tuple per diff line.
+POS starts the line and CHAR is its diff marker; NEW and OLD are the line
+numbers it has on the PR's side and on the base's, nil on the side where it
+does not exist."
+  (let ((new (car (nitpick--oref section 'to-range)))
+        (old (car (nitpick--oref section 'from-range)))
+        (end (nitpick--oref section 'end))
+        (body nil))
+    (save-excursion
+      (goto-char (nitpick--oref section 'content))
+      (while (< (point) end)
+        (pcase (char-after (point))
+          (?+ (push (list (point) ?+ new nil) body)
+              (setq new (1+ new)))
+          (?- (push (list (point) ?- nil old) body)
+              (setq old (1+ old)))
+          ;; "\ No newline at end of file" is part of the hunk and is not a
+          ;; line of either file.
+          (?\\ nil)
+          (_ (push (list (point) ?\s new old) body)
+             (setq new (1+ new))
+             (setq old (1+ old))))
+        (forward-line)))
+    (nreverse body)))
+
+(defun nitpick--hunk-selection (section beg end)
+  "Return (SIDE START-LINE END-LINE) for the lines of SECTION in BEG..END.
+The whole hunk when BEG is nil.  The added lines set the range when the
+selection has any, the removed lines when it has only those, and the context
+lines when it has neither: a removal is commented on the base side, anything
+else on the PR's."
+  (let* ((body (nitpick--hunk-body section))
+         (sel (if beg
+                  (seq-filter (lambda (l) (and (>= (car l) beg) (<= (car l) end)))
+                              body)
+                body))
+         (added (seq-filter (lambda (l) (eq (nth 1 l) ?+)) sel))
+         (removed (seq-filter (lambda (l) (eq (nth 1 l) ?-)) sel)))
+    (cond (added (list "RIGHT" (nth 2 (car added)) (nth 2 (car (last added)))))
+          (removed (list "LEFT" (nth 3 (car removed)) (nth 3 (car (last removed)))))
+          (sel (list "RIGHT" (nth 2 (car sel)) (nth 2 (car (last sel))))))))
+
+(defun nitpick--whole-lines (beg end)
+  "Return BEG..END grown to whole lines as a (BEG . END) cons, nil for a nil BEG.
+An END at the beginning of a line ends the line before it: a line-wise
+selection leaves point past the last line it covers."
+  (and beg
+       (save-excursion
+         (cons (progn (goto-char beg) (line-beginning-position))
+               (progn (goto-char end)
+                      (when (and (> end beg) (bolp)) (backward-char))
+                      (line-end-position))))))
+
+(defun nitpick--hunk-target (section beg end)
+  "Return the comment target for the part of SECTION that BEG..END covers.
+The whole hunk when BEG is nil.  See `nitpick--comment-target' for the keys."
+  (when (nitpick--oref section 'combined)
+    (user-error "A combined diff has no single side to comment on"))
+  (let* ((root (or (magit-toplevel) (user-error "Not inside a git repository")))
+         (path (nitpick--hunk-path section))
+         (bounds (nitpick--whole-lines beg end))
+         (sel (or (nitpick--hunk-selection section (car bounds) (cdr bounds))
+                  (user-error "No line of the PR in the hunk at point")))
+         (default-directory root))
+    ;; The new side of this diff is the worktree, so its line numbers are the
+    ;; PR head's only while the file is the committed one.
+    (unless (magit-git-success "diff" "--quiet" "HEAD" "--" path)
+      (user-error "%s has uncommitted changes: its lines are not the PR's" path))
+    (list (cons 'root root) (cons 'path path)
+          (cons 'line (nth 2 sel))
+          (cons 'start-line (and (/= (nth 1 sel) (nth 2 sel)) (nth 1 sel)))
+          (cons 'side (car sel)))))
+
+(defun nitpick--file-target (beg end)
+  "Return the comment target for BEG..END in the visited file.
+Nil bounds mean the line at point."
   (unless buffer-file-name (user-error "Buffer is not visiting a file"))
   (when (buffer-modified-p)
     (user-error "Save the buffer first: line numbers must match the PR head"))
-  (let* ((root (or (magit-toplevel) (user-error "Not inside a git repository")))
+  (let* ((beg (or beg (line-beginning-position)))
+         (end (or end (line-end-position)))
+         (root (or (magit-toplevel) (user-error "Not inside a git repository")))
          (path (or (magit-file-relative-name buffer-file-name)
                    (user-error "File is not inside the repository")))
          (start-line (line-number-at-pos beg))
          (end-line (save-excursion
                      (goto-char end)
                      (when (and (> end beg) (bolp)) (backward-char))
-                     (line-number-at-pos)))
-         (multi (/= start-line end-line))
+                     (line-number-at-pos))))
+    (list (cons 'root root) (cons 'path path)
+          (cons 'line end-line)
+          (cons 'start-line (and (/= start-line end-line) start-line))
+          (cons 'side "RIGHT"))))
+
+(defun nitpick--comment-target (beg end)
+  "Return what BEG..END points at, as an alist to compose a comment against.
+Keys: `root', `path', `line', `start-line' (nil unless the target is a range)
+and `side'.  The hunk at point in a diff buffer, the visited file's own lines
+anywhere else."
+  (let ((section (nitpick--diff-hunk-at-point)))
+    (cond (section (nitpick--hunk-target section beg end))
+          ((nitpick--diff-buffer-p) (user-error "Point is not on a diff hunk"))
+          (t (nitpick--file-target beg end)))))
+
+;;;; Commands
+
+;;;###autoload
+(defun nitpick-comment (&optional beg end)
+  "Add an inline review comment as a draft on this PR's pending review.
+It is saved to the pending review immediately (created if needed), so it is
+server-side and crash-safe.  Publish the whole review later via
+`nitpick-submit' or Forge's approve / request-changes.
+
+What it comments on depends on where it is called:
+
+In a file buffer, the line at point, or the line range BEG..END when a region
+is active.
+
+In a magit diff buffer - `nitpick-diff-buffer-file', the changed-file pane's
+`d', any `magit-diff' - the hunk at point, or the part of it a region covers.
+A selection of removed lines is commented on the base side, anything else on
+the PR's.  Magit's own status buffer is not a diff buffer: its hunks are the
+worktree's, not the PR's.
+
+The line(s) must be part of the PR's diff (a changed line, or context inside
+a hunk); the forge rejects anything outside it."
+  (interactive (if (use-region-p) (list (region-beginning) (region-end)) nil))
+  (nitpick--gh)
+  (let* ((ctx (nitpick--comment-target beg end))
+         (path (alist-get 'path ctx))
+         (line (alist-get 'line ctx))
+         (start (alist-get 'start-line ctx))
          (buf (get-buffer-create "*nitpick-comment*")))
     (with-current-buffer buf
       (erase-buffer)
       (when (fboundp 'gfm-mode) (gfm-mode))
-      (setq nitpick--comment-ctx
-            (list (cons 'root root) (cons 'path path)
-                  (cons 'line end-line) (cons 'start-line (and multi start-line))))
+      (setq nitpick--comment-ctx ctx)
       (setq header-line-format
-            (format " Draft PR comment on %s:%s  -  C-c C-c add - C-c C-k cancel"
-                    path (if multi (format "%d-%d" start-line end-line)
-                           (number-to-string end-line))))
+            (format " Draft PR comment on %s:%s%s  -  C-c C-c add - C-c C-k cancel"
+                    path
+                    (if start (format "%d-%d" start line) line)
+                    (if (equal (alist-get 'side ctx) "LEFT") " (base side)" "")))
       (local-set-key (kbd "C-c C-c") #'nitpick--comment-add)
       (local-set-key (kbd "C-c C-k") #'nitpick-cancel))
     (pop-to-buffer buf)
@@ -237,7 +379,8 @@ hunk); the forge rejects anything outside it."
         (message "Warning: worktree HEAD differs from PR head - run `nitpick-refresh'"))
       (nitpick--add-thread
        (nitpick--ensure-review (alist-get 'id pr) (alist-get 'head pr))
-       (alist-get 'path ctx) (alist-get 'line ctx) (alist-get 'start-line ctx) body)
+       (alist-get 'path ctx) (alist-get 'line ctx) (alist-get 'start-line ctx) body
+       (alist-get 'side ctx))
       (let ((b (current-buffer))) (quit-window) (kill-buffer b))
       (message "Added draft comment to pending review of PR #%s" (alist-get 'number pr)))))
 

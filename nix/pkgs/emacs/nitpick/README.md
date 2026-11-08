@@ -3,8 +3,8 @@
 Batched pull request reviews from Emacs, anchored on the files on disk.
 
 The overlay adds `nitpick` to the Emacs package scope, and the `emacs` home
-module installs it. Comment on the line at point, batch the drafts into a
-server-side pending review, submit them together with a verdict.
+module installs it. Comment on the line or the diff hunk at point, batch the
+drafts into a server-side pending review, submit them together with a verdict.
 
 Drafts live on the forge from the moment they are added, so they survive a crash
 and stay submittable from the web UI. GitHub via the `gh` CLI is the only backend
@@ -14,7 +14,7 @@ today; the public names are backend-neutral (see dotless #99).
 
 | Command | What it does |
 | --- | --- |
-| `nitpick-comment` | Draft a comment on the current line or region |
+| `nitpick-comment` | Draft a comment on the line, region, or diff hunk at point |
 | `nitpick-list` | List the pending review's drafts, flagging outdated ones |
 | `nitpick-submit` | Publish the drafts with COMMENT / APPROVE / REQUEST_CHANGES |
 | `nitpick-refresh` | Resync the worktree to the PR head after the author pushes |
@@ -52,6 +52,26 @@ nothing is bound - then bind `nitpick-prefix-map` wherever you like:
        :desc "Tree of changed files" :m "t" #'nitpick-tree
        :desc "Diff file vs base"     :m "d" #'nitpick-diff-buffer-file))
 ```
+
+## What a comment lands on
+
+`nitpick-comment` reads its target from where it is called:
+
+- In a **file buffer**, the line at point, or the lines a region covers.
+- In a **magit diff buffer** - `nitpick-diff-buffer-file`, the pane's `d`, any
+  `magit-diff` - the hunk at point, or the part of it a region covers.
+
+A hunk comments on its added lines, not on the context around them, so the
+range the forge shows is the change itself. A hunk with only removals is
+commented on the base side (`LEFT`), which is the only side those lines have;
+a selection of nothing but context lines anchors on the context, which the
+forge accepts because it is inside the diff.
+
+Magit's status buffer is left out on purpose: its hunks are the worktree's
+changes, not the PR's. Revision buffers too - a commit's new-side line numbers
+are the PR head's only for the last commit on the branch. And a file with
+uncommitted changes is refused, because the new side of the diff is the
+worktree: edit it and the numbers stop being the PR's.
 
 ## The changed-file pane
 
@@ -118,8 +138,8 @@ magit diff buffer limited to that one path. They answer different questions
 and neither replaces the other:
 
 - The **file** is where LSP works, where jump-to-definition and the type
-  errors live, and where a comment can be anchored to a real line. It is also
-  where you fix what the review turns up. What it cannot show is a removal:
+  errors live, and where you fix what the review turns up. Both views take a
+  comment; only the file takes one on a line the diff never showed. What it cannot show is a removal:
   diff-hl marks the line *after* removed text in the fringe and has no way to
   draw the text that is gone, which is why `nitpick-diff-hl-line-mode`
   deliberately leaves deletions unpainted.

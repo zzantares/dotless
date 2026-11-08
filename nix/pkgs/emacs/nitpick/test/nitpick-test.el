@@ -296,6 +296,174 @@ magit or forge does not leave definitions behind."
     (with-temp-buffer
       (should-error (nitpick-comment (point-min) (point-max)) :type 'user-error))))
 
+;;;; Diff-buffer targets
+
+(defun nitpick-test--in-hunk (text from to fn &optional combined)
+  "Call FN with a fake hunk section over TEXT, in a buffer holding TEXT.
+TEXT is a hunk body, one diff line per line; FROM and TO are its header's
+`(START LEN)' ranges.  `nitpick--oref' reads the section as an alist, so the
+suite never needs magit's classes.  COMBINED fills the slot of that name."
+  (with-temp-buffer
+    (insert text)
+    (let ((section `((type . hunk)
+                     (combined . ,combined)
+                     (content . ,(point-min))
+                     (end . ,(point-max))
+                     (from-range . ,from)
+                     (to-range . ,to)
+                     (parent . ((value . "src/thing.el"))))))
+      (nitpick-test--with-stubs
+          ((nitpick--oref (lambda (obj slot) (alist-get slot obj))))
+        (funcall fn section)))))
+
+(defconst nitpick-test--hunk
+  (concat " keep\n"
+          "-gone\n"
+          "+added\n"
+          "+also added\n"
+          " tail\n")
+  "A hunk body of @@ -10,3 +10,4 @@: context, a removal, two additions, context.")
+
+(ert-deftest nitpick-test-hunk-body-numbers-both-sides ()
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '(10 3) '(10 4)
+   (lambda (section)
+     (should (equal (mapcar #'cdr (nitpick--hunk-body section))
+                    '((?\s 10 10) (?- nil 11) (?+ 11 nil) (?+ 12 nil)
+                      (?\s 13 12)))))))
+
+(ert-deftest nitpick-test-hunk-body-skips-the-no-newline-marker ()
+  "`\\ No newline at end of file' belongs to neither side, so it counts on neither."
+  (nitpick-test--in-hunk
+   (concat "+added\n\\ No newline at end of file\n+last\n") '(10 0) '(10 2)
+   (lambda (section)
+     (should (equal (mapcar (lambda (l) (nth 2 l)) (nitpick--hunk-body section))
+                    '(10 11))))))
+
+(ert-deftest nitpick-test-hunk-selection-spans-the-added-lines ()
+  "The whole hunk, with no region: the additions, not the context around them."
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '(10 3) '(10 4)
+   (lambda (section)
+     (should (equal (nitpick--hunk-selection section nil nil) '("RIGHT" 11 12))))))
+
+(ert-deftest nitpick-test-hunk-selection-of-a-removal-is-the-base-side ()
+  (nitpick-test--in-hunk
+   (concat " keep\n-gone\n-also gone\n") '(10 3) '(10 1)
+   (lambda (section)
+     (should (equal (nitpick--hunk-selection section nil nil) '("LEFT" 11 12))))))
+
+(ert-deftest nitpick-test-hunk-selection-of-context-only-is-the-pr-side ()
+  "A selection with nothing changed in it still has lines the forge knows."
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '(10 3) '(10 4)
+   (lambda (section)
+     (let ((beg (point-min))
+           (end (save-excursion (goto-char (point-min)) (line-end-position))))
+       (should (equal (nitpick--hunk-selection section beg end) '("RIGHT" 10 10)))))))
+
+(ert-deftest nitpick-test-hunk-selection-narrows-to-the-region ()
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '(10 3) '(10 4)
+   (lambda (section)
+     (let ((beg (save-excursion (goto-char (point-min)) (forward-line 3) (point)))
+           (end (save-excursion (goto-char (point-min)) (forward-line 4) (point))))
+       ;; the second addition only: an end at the beginning of a line stops
+       ;; before it
+       (should (equal (nitpick--hunk-selection section beg end) '("RIGHT" 12 12)))))))
+
+(ert-deftest nitpick-test-hunk-target-carries-the-path-and-the-side ()
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '(10 3) '(10 4)
+   (lambda (section)
+     (nitpick-test--with-stubs
+         ((magit-toplevel (lambda (&rest _) "/repo"))
+          (magit-git-success (lambda (&rest _) t)))
+       (let ((target (nitpick--hunk-target section nil nil)))
+         (should (equal (alist-get 'path target) "src/thing.el"))
+         (should (equal (alist-get 'side target) "RIGHT"))
+         (should (equal (alist-get 'start-line target) 11))
+         (should (equal (alist-get 'line target) 12)))))))
+
+(ert-deftest nitpick-test-hunk-target-collapses-a-single-line-hunk ()
+  (nitpick-test--in-hunk
+   "+added\n" '(10 0) '(10 1)
+   (lambda (section)
+     (nitpick-test--with-stubs
+         ((magit-toplevel (lambda (&rest _) "/repo"))
+          (magit-git-success (lambda (&rest _) t)))
+       (let ((target (nitpick--hunk-target section nil nil)))
+         (should (equal (alist-get 'line target) 10))
+         (should-not (alist-get 'start-line target)))))))
+
+(ert-deftest nitpick-test-hunk-target-refuses-an-uncommitted-file ()
+  "The new side of the diff is the worktree; dirty, its lines are not the PR's."
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '(10 3) '(10 4)
+   (lambda (section)
+     (nitpick-test--with-stubs
+         ((magit-toplevel (lambda (&rest _) "/repo"))
+          (magit-git-success (lambda (&rest _) nil)))
+       (should-error (nitpick--hunk-target section nil nil) :type 'user-error)))))
+
+(ert-deftest nitpick-test-hunk-target-refuses-a-combined-diff ()
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '((10 3) (10 3)) '(10 4)
+   (lambda (section)
+     (should-error (nitpick--hunk-target section nil nil) :type 'user-error))
+   t))
+
+(ert-deftest nitpick-test-hunk-at-point-ignores-the-status-buffer ()
+  "A magit status hunk is the worktree's, so it is not a target."
+  (nitpick-test--with-stubs ((magit-current-section (lambda () '((type . hunk)))))
+    (with-temp-buffer
+      (should-not (nitpick--diff-hunk-at-point)))))
+
+(ert-deftest nitpick-test-comment-in-a-diff-buffer-needs-a-hunk ()
+  "Point on a file heading is in the diff but on no line of it."
+  (nitpick-test--with-stubs
+      ((nitpick--gh (lambda () "/bin/true"))
+       (nitpick--diff-buffer-p (lambda () t))
+       (nitpick--diff-hunk-at-point (lambda () nil)))
+    (with-temp-buffer
+      (should-error (nitpick-comment) :type 'user-error))))
+
+(ert-deftest nitpick-test-comment-targets-the-hunk-at-point ()
+  (nitpick-test--in-hunk
+   nitpick-test--hunk '(10 3) '(10 4)
+   (lambda (section)
+     (nitpick-test--with-stubs
+         ((nitpick--gh (lambda () "/bin/true"))
+          (nitpick--diff-hunk-at-point (lambda () section))
+          (magit-toplevel (lambda (&rest _) "/repo"))
+          (magit-git-success (lambda (&rest _) t))
+          (pop-to-buffer (lambda (&rest _) nil)))
+       (nitpick-comment)
+       (with-current-buffer "*nitpick-comment*"
+         (should (equal (alist-get 'path nitpick--comment-ctx) "src/thing.el"))
+         (should (equal (alist-get 'side nitpick--comment-ctx) "RIGHT"))
+         (should (equal (alist-get 'start-line nitpick--comment-ctx) 11))
+         (should (equal (alist-get 'line nitpick--comment-ctx) 12)))))))
+
+(ert-deftest nitpick-test-comment-add-sends-the-targets-side ()
+  (let* ((rec (nitpick-test--recorder '((node . nil))))
+         (cell (car rec)))
+    (nitpick-test--with-stubs
+        ((nitpick--graphql (cdr rec))
+         (nitpick--pr-ctx (lambda (&rest _) '((id . "PR_1") (number . 7)
+                                              (head . "deadbeef"))))
+         (nitpick--ensure-review (lambda (&rest _) "PRR_1"))
+         (shell-command-to-string (lambda (&rest _) "deadbeef\n"))
+         (quit-window (lambda (&rest _) nil)))
+      (with-temp-buffer
+        (setq nitpick--comment-ctx
+              (list (cons 'root default-directory) (cons 'path "src/thing.el")
+                    (cons 'line 12) (cons 'start-line 11) (cons 'side "LEFT")))
+        (insert "on the base side")
+        (nitpick--comment-add))
+      (should (equal (alist-get 'd (cdr cell)) "LEFT"))
+      (should (equal (alist-get 's (cdr cell)) 11)))))
+
 ;;;; Submit
 
 (ert-deftest nitpick-test-submit-maps-events-to-the-graphql-enum ()
