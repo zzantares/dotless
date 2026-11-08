@@ -206,9 +206,12 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, cfg, hover, max_width)
 end)
 
 -- ---------------------------------------------------------------------------
--- Zoxide-backed workspace picker (LEADER N).
--- Name is always <parent>/<base>, which is how `git wt start` names sessions,
--- so picking a worktree lands on the workspace it already made, not a copy.
+-- Workspace pickers: LEADER T/B/S over the live workspaces, LEADER N over the
+-- zoxide directories. Both are InputSelector overlays, so both pick up the
+-- Colemak list_nav key table (h = up, k = down).
+-- A directory's workspace name is always <parent>/<base>, which is how
+-- `git wt start` names sessions, so picking a worktree lands on the workspace
+-- it already made instead of a second one.
 -- ---------------------------------------------------------------------------
 local function ws_name_for_dir(dir)
     local parts = {}
@@ -223,32 +226,81 @@ local function ws_name_for_dir(dir)
     return parts[#parts - 1] .. "/" .. parts[#parts]
 end
 
--- Frecency order is zoxide's own, so never sort. $HOME folds to ~, and the
--- path stays in the label so fuzzy matching sees it as well as the name.
+local function tilde(path)
+    local home = os.getenv("HOME") or ""
+    if home ~= "" and path:sub(1, #home) == home then
+        return "~" .. path:sub(#home + 1)
+    end
+    return path
+end
+
+-- Two columns: name padded to the widest, capped so one long name cannot push
+-- every path off screen. The path stays in the label, so fuzzy matching sees
+-- it as well as the name.
+local function padded_choices(rows)
+    local width = 0
+    for _, r in ipairs(rows) do
+        width = math.max(width, math.min(#r.name, 34))
+    end
+    local choices = {}
+    for _, r in ipairs(rows) do
+        local label = string.format("%-" .. width .. "s  %s", r.name, r.shown or "")
+        table.insert(choices, { id = r.id, label = (label:gsub("%s+$", "")) })
+    end
+    return choices
+end
+
+-- Frecency order is zoxide's own, so never sort.
 local function zoxide_choices()
     local ok, stdout = wezterm.run_child_process({ "zoxide", "query", "-l" })
     if not ok then
         return {}
     end
-    local home = os.getenv("HOME") or ""
-    local rows, width = {}, 0
+    local rows = {}
     for dir in string.gmatch(stdout, "[^\r\n]+") do
-        local name = ws_name_for_dir(dir)
-        local shown = dir
-        if home ~= "" and dir:sub(1, #home) == home then
-            shown = "~" .. dir:sub(#home + 1)
-        end
-        width = math.max(width, math.min(#name, 34))
-        table.insert(rows, { dir = dir, name = name, shown = shown })
-    end
-    local choices = {}
-    for _, r in ipairs(rows) do
-        table.insert(choices, {
-            id = r.dir,
-            label = string.format("%-" .. width .. "s  %s", r.name, r.shown),
+        table.insert(rows, {
+            id = dir,
+            name = ws_name_for_dir(dir),
+            shown = tilde(dir),
         })
     end
-    return choices
+    return padded_choices(rows)
+end
+
+-- Live workspaces, most recently active first, leaving out the one you are in:
+-- switching there is a no-op, and dropping it puts the last-used workspace on
+-- row 1. cwds come from the MRU cache, so one never visited shows none.
+local function live_ws_choices(current)
+    local live, rows, seen = {}, {}, {}
+    for _, name in ipairs(wezterm.mux.get_workspace_names()) do
+        live[name] = true
+    end
+    local function add(name, cwd)
+        if live[name] and name ~= current and not seen[name] then
+            seen[name] = true
+            table.insert(rows, {
+                id = name,
+                name = name,
+                shown = cwd and tilde(cwd) or "",
+            })
+        end
+    end
+    for _, e in ipairs(ws_mru) do
+        add(e.name, e.cwd)
+    end
+    -- Anything live but never recorded (e.g. created by `git wt start` while
+    -- this window was elsewhere) goes after the MRU block, name-sorted.
+    local rest = {}
+    for name in pairs(live) do
+        if name ~= current and not seen[name] then
+            table.insert(rest, name)
+        end
+    end
+    table.sort(rest)
+    for _, name in ipairs(rest) do
+        add(name, nil)
+    end
+    return padded_choices(rows)
 end
 
 local function ws_is_live(name)
@@ -270,6 +322,56 @@ local function open_dir_as_workspace(window, pane, dir)
     end
     window:perform_action(act.SwitchToWorkspace(args), pane)
 end
+
+-- Shared picker flow: push the nav table, show the list, pop it again from the
+-- selector's callback, which fires on accept and on cancel alike.
+local function show_picker(window, pane, opts)
+    if #opts.choices == 0 then
+        window:toast_notification("wezterm", opts.empty, nil, 4000)
+        return
+    end
+    window:perform_action(
+        act.ActivateKeyTable({ name = "list_nav", one_shot = false }),
+        pane
+    )
+    window:perform_action(
+        act.InputSelector({
+            title = opts.title,
+            fuzzy = true,
+            fuzzy_description = "workspace> ",
+            choices = opts.choices,
+            action = wezterm.action_callback(function(win, p, id)
+                win:perform_action(act.PopKeyTable, p)
+                if id then
+                    opts.on_pick(win, p, id)
+                end
+            end),
+        }),
+        pane
+    )
+end
+
+-- LEADER B / T / S: switch to a live workspace.
+local switch_ws_picker = wezterm.action_callback(function(window, pane)
+    show_picker(window, pane, {
+        title = "Switch workspace",
+        choices = live_ws_choices(window:active_workspace()),
+        empty = "no other workspace is open",
+        on_pick = function(win, p, name)
+            win:perform_action(act.SwitchToWorkspace({ name = name }), p)
+        end,
+    })
+end)
+
+-- LEADER N: open a zoxide directory as a workspace.
+local open_ws_picker = wezterm.action_callback(function(window, pane)
+    show_picker(window, pane, {
+        title = "Open workspace",
+        choices = zoxide_choices(),
+        empty = "zoxide returned no directories",
+        on_pick = open_dir_as_workspace,
+    })
+end)
 
 config.keys = {
     -- Send a literal CTRL+t to the program (tmux convention: prefix then prefix).
@@ -400,65 +502,17 @@ config.keys = {
     },
 
     -- Sessions == WezTerm workspaces (the analog of a tmux session).
-    -- LEADER B / T / S → the workspace picker, all three the same thing. B and T
-    -- mirror the tmux `t` binds; the picker is the built-in launcher, which runs
-    -- GUI-side with no shell, no spawn and no escape sequence to stall on. Type to
-    -- filter, Enter to switch.
-    {
-        key = "B",
-        mods = "LEADER",
-        action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }),
-    },
-    {
-        key = "T",
-        mods = "LEADER",
-        action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }),
-    },
-    {
-        key = "S",
-        mods = "LEADER",
-        action = act.ShowLauncherArgs({ flags = "FUZZY|WORKSPACES" }),
-    },
+    -- LEADER B / T / S → the workspace picker, all three the same thing; B and T
+    -- mirror the tmux `t` binds. Runs GUI-side with no shell, no spawn and no
+    -- escape sequence to stall on. Type to filter, Enter to switch.
+    { key = "B", mods = "LEADER", action = switch_ws_picker },
+    { key = "T", mods = "LEADER", action = switch_ws_picker },
+    { key = "S", mods = "LEADER", action = switch_ws_picker },
     -- Previous / next workspace  (tmux: prefix ( / ) )
     { key = "(", mods = "LEADER", action = act.SwitchWorkspaceRelative(-1) },
     { key = ")", mods = "LEADER", action = act.SwitchWorkspaceRelative(1) },
     -- Open a zoxide directory as a workspace  (tmux: the `t` picker)
-    {
-        key = "N",
-        mods = "LEADER",
-        action = wezterm.action_callback(function(window, pane)
-            local choices = zoxide_choices()
-            if #choices == 0 then
-                window:toast_notification(
-                    "wezterm",
-                    "zoxide returned no directories",
-                    nil,
-                    4000
-                )
-                return
-            end
-            window:perform_action(
-                act.ActivateKeyTable({ name = "list_nav", one_shot = false }),
-                pane
-            )
-            window:perform_action(
-                act.InputSelector({
-                    title = "Open workspace",
-                    fuzzy = true,
-                    fuzzy_description = "workspace> ",
-                    choices = choices,
-                    action = wezterm.action_callback(function(win, p, id)
-                        -- Fires on accept and on cancel, so the table always pops.
-                        win:perform_action(act.PopKeyTable, p)
-                        if id then
-                            open_dir_as_workspace(win, p, id)
-                        end
-                    end),
-                }),
-                pane
-            )
-        end),
-    },
+    { key = "N", mods = "LEADER", action = open_ws_picker },
     -- Rename current workspace  (tmux: prefix $)
     {
         key = "$",
