@@ -7,7 +7,8 @@ checkout, and diff-hl is pointed at the PR's base so the worktree files are
 annotated with the PR's changes."
   (forge-pull)
   (let ((the-path (car orig-args))
-        (the-pullreq (nth 1 orig-args))
+        ;; `forge-read-pullreq' hands over an id, not the object.
+        (the-pullreq (forge-get-pullreq (nth 1 orig-args)))
         (+workspaces-switch-project-function #'(lambda (the-project-path)
                                                  (magit-status-setup-buffer the-project-path)
                                                  (lsp-workspace-folders-add the-project-path)))
@@ -19,6 +20,29 @@ annotated with the PR's changes."
       (nitpick-diff-hl-set-from-pullreq the-path the-pullreq))))
 
 (advice-add 'forge-checkout-worktree :around #'zz-forge-checkout-worktree)
+
+(defun zz-forge-checkout-worktree-read-directory (pullreq)
+  "Read the worktree directory for PULLREQ, defaulting to <number>-<branch>.
+Same as Forge's own default, minus its crash when the PR's source branch is
+gone: head-ref is then nil (GitHub) or \":branch\" (Gitlab), and Forge feeds
+that straight to `string-match-p'. Those PRs default to the number alone."
+  (let* ((number (oref pullreq number))
+         (branch (forge--pullreq-branch-internal pullreq))
+         (default (if (or (null branch)
+                          (string-match-p "\\`pr-[0-9]+\\'" branch))
+                      (number-to-string number)
+                    (format "%s-%s" number (string-replace "/" "-" branch))))
+         (path (read-directory-name
+                (format "Checkout #%s in new worktree: " number)
+                (file-name-directory (directory-file-name default-directory))
+                nil nil default)))
+    (when (equal path "")
+      (user-error "The empty string isn't a valid path"))
+    path))
+
+(after! forge
+  (setopt forge-checkout-worktree-read-directory-function
+          #'zz-forge-checkout-worktree-read-directory))
 
 (defun zz-projectile-invalidate-cache (&rest _args)
   "We want to invalidate projectile cache after checking out a branch since
