@@ -88,7 +88,11 @@ config.front_end = "OpenGL"
 --   owns CTRL+t while tmux keeps its CTRL+b prefix (see programs/tmux), so a tmux
 --   session running inside WezTerm receives CTRL+b untouched.
 -- ============================================================================
-config.leader = { key = "t", mods = "CTRL", timeout_milliseconds = 1000 }
+-- tmux-style: effectively never expire the prefix while waiting for the command
+-- key. WezTerm has no true "no timeout", so use a large value; the 1s default
+-- made fast two-key combos feel rushed.
+config.leader =
+    { key = "t", mods = "CTRL", timeout_milliseconds = 1000 * 60 * 60 }
 
 -- ---------------------------------------------------------------------------
 -- Workspace MRU (most-recently-active first).
@@ -159,6 +163,15 @@ local function record_ws(name, cwd)
     persist_ws_mru()
 end
 
+-- Active-mode indicators for the left status. WezTerm gives no cue that a key
+-- table is active (copy via LEADER [, resize via LEADER r), so surface it as a
+-- colored pill. Keys are the names window:active_key_table() reports.
+local mode_indicators = {
+    copy_mode = { label = "COPY", bg = "#dca561" }, -- kanagawa yellow
+    resize_pane = { label = "RESIZE", bg = "#8ea4a2" }, -- kanagawa muted teal
+    search_mode = { label = "SEARCH", bg = "#c4746e" }, -- kanagawa red
+}
+
 wezterm.on("update-status", function(window, pane)
     local ws = window:active_workspace()
     record_ws(ws, pane_cwd(pane))
@@ -172,6 +185,19 @@ wezterm.on("update-status", function(window, pane)
         if title and title:match("^\u{25cf} ") then
             tab:set_title(title:gsub("^\u{25cf} ", ""))
         end
+    end
+    -- Left status: light up a pill while a key table (copy/resize/search) is
+    -- active, so an otherwise invisible mode is obvious. Cleared when none is.
+    local mode = mode_indicators[window:active_key_table()]
+    if mode then
+        window:set_left_status(wezterm.format({
+            { Background = { Color = mode.bg } },
+            { Foreground = { Color = "#181616" } },
+            { Attribute = { Intensity = "Bold" } },
+            { Text = " " .. mode.label .. " " },
+        }))
+    else
+        window:set_left_status("")
     end
     -- Show the active workspace name in the status bar (like tmux's session name),
     -- as a small colored pill matching the active-tab colors.
