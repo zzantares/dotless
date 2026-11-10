@@ -9,9 +9,6 @@ annotated with the PR's changes."
   (let ((the-path (car orig-args))
         ;; `forge-read-pullreq' hands over an id, not the object.
         (the-pullreq (forge-get-pullreq (nth 1 orig-args)))
-        (+workspaces-switch-project-function #'(lambda (the-project-path)
-                                                 (magit-status-setup-buffer the-project-path)
-                                                 (lsp-workspace-folders-add the-project-path)))
         (+workspaces-switch-project-function #'magit-status))
     (apply orig-fun orig-args)
     (projectile-add-known-project the-path)
