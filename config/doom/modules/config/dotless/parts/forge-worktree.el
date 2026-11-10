@@ -2,9 +2,9 @@
 
 (defun zz-forge-checkout-worktree (orig-fun &rest orig-args)
   "Meant to be used as an advice to `forge-checkout-worktree' in which the
-created worktree is added as a projectile project and switch to it after
-checkout, and diff-hl is pointed at the PR's base so the worktree files are
-annotated with the PR's changes."
+created worktree is added as a projectile project and an lsp workspace folder
+and switch to it after checkout, and diff-hl is pointed at the PR's base so the
+worktree files are annotated with the PR's changes."
   (forge-pull)
   (let ((the-path (car orig-args))
         ;; `forge-read-pullreq' hands over an id, not the object.
@@ -13,6 +13,9 @@ annotated with the PR's changes."
     (apply orig-fun orig-args)
     (projectile-add-known-project the-path)
     (projectile-switch-project-by-name the-path)
+    ;; Not autoloaded, so only once lsp-mode is up.
+    (when (fboundp 'lsp-workspace-folders-add)
+      (lsp-workspace-folders-add the-path))
     (when (fboundp 'nitpick-diff-hl-set-from-pullreq)
       (nitpick-diff-hl-set-from-pullreq the-path the-pullreq))))
 
