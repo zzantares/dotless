@@ -15,9 +15,10 @@
 #                             rebase master. Without a branch, pick with fzf.
 #
 # This is the new-branch counterpart to `git pr` (which checks out an
-# existing PR). Shared worktree/mux/emacs primitives come from dotless; nested
-# branch names (feat/foo) are flattened into a single directory component
-# (feat-foo), and the session / Doom workspace are named <repo>/<slug>.
+# existing PR). Shared worktree/mux/emacs primitives come from dotless. `start`
+# refuses a nested branch name (feat/foo) so the worktree directory always
+# spells the branch; the session / Doom workspace are named <repo>/<branch>.
+# `finish` and `path` still accept nested names, for worktrees `git pr` made.
 #
 # The session is a tmux session or a wezterm workspace, whichever you are running
 # (see mux.sh). Side effects degrade gracefully: session steps are skipped when
@@ -36,6 +37,8 @@ usage:
   git wt start <branch>     create a worktree + branch off main, plus a background
                             session and (if a Doom daemon is up) projectile
                             project. Prints the worktree path on stdout.
+                            The name must not contain '/': the worktree
+                            directory is named after the branch.
   git wt finish [branch]    remove the worktree, delete the branch, kill the
                             session and drop the projectile project. Refuses
                             unless the branch has merged into main; -f overrides.
@@ -101,15 +104,21 @@ cmd_start() {
 		exit 1
 	}
 
-	local main base root slug dest session
+	# A nested name would land in a directory that no longer spells the branch
+	# ($root/feat-foo for feat/foo), so the two cannot be used interchangeably.
+	# We pick these names ourselves, so refuse rather than flatten. `git pr`
+	# still flattens: its branches come from the forge.
+	[[ "$branch" == */* ]] &&
+		die "branch names must not contain '/' (worktree dirs spell the branch); try ${branch//\//-}"
+
+	local main base root dest session
 	main="$(git-main-branch 2>/dev/null || echo master)"
 	[[ "$branch" == "$main" ]] && die "refusing to start work on the main branch ($main)"
 
 	base="$(resolve_base "$main")"
 	root="$(wt_worktree_root)"
-	slug="${branch//\//-}"
-	dest="$root/$slug"
-	session="$(basename "$root")/$slug"
+	dest="$root/$branch"
+	session="$(basename "$root")/$branch"
 
 	dest="$(wt_add "$dest" "$branch" "$base")" || exit 1
 
@@ -130,7 +139,7 @@ cmd_start() {
 	esac
 
 	# Register-only, and only against an already-running daemon.
-	wt_emacs_add "$slug" "$dest" || echo "git wt: no Emacs daemon; skipped projectile setup" >&2
+	wt_emacs_add "$branch" "$dest" || echo "git wt: no Emacs daemon; skipped projectile setup" >&2
 
 	echo "$dest"
 }
