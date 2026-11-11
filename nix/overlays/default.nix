@@ -61,6 +61,19 @@ in
     '';
   });
 
+  # rustPlatform's cargoSetupHook now forces crates onto system libraries
+  # (AWS_LC_SYS_USE_SYSTEM=1 and friends), and aws-lc-sys 0.45 panics when it
+  # finds none. Mirrors nixpkgs master (NixOS/nixpkgs#584667); drop it on the
+  # next nixpkgs bump.
+  codex = prev.codex.overrideAttrs (old: {
+    buildInputs = old.buildInputs ++ [
+      final.aws-lc
+      final.oniguruma
+      final.sqlite
+      final.zstd
+    ];
+  });
+
   myHaskellPackages = final.haskell.packages.ghc912.override {
     all-cabal-hashes = hackageSnapshot;
     overrides = haskellOverrides;
