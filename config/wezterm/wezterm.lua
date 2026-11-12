@@ -288,9 +288,67 @@ local function padded_choices(rows)
     return choices
 end
 
+-- A GUI-launched wezterm inherits no nix profile on PATH, so a bare binary name
+-- fails there (notably on macOS). Resolve against the usual profile dirs and
+-- keep the bare name as the last resort.
+local function bin(name)
+    local roots = {
+        (os.getenv("HOME") or "") .. "/.nix-profile/bin/",
+        "/etc/profiles/per-user/" .. (os.getenv("USER") or "") .. "/bin/",
+        "/run/current-system/sw/bin/",
+        "/opt/homebrew/bin/",
+        "/usr/local/bin/",
+        "/usr/bin/",
+    }
+    for _, root in ipairs(roots) do
+        local f = io.open(root .. name, "r")
+        if f then
+            f:close()
+            return root .. name
+        end
+    end
+    return name
+end
+
+-- Worktrees of the repo the current pane sits in, live ones marked. The zoxide
+-- picker only knows directories you already visited, so a worktree `git wt
+-- start` just made is absent from it - the gap script-driven switching used to
+-- paper over.
+local function worktree_choices(dir)
+    if not dir or dir == "" then
+        return {}
+    end
+    local ok, stdout = wezterm.run_child_process({
+        bin("git"), "-C", dir, "worktree", "list", "--porcelain",
+    })
+    if not ok then
+        return {}
+    end
+    local live = {}
+    for _, name in ipairs(wezterm.mux.get_workspace_names()) do
+        live[name] = true
+    end
+    -- Porcelain records are blank-line separated, and in a bare clone the first
+    -- one is the bare repo itself, flagged `bare` and not somewhere you can work.
+    local rows = {}
+    for record in string.gmatch(stdout .. "\n\n", "(.-)\n\n") do
+        local path = record:match("^worktree ([^\r\n]+)")
+        local bare = record:match("\nbare") or record:match("^bare")
+        if path and not bare then
+            local name = ws_name_for_dir(path)
+            table.insert(rows, {
+                id = path,
+                name = (live[name] and "* " or "  ") .. name,
+                shown = tilde(path),
+            })
+        end
+    end
+    return padded_choices(rows)
+end
+
 -- Frecency order is zoxide's own, so never sort.
 local function zoxide_choices()
-    local ok, stdout = wezterm.run_child_process({ "zoxide", "query", "-l" })
+    local ok, stdout = wezterm.run_child_process({ bin("zoxide"), "query", "-l" })
     if not ok then
         return {}
     end
@@ -398,6 +456,16 @@ local switch_ws_picker = wezterm.action_callback(function(window, pane)
         on_pick = function(win, p, name)
             win:perform_action(act.SwitchToWorkspace({ name = name }), p)
         end,
+    })
+end)
+
+-- LEADER W: open a worktree of the current repo as a workspace.
+local worktree_ws_picker = wezterm.action_callback(function(window, pane)
+    show_picker(window, pane, {
+        title = "Open worktree",
+        choices = worktree_choices(pane_cwd(pane)),
+        empty = "not in a git repo, or it has no worktrees",
+        on_pick = open_dir_as_workspace,
     })
 end)
 
@@ -551,6 +619,9 @@ config.keys = {
     { key = ")", mods = "LEADER", action = act.SwitchWorkspaceRelative(1) },
     -- Open a zoxide directory as a workspace  (tmux: the `t` picker)
     { key = "N", mods = "LEADER", action = open_ws_picker },
+    -- Open a worktree of the current repo as a workspace. Covers the worktree
+    -- zoxide has never seen because you have not cd'd into it yet.
+    { key = "W", mods = "LEADER", action = worktree_ws_picker },
     -- Rename current workspace  (tmux: prefix $)
     {
         key = "$",
