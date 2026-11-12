@@ -270,6 +270,10 @@ in
 
     "org/gnome/shell" = {
       disable-user-extensions = false;
+
+      # Shell 51 outruns forge/unite metadata (caps at 50.1); without this they
+      # load as OUT_OF_DATE and never run.
+      disable-extension-version-validation = true;
       disabled-extensions = [ ]; # TODO somehow the extensions auto-disable sometimes? this prevents it
 
       # `gnome-extensions list` for a list
