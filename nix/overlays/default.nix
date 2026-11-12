@@ -782,6 +782,20 @@ in
 }
 // prev.lib.optionalAttrs prev.stdenv.hostPlatform.isLinux {
   gnomeExtensions = prev.gnomeExtensions // {
+    # nixpkgs pins forge 50.1-development, whose metadata caps at shell 50.1;
+    # on mutter 51 its unconditional set_unmaximize_flags() segfaults the shell
+    # whenever a window dies before forge's 200 ms window-create timer fires.
+    # Upstream fix (forge-ext/forge#594, for #592) is still unmerged.
+    forge = prev.gnomeExtensions.forge.overrideAttrs (old: {
+      patches = (old.patches or [ ]) ++ [
+        (final.fetchpatch {
+          name = "forge-gnome-51-unmaximize-crash.patch";
+          url = "https://github.com/forge-ext/forge/commit/f01e530b580053e3854b63c8a2226bd1c95f6ec2.patch";
+          hash = "sha256-vhl4kpOqzloymuDtVDg7ySL6GUbvgpkeFAtSzswAkIg=";
+        })
+      ];
+    });
+
     # auto-move-windows only *assigns* a window to its workspace: it moves the
     # window but leaves you on the current one (i3 `assign`). Patch it to also
     # activate the target workspace after the move, so focus follows the app to
