@@ -115,6 +115,15 @@
       custom = "${./custom}";
     };
 
+    # A re-login leaks HM's own guard into the session env, so hm-session-vars
+    # self-skips and /etc/set-environment's EDITOR, PAGER and PATH win.
+    # Re-apply in every zsh; typeset -U keeps the prepend idempotent.
+    envExtra = ''
+      unset __HM_SESS_VARS_SOURCED
+      source ${config.home.sessionVariablesPackage}/etc/profile.d/hm-session-vars.sh
+      typeset -U path
+    '';
+
     initContent = lib.mkMerge [
       (lib.mkBefore (
         ''
