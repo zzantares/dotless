@@ -59,13 +59,22 @@ in
         # muscle memory presses it to abort.
         messages_first = "home";
 
+        # Message focus, unbound upstream, so `<leader>y` could only ever copy
+        # one message. h/k are up/down in every editor here.
+        messages_previous = "<leader>h";
+        messages_next = "<leader>k";
+        messages_toggle_conceal = "<leader>o"; # Was `<leader>h`.
+
         # Unbound upstream. tool_details/display_thinking mirror claude-code;
         # diff_open has no default at all, so the viewer is unreachable.
         diff_open = "<leader>d";
         tool_details = "ctrl+r";
         session_rename = "none";
         display_thinking = "ctrl+o";
-        prompt_skills = "<leader>k";
+        # `<leader>s` was status_view, which is still `/status` and in the
+        # palette; the skill picker has no other front door.
+        prompt_skills = "<leader>s";
+        status_view = "none";
         help_show = "<leader>?";
       };
     };
