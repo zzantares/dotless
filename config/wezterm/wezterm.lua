@@ -38,6 +38,18 @@ config.colors = {
     },
 }
 
+-- Multiplexer domain.
+-- Workspaces live in wezterm-mux-server, not in the GUI, so closing the window
+-- leaves every workspace and the processes in it running and the next GUI
+-- reattaches. Without this a closed window kills them, which is the one thing a
+-- detached tmux session gives you.
+--
+-- The server auto-spawns on first connect. Its pid lock is per-user
+-- ($XDG_RUNTIME_DIR/wezterm/pid), not per-socket, so only one can run at a time;
+-- after a wezterm version bump, kill the old one if a client refuses to connect.
+config.unix_domains = { { name = "main" } }
+config.default_domain = "main"
+
 -- Window
 config.window_decorations = "RESIZE"
 config.window_background_opacity = 0.92
