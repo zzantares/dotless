@@ -230,6 +230,24 @@ in
       '';
   });
 
+  # nixpkgs has gnome-session clear the NixOS env marker before it re-execs
+  # into a login shell; home-manager's marker survives, so hm-session-vars.sh
+  # self-skips on a second login and the system EDITOR/PAGER/PATH win.
+  gnome-session = prev.gnome-session.overrideAttrs (old: {
+    # Sentinel-guarded like diffnav above: composed twice, the second
+    # --replace-fail would abort on the already-rewritten line.
+    postPatch =
+      (old.postPatch or "")
+      +
+        final.lib.optionalString (!(final.lib.hasInfix "dotless hm session markers" (old.postPatch or "")))
+          ''
+            # dotless hm session markers
+            substituteInPlace gnome-session/leader-main.c \
+              --replace-fail 'g_unsetenv ("__NIXOS_SET_ENVIRONMENT_DONE");' \
+                'g_unsetenv ("__NIXOS_SET_ENVIRONMENT_DONE"); g_unsetenv ("__HM_SESS_VARS_SOURCED"); g_unsetenv ("__HM_ZSH_SESS_VARS_SOURCED");'
+          '';
+  });
+
   pr-tools = final.callPackage ./../pkgs/pr-tools { };
 
   tea-dash = final.callPackage ./../pkgs/tea-dash { };
