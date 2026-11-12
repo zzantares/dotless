@@ -659,27 +659,4 @@ set_key(copy_mode, "l", "NONE", act.CopyMode("MoveRight"))
 config.key_tables.copy_mode = copy_mode
 -- search_mode defaults already give you n/N-style cycling via Enter / Ctrl-n / Ctrl-p.
 
--- ----------------------------------------------------------------------------
--- Script-driven workspace switching, for `mux_switch` in dotless's mux.sh.
--- The script emits an OSC 1337 SetUserVar named "switch-workspace" whose value is
--- "<workspace-name>\t<cwd>"; the CLI cannot change the active workspace, so the
--- switch has to happen here, GUI-side.
---
--- Never passes `spawn`. Callers create the workspace first with
--- `wezterm cli spawn --new-window --workspace`, so it always already exists, and a
--- plain SwitchToWorkspace(name) — what the built-in launcher does — switches
--- cleanly. Passing spawn for an existing workspace is what stalls the repaint.
--- ----------------------------------------------------------------------------
-wezterm.on("user-var-changed", function(window, pane, name, value)
-    if name ~= "switch-workspace" then
-        return
-    end
-    local ws, dir = value:match("^(.-)\t(.*)$")
-    if not ws or ws == "" then
-        return
-    end
-    window:perform_action(act.SwitchToWorkspace({ name = ws }), pane)
-    record_ws(ws, dir)
-end)
-
 return config

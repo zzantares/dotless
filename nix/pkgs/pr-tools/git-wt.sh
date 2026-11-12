@@ -131,12 +131,19 @@ cmd_start() {
 	# Background session in the worktree - a detached tmux session or a hidden
 	# wezterm workspace. Never steals focus, so it is safe to run
 	# non-interactively (e.g. from an agent). Enter it later with your switcher.
+	# wezterm cannot be switched from outside (see mux.sh), so say how to get in:
+	# under tmux the session is yours to attach, under wezterm you pick it.
+	local mux_rc
 	mux_ensure_session "$session" "$dest"
-	case $? in
+	mux_rc=$?
+	case $mux_rc in
 		0) echo "git wt: created $(mux_backend) session $session" >&2 ;;
 		1) echo "git wt: reusing session $session" >&2 ;;
 		2) echo "git wt: no multiplexer running; skipped session $session" >&2 ;;
 	esac
+	if [[ $mux_rc -ne 2 && "$(mux_backend)" == wezterm ]]; then
+		echo "git wt: enter it with the workspace picker (LEADER B)" >&2
+	fi
 
 	# Register-only, and only against an already-running daemon.
 	wt_emacs_add "$branch" "$dest" || echo "git wt: no Emacs daemon; skipped projectile setup" >&2

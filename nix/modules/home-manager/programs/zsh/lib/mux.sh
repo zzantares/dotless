@@ -36,12 +36,23 @@ mux_backend() {
 	fi
 }
 
+# Every wezterm cli call starts a mux server when none is running, so a plain
+# call both probes and creates: the work lands in a headless server no GUI is
+# attached to, the caller is told it succeeded, and the orphan stays up. Always
+# go through this wrapper, never bare `wezterm cli`.
+_wez_cli() { wezterm cli --no-auto-start "$@"; }
+
+# Whether a mux server is up, without starting one.
+_mux_wez_server_up() { _wez_cli list >/dev/null 2>&1; }
+
 # Whether <backend> can be reached right now, regardless of where we are sitting.
 # Used by the fan-out helpers, which must ask backends we are not running under.
 _mux_reachable() {
 	case "$1" in
 		tmux) command -v tmux >/dev/null 2>&1 && tmux list-sessions >/dev/null 2>&1 ;;
-		wezterm) command -v wezterm >/dev/null 2>&1 && wezterm cli list >/dev/null 2>&1 ;;
+		# Must not auto-start: probing with a plain `wezterm cli` CREATES the backend
+		# it is asking about, orphaning a headless server on every fan-out from tmux.
+		wezterm) command -v wezterm >/dev/null 2>&1 && _mux_wez_server_up ;;
 		*) return 1 ;;
 	esac
 }
@@ -85,7 +96,7 @@ _mux_tmux_current() { tmux display-message -p '#S' 2>/dev/null; }
 # Pane ids in <workspace>, newest last. Empty when the workspace does not exist:
 # wezterm has no workspace list of its own, a workspace exists iff a pane is in it.
 _mux_wez_panes() {
-	wezterm cli list --format json 2>/dev/null |
+	_wez_cli list --format json 2>/dev/null |
 		jq -r --arg w "$1" '.[] | select(.workspace == $w) | .pane_id' 2>/dev/null
 }
 
@@ -95,29 +106,24 @@ _mux_wez_has() { [[ -n "$(_mux_wez_panes "$1")" ]]; }
 # workspace, so the new window stays hidden. Same intent as a detached session.
 _mux_wez_ensure() {
 	local ws=$1 dir=$2
+	_mux_wez_server_up || return 2
 	_mux_wez_has "$ws" && return 1
-	wezterm cli spawn --new-window --workspace "$ws" --cwd "$dir" >/dev/null 2>&1 && return 0 || return 2
+	_wez_cli spawn --new-window --workspace "$ws" --cwd "$dir" >/dev/null 2>&1 && return 0 || return 2
 }
 
-# No CLI command activates a workspace (`activate-pane` exits 0 and does nothing),
-# so the switch goes through the GUI: an OSC 1337 user var the wezterm.lua handler
-# turns into SwitchToWorkspace. Written to /dev/tty because stdout may be captured.
-#
-# The workspace always exists by here (callers ensure first), so the handler never
-# takes the spawn path - the one that stalls the repaint.
-_mux_wez_switch() {
-	local ws=$1 payload
-	# `base64 -w0` is GNU-only; tr keeps this working on macOS.
-	payload="$(printf '%s\t' "$ws" | base64 | tr -d '\n')"
-	printf '\033]1337;SetUserVar=switch-workspace=%s\a' "$payload" >/dev/tty 2>/dev/null
-}
+# Nothing can activate a wezterm workspace from outside: no CLI subcommand does it
+# (`activate-pane` exits 0 and does nothing; there is no activate-workspace), and
+# driving it through an OSC 1337 user var raced the GUI's own repaint. So this
+# backend does not switch. Callers say how to enter the workspace instead; in
+# wezterm you pick it, wezterm is never pushed.
+_mux_wez_switch() { return 1; }
 
 _mux_wez_kill() {
 	local ws=$1 pane killed=1
 	_mux_wez_has "$ws" || return 1
 	while read -r pane; do
 		[[ -n "$pane" ]] || continue
-		wezterm cli kill-pane --pane-id "$pane" >/dev/null 2>&1 && killed=0
+		_wez_cli kill-pane --pane-id "$pane" >/dev/null 2>&1 && killed=0
 	done < <(_mux_wez_panes "$ws")
 	return $killed
 }
@@ -128,11 +134,11 @@ _mux_wez_new_window() {
 	shift 3
 	pane="$(_mux_wez_panes "$ws" | head -1)"
 	[[ -n "$pane" ]] || return 1
-	win="$(wezterm cli list --format json 2>/dev/null |
+	win="$(_wez_cli list --format json 2>/dev/null |
 		jq -r --argjson p "$pane" '.[] | select(.pane_id == $p) | .window_id' 2>/dev/null)"
 	[[ -n "$win" ]] || return 1
-	pane="$(wezterm cli spawn --window-id "$win" --cwd "$dir" -- "$@" 2>/dev/null)" || return 1
-	wezterm cli set-tab-title --pane-id "$pane" "$title" >/dev/null 2>&1 || true
+	pane="$(_wez_cli spawn --window-id "$win" --cwd "$dir" -- "$@" 2>/dev/null)" || return 1
+	_wez_cli set-tab-title --pane-id "$pane" "$title" >/dev/null 2>&1 || true
 }
 
 # --no-paste plus a trailing newline is the equivalent of send-keys ... Enter;
@@ -141,11 +147,11 @@ _mux_wez_send() {
 	local pane
 	pane="$(_mux_wez_panes "$1" | head -1)"
 	[[ -n "$pane" ]] || return 1
-	printf '%s\n' "$2" | wezterm cli send-text --pane-id "$pane" --no-paste
+	printf '%s\n' "$2" | _wez_cli send-text --pane-id "$pane" --no-paste
 }
 
 _mux_wez_current() {
-	wezterm cli list-clients --format json 2>/dev/null |
+	_wez_cli list-clients --format json 2>/dev/null |
 		jq -r '.[0].workspace // empty' 2>/dev/null
 }
 
