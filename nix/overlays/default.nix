@@ -295,24 +295,17 @@ in
   });
 
   # Bun standalone executables embed their JS bundle as a blob appended after
-  # the ELF sections. This binary is non-PIE (type EXEC) with fixed virtual
-  # addresses and uses Nix's ld-linux-x86-64.so.2 (glibc 2.42) as its
-  # interpreter. That linker crashes applying COPY relocations to the binary's
-  # BSS section — the system linker works correctly.
+  # the ELF sections, so patchelf cannot touch this binary: adding RPATH
+  # resizes ELF segments, shifts the blob and corrupts it.
   #
-  # patchelf can't fix this: it resizes ELF segments when adding RPATH, which
-  # shifts the embedded blob and corrupts the binary. Instead we shim
-  # .opencode-wrapped to invoke the binary via the system linker.
-  #
-  # Build-time checks (smoke test, shell completions, version check) also run
-  # the binary and segfault in the Nix sandbox for the same reason — skip them.
+  # Build-time checks (smoke test, shell completions, version check) run the
+  # binary in the Nix sandbox - skip them.
   opencode =
     if prev.stdenv.hostPlatform.isLinux then
       (inputs.opencode.packages.${system}.default).overrideAttrs (old: {
-        # Both appends below are sentinel-guarded so they stay idempotent when
-        # this overlay is composed onto the same pkgs set twice (see the diffnav
-        # note above): a second pass would otherwise re-run --replace-fail on an
-        # already-patched build.ts and re-`mv` an already-moved binary.
+        # Sentinel-guarded so the append stays idempotent when this overlay is
+        # composed onto the same pkgs set twice (see the diffnav note above):
+        # a second pass would re-run --replace-fail on a patched build.ts.
         postPatch =
           (old.postPatch or "")
           +
@@ -328,20 +321,6 @@ in
 
         postInstall = "";
         doInstallCheck = false;
-
-        postFixup =
-          (old.postFixup or "")
-          + final.lib.optionalString (!(final.lib.hasInfix ".opencode-bun" (old.postFixup or ""))) ''
-            # The Bun binary uses Nix's ld-linux-x86-64.so.2 (glibc 2.42) as its
-            # interpreter, but that linker crashes while applying COPY relocations to
-            # the BSS section of this non-PIE Bun binary. The system linker works.
-            # We replace .opencode-wrapped with a shim that invokes it via the system
-            # linker, leaving the binary itself untouched.
-            mv $out/bin/.opencode-wrapped $out/bin/.opencode-bun
-            printf '#!/bin/sh\nexec /lib64/ld-linux-x86-64.so.2 "%s" "$@"\n' \
-              "$out/bin/.opencode-bun" > $out/bin/.opencode-wrapped
-            chmod +x $out/bin/.opencode-wrapped
-          '';
       })
     else
       inputs.opencode.packages.${system}.default;
