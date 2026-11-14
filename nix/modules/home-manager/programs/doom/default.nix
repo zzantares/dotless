@@ -315,6 +315,17 @@ in
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
       {
+        dotless.appearance.path = [ config.programs.emacs.finalPackage ];
+
+        # Emacs owns its own theme, and it runs as a daemon here, so point the
+        # daemon at the other theme rather than touching any file. Silent when
+        # no server is up, the normal case for a non-graphical session.
+        dotless.appearance.hooks = [
+          ''
+            emacsclient --eval "(dotless/apply-appearance \"$mode\")" >/dev/null 2>&1 || true
+          ''
+        ];
+
         assertions = [
           {
             assertion = lib.all (p: builtins.pathExists (bundled + "/${partsDir}/${p}.el")) (

@@ -7,33 +7,76 @@ config.font_size = 12
 config.line_height = 1.2
 config.font = wezterm.font("CaskaydiaCove Nerd Font")
 
--- Theme (Kanagawa Dragon — warm, muted, darker variant)
-config.color_scheme = "Kanagawa Dragon (Gogh)"
+-- Theme. WezTerm reads the XDG appearance portal (what GNOME's light/dark
+-- toggle sets) and reloads this file when it changes, so both variants are
+-- declared here and picked at evaluation time.
+local themes = {
+    -- Kanagawa Dragon — warm, muted, darker variant
+    Dark = {
+        color_scheme = "Kanagawa Dragon (Gogh)",
+        cursor = "#c8c093",
+        tab_bar_bg = "rgba(24, 22, 22, 0.9)",
+        active_bg = "#8ba4b0",
+        active_fg = "#181616",
+        inactive_bg = "rgba(24, 22, 22, 0.7)",
+        inactive_fg = "#625e5a",
+        hover_bg = "#282727",
+        hover_fg = "#c5c9c5",
+        pill_fg = "#181616",
+        copy_bg = "#dca561", -- kanagawa yellow
+        resize_bg = "#8ea4a2", -- kanagawa muted teal
+        search_bg = "#c4746e", -- kanagawa red
+    },
+
+    -- Solarized Light — base3 canvas, base01 active tab
+    Light = {
+        color_scheme = "Builtin Solarized Light",
+        cursor = "#657b83",
+        tab_bar_bg = "rgba(238, 232, 213, 0.9)",
+        active_bg = "#586e75",
+        active_fg = "#fdf6e3",
+        inactive_bg = "rgba(238, 232, 213, 0.7)",
+        inactive_fg = "#93a1a1",
+        hover_bg = "#eee8d5",
+        hover_fg = "#586e75",
+        pill_fg = "#002b36",
+        copy_bg = "#b58900", -- solarized yellow
+        resize_bg = "#2aa198", -- solarized cyan
+        search_bg = "#dc322f", -- solarized red
+    },
+}
+
+-- `wezterm.gui` does not exist in wezterm-mux-server, which loads this same
+-- file; only the GUI can know the appearance, so the server just takes Dark.
+local appearance = wezterm.gui and wezterm.gui.get_appearance() or "Dark"
+local theme = themes[appearance:find("Dark") and "Dark" or "Light"]
+
+config.color_scheme = theme.color_scheme
 config.colors = {
-    cursor_bg = "#c8c093",
-    cursor_border = "#c8c093",
+    cursor_bg = theme.cursor,
+    cursor_border = theme.cursor,
     tab_bar = {
-        background = "rgba(24, 22, 22, 0.9)",
+        background = theme.tab_bar_bg,
         active_tab = {
-            bg_color = "#8ba4b0",
-            fg_color = "#181616",
+            bg_color = theme.active_bg,
+            fg_color = theme.active_fg,
             intensity = "Bold",
         },
         inactive_tab = {
-            bg_color = "rgba(24, 22, 22, 0.7)",
-            fg_color = "#625e5a",
+            bg_color = theme.inactive_bg,
+            fg_color = theme.inactive_fg,
         },
         inactive_tab_hover = {
-            bg_color = "#282727",
-            fg_color = "#c5c9c5",
+            bg_color = theme.hover_bg,
+            fg_color = theme.hover_fg,
         },
         new_tab = {
-            bg_color = "rgba(24, 22, 22, 0.7)",
-            fg_color = "#625e5a",
+            bg_color = theme.inactive_bg,
+            fg_color = theme.inactive_fg,
         },
         new_tab_hover = {
-            bg_color = "#282727",
-            fg_color = "#c5c9c5",
+            bg_color = theme.hover_bg,
+            fg_color = theme.hover_fg,
         },
     },
 }
@@ -179,9 +222,9 @@ end
 -- table is active (copy via LEADER [, resize via LEADER r), so surface it as a
 -- colored pill. Keys are the names window:active_key_table() reports.
 local mode_indicators = {
-    copy_mode = { label = "COPY", bg = "#dca561" }, -- kanagawa yellow
-    resize_pane = { label = "RESIZE", bg = "#8ea4a2" }, -- kanagawa muted teal
-    search_mode = { label = "SEARCH", bg = "#c4746e" }, -- kanagawa red
+    copy_mode = { label = "COPY", bg = theme.copy_bg },
+    resize_pane = { label = "RESIZE", bg = theme.resize_bg },
+    search_mode = { label = "SEARCH", bg = theme.search_bg },
 }
 
 wezterm.on("update-status", function(window, pane)
@@ -204,7 +247,7 @@ wezterm.on("update-status", function(window, pane)
     if mode then
         window:set_left_status(wezterm.format({
             { Background = { Color = mode.bg } },
-            { Foreground = { Color = "#181616" } },
+            { Foreground = { Color = theme.pill_fg } },
             { Attribute = { Intensity = "Bold" } },
             { Text = " " .. mode.label .. " " },
         }))
@@ -214,8 +257,8 @@ wezterm.on("update-status", function(window, pane)
     -- Show the active workspace name in the status bar (like tmux's session name),
     -- as a small colored pill matching the active-tab colors.
     window:set_right_status(wezterm.format({
-        { Background = { Color = "#8ba4b0" } },
-        { Foreground = { Color = "#181616" } },
+        { Background = { Color = theme.active_bg } },
+        { Foreground = { Color = theme.active_fg } },
         { Attribute = { Intensity = "Bold" } },
         { Text = " " .. ws .. " " },
     }))

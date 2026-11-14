@@ -7,6 +7,16 @@
 }:
 
 let
+  theme = import ./theme.nix;
+
+  themeConf =
+    mode:
+    pkgs.writeText "tmux-theme-${mode}.conf" (
+      theme.styles theme.palettes.${mode} "${tmux-claude-status}/bin/tmux-claude-status"
+    );
+
+  activeTheme = "${config.xdg.configHome}/tmux/theme-active.conf";
+
   # NOTE see: https://github.com/joshmedeski/t-smart-tmux-session-manager
   # TODO need to separate live sessions from directories when picking tmux sessions `C-b T` (separated with a line)
   t-plugin = pkgs.tmuxPlugins.mkTmuxPlugin {
@@ -103,12 +113,33 @@ in
         set -g prefix2 C-t
         bind C-t send-prefix -2
 
-        # Show tmux claude sessions needing attention in the status bar
-        set -g status-right "#[fg=yellow]#(${tmux-claude-status}/bin/tmux-claude-status #S)#[default] %H:%M"
-
         # Creates a menu for tmux-fzf that exposes Claude Code sessions (defined in overlays)
         bind o display-popup -E "${pkgs.tmux-claude-picker}/bin/tmux-claude-picker"
       '')
     ];
   };
+
+  xdg.configFile = {
+    "tmux/theme-dark.conf".source = themeConf "dark";
+    "tmux/theme-light.conf".source = themeConf "light";
+  };
+
+  dotless.appearance.path = [
+    pkgs.tmux
+    pkgs.coreutils
+  ];
+
+  # A running server keeps its options until told otherwise, so re-source the
+  # file in every server on this machine. Sockets live under TMUX_TMPDIR, which
+  # `secureSocket` points at XDG_RUNTIME_DIR.
+  dotless.appearance.hooks = [
+    ''
+      install -m644 "${config.xdg.configHome}/tmux/theme-$mode.conf" ${lib.escapeShellArg activeTheme}
+
+      for socket in "''${TMUX_TMPDIR:-''${XDG_RUNTIME_DIR:-/tmp}}"/tmux-"$(id -u)"/* /tmp/tmux-"$(id -u)"/*; do
+        [ -S "$socket" ] || continue
+        tmux -S "$socket" source-file ${lib.escapeShellArg activeTheme} || true
+      done
+    ''
+  ];
 }

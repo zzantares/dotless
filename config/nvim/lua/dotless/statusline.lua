@@ -1,15 +1,30 @@
 -- Hand-rolled statusline, no plugin. Originally by Tanuharja, R.A. (2024-12-20).
 local M = {}
 
+-- Keyed by 'background', like colors/minimum.lua. Light is Solarized Light:
+-- base2 fills, base01 text, base3 on the inverted modified-file segment.
 M.styles = {
-	statusline_file = { fg = "#EEEEEE", bg = "#333333", bold = true },
-	statusline_modifiedfile = { fg = "#000000", bg = "#CCCCCC", bold = true },
-	statusline_diagnostics = { fg = "#EEEEEE", bg = "#222222" },
-	statusline_debugger_session = { fg = "#CCCCCC", bg = "None" },
-	statusline_separator = { fg = "#333333", bg = "None" },
-	statusline_misc = { fg = "#CCCCCC", bg = "None" },
-	statusline_branch = { fg = "#EEEEEE", bg = "#222222" },
-	statusline_mode = { fg = "#EEEEEE", bg = "#333333", bold = true },
+	dark = {
+		statusline_file = { fg = "#EEEEEE", bg = "#333333", bold = true },
+		statusline_modifiedfile = { fg = "#000000", bg = "#CCCCCC", bold = true },
+		statusline_diagnostics = { fg = "#EEEEEE", bg = "#222222" },
+		statusline_debugger_session = { fg = "#CCCCCC", bg = "None" },
+		statusline_separator = { fg = "#333333", bg = "None" },
+		statusline_misc = { fg = "#CCCCCC", bg = "None" },
+		statusline_branch = { fg = "#EEEEEE", bg = "#222222" },
+		statusline_mode = { fg = "#EEEEEE", bg = "#333333", bold = true },
+	},
+
+	light = {
+		statusline_file = { fg = "#586e75", bg = "#eee8d5", bold = true },
+		statusline_modifiedfile = { fg = "#fdf6e3", bg = "#586e75", bold = true },
+		statusline_diagnostics = { fg = "#586e75", bg = "#eee8d5" },
+		statusline_debugger_session = { fg = "#657b83", bg = "None" },
+		statusline_separator = { fg = "#93a1a1", bg = "None" },
+		statusline_misc = { fg = "#657b83", bg = "None" },
+		statusline_branch = { fg = "#586e75", bg = "#eee8d5" },
+		statusline_mode = { fg = "#586e75", bg = "#eee8d5", bold = true },
+	},
 }
 
 -- laststatus 3 is one statusline for all windows; 0 hides it
@@ -120,9 +135,10 @@ function M.setup(opts)
 	local styles = vim.tbl_deep_extend("force", M.styles, opts.styles or {})
 	local laststatus = opts.laststatus or M.laststatus
 
-	-- :colorscheme clears highlights, so re-apply on every change
+	-- :colorscheme clears highlights, so re-apply on every change - which also
+	-- covers a light/dark flip, since that reloads the colorscheme.
 	local function paint()
-		for group, style in pairs(styles) do
+		for group, style in pairs(styles[vim.o.background] or styles.dark) do
 			vim.api.nvim_set_hl(0, group, style)
 		end
 	end

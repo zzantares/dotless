@@ -34,7 +34,7 @@ cfg = json.loads(re.sub(r",(\s*[}\]])", r"\1", "".join(out)))
 
 assert cfg["vim_mode"] is True, cfg.get("vim_mode")
 assert cfg["theme"]["dark"] == "Modus Operandi Deuteranopia", cfg["theme"]
-assert cfg["theme"]["light"] == "One Light", cfg["theme"]
+assert cfg["theme"]["light"] == "Solarized Light", cfg["theme"]
 assert cfg["theme"]["mode"] == "system", cfg["theme"]
 assert cfg["ui_font_size"] == 16, cfg["ui_font_size"]
 assert cfg["file_types"]["C"] == ["C", "H"], cfg["file_types"]

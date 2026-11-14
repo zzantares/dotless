@@ -8,6 +8,18 @@
 
 let
   themes = import ./colors.nix;
+  tomlFormat = pkgs.formats.toml { };
+
+  # Alacritty has no idea the desktop has a light mode, so the palette lives in
+  # an imported file that `appearance-switch` overwrites. `live_config_reload`
+  # watches imports too, so running windows repaint without a restart.
+  activeColors = "${config.xdg.configHome}/alacritty/colors-active.toml";
+  paletteFile = name: tomlFormat.generate "alacritty-${name}.toml" { colors = themes.${name}; };
+
+  palettes = {
+    dark = paletteFile profile.alacrittyColors;
+    light = paletteFile (profile.alacrittyColorsLight or "solarized-light");
+  };
 
 in
 {
@@ -17,6 +29,8 @@ in
       if pkgs.stdenv.hostPlatform.isDarwin then pkgs.alacritty else config.lib.nixGL.wrap pkgs.alacritty;
 
     settings = {
+      general.import = [ activeColors ];
+
       terminal.shell = {
         # Login processing (-l) happens here; tux itself just decides whether
         # to attach to an existing session or start a new one, same as when
@@ -55,8 +69,6 @@ in
         normal.family = "CaskaydiaCove Nerd Font";
         normal.style = "Regular";
       };
-
-      colors = themes."${profile.alacrittyColors}";
 
       mouse.bindings = [
         {
@@ -175,4 +187,17 @@ in
       ];
     };
   };
+
+  xdg.configFile = {
+    "alacritty/colors-dark.toml".source = palettes.dark;
+    "alacritty/colors-light.toml".source = palettes.light;
+  };
+
+  # A copy, not a symlink: alacritty watches the import path, and swapping a
+  # symlink underneath it fires no inotify event.
+  dotless.appearance.hooks = [
+    ''
+      install -m644 "${config.xdg.configHome}/alacritty/colors-$mode.toml" ${lib.escapeShellArg activeColors}
+    ''
+  ];
 }

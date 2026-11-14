@@ -8,9 +8,10 @@
   "vim_mode": true,
   "ui_font_size": 16,
   "buffer_font_size": 16,
+  // Zed follows the desktop's light/dark preference on its own.
   "theme": {
     "mode": "system",
-    "light": "One Light",
+    "light": "Solarized Light",
     "dark": "Modus Operandi Deuteranopia"
   },
 

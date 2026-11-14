@@ -1,6 +1,10 @@
+let
+  fromFile = name: (builtins.fromTOML (builtins.readFile (./themes + "/${name}.toml"))).colors;
+in
 {
-  yorumi-abyss = (builtins.fromTOML (builtins.readFile ./themes/yorumi-abyss.toml)).colors;
-  yorumi-mist = (builtins.fromTOML (builtins.readFile ./themes/yorumi-abyss.toml)).colors;
+  yorumi-abyss = fromFile "yorumi-abyss";
+  yorumi-mist = fromFile "yorumi-mist";
+  solarized-light = fromFile "solarized-light";
 
   iterm = {
     # Default colors

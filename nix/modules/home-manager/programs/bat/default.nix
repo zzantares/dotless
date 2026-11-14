@@ -47,7 +47,12 @@ in
       batpipe
     ];
     config = {
-      theme = "1337";
+      # bat asks the terminal for its background color (it understands tmux's
+      # passthrough) and picks one of the two below, so it needs no hook.
+      # Quoted because bat splits config lines on whitespace.
+      theme = "auto";
+      theme-dark = "1337";
+      theme-light = ''"Solarized (light)"'';
       pager = "less"; # add "less -XFRS" for explicit behavior
       style = "auto";
       decorations = "auto";

@@ -9,6 +9,7 @@
 {
   imports = [
     ./../base
+    ./../../../modules/home-manager/appearance
     ./../../../modules/home-manager/dotfiles
     ./../../../modules/home-manager/programs/git
     ./../../../modules/home-manager/programs/jujutsu
@@ -32,6 +33,9 @@
     ./packages.nix
     ./secrets.nix
   ];
+
+  # Light/dark palette switching. Linux only: the trigger is a GNOME gsetting.
+  dotless.appearance.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isLinux;
 
   fonts.fontconfig = {
     enable = true;
