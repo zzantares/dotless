@@ -24,9 +24,14 @@ local palettes = {
 		question = "#666666",
 		string = "#D6DFD4",
 		accent = "#87AFD7",
-		add = "#597b60",
-		delete = "#7f605c",
+		add_fg = "#597b60",
+		add_bg = "#597b60",
+		del_fg = "#7f605c",
+		del_bg = "#7f605c",
 		note = "#D3EDE7",
+		warn_fg = "NvimLightYellow",
+		warn_bg = "NvimLightYellow",
+		err_bg = "NvimLightRed",
 		on_fill = "#000000",
 		visual_bg = "#888888",
 		menu_bg = "#222222",
@@ -35,28 +40,36 @@ local palettes = {
 		msg_bg = "#444444",
 	},
 
-	-- Solarized Light: base00 body text, base01 emphasis, base1 comments,
-	-- base2 fills, and Solarized's own accents.
+	-- The same restraint the other way up: greys carry everything, and the two
+	-- accents keep their jobs. Each grey matches the contrast its dark
+	-- counterpart has, measured against the terminal's light background.
 	light = {
-		fg = "#657b83",
-		fg_strong = "#586e75",
-		fg_bright = "#586e75",
-		fg_max = "#002b36",
-		muted = "#93a1a1",
-		dim = "#93a1a1",
-		faint = "#eee8d5",
-		question = "#839496",
-		string = "#2aa198",
-		accent = "#268bd2",
-		add = "#859900",
-		delete = "#dc322f",
-		note = "#d3ede7",
-		on_fill = "#002b36",
-		visual_bg = "#93a1a1",
-		menu_bg = "#eee8d5",
-		menu_sel_bg = "#93a1a1",
-		status_bg = "#eee8d5",
-		msg_bg = "#eee8d5",
+		fg = "#333333",
+		fg_strong = "#262626",
+		fg_bright = "#171717",
+		fg_max = "#000000",
+		muted = "#777777",
+		dim = "#666666",
+		faint = "#B0B0B0",
+		question = "#888888",
+		string = "#2B3328",
+		accent = "#2E4C6D",
+		add_fg = "#3F5E46",
+		add_bg = "#CFE0CF",
+		del_fg = "#7F403A",
+		del_bg = "#EDD5D2",
+		note = "#D3EDE7",
+		-- NvimLightYellow is a fill in both, but it can only be read as text on
+		-- a dark background.
+		warn_fg = "NvimDarkYellow",
+		warn_bg = "NvimLightYellow",
+		err_bg = "NvimLightRed",
+		on_fill = "#000000",
+		visual_bg = "#B4B4B4",
+		menu_bg = "#EDEDED",
+		menu_sel_bg = "#D4D4D4",
+		status_bg = "#DDDDDD",
+		msg_bg = "#D4D4D4",
 	},
 }
 
@@ -79,14 +92,14 @@ local group_styles = {
 	["Function"] = { fg = c.accent },
 	["Constant"] = { fg = c.fg },
 
-	["DiffAdd"] = { fg = "None", bg = c.add, sp = "None" },
-	["DiffDelete"] = { fg = "None", bg = c.delete },
-	["DiffChange"] = { fg = "None", bg = "NvimLightYellow" },
-	["DiffText"] = { fg = "NvimLightYellow", bg = "None", sp = "None" },
+	["DiffAdd"] = { fg = "None", bg = c.add_bg, sp = "None" },
+	["DiffDelete"] = { fg = "None", bg = c.del_bg },
+	["DiffChange"] = { fg = "None", bg = c.warn_bg },
+	["DiffText"] = { fg = c.warn_fg, bg = "None", sp = "None" },
 
-	["Added"] = { fg = c.add, bg = "None" },
-	["Changed"] = { fg = "NvimLightYellow", bg = "None" },
-	["Removed"] = { fg = c.delete, bg = "None" },
+	["Added"] = { fg = c.add_fg, bg = "None" },
+	["Changed"] = { fg = c.warn_fg, bg = "None" },
+	["Removed"] = { fg = c.del_fg, bg = "None" },
 
 	["Error"] = { fg = c.fg_max, bg = "None", bold = true },
 
@@ -107,21 +120,21 @@ local group_styles = {
 	["MatchParen"] = { fg = c.fg_max, bold = true },
 	["WinSeparator"] = { fg = c.faint },
 
-	["Search"] = { fg = "NvimLightYellow", bg = "None" },
-	["SnippetTabstop"] = { fg = "NvimLightYellow", bg = "None" },
+	["Search"] = { fg = c.warn_fg, bg = "None" },
+	["SnippetTabstop"] = { fg = c.warn_fg, bg = "None" },
 
 	["DiagnosticUnnecessary"] = { fg = c.dim },
 
-	["Todo"] = { fg = "NvimLightYellow", bg = "None", bold = true },
+	["Todo"] = { fg = c.warn_fg, bg = "None", bold = true },
 
 	["@variable"] = { fg = c.fg },
 	["@string.documentation"] = { fg = c.muted },
 	["@comment.warning"] = {
 		fg = c.on_fill,
-		bg = "NvimLightYellow",
+		bg = c.warn_bg,
 		bold = true,
 	},
-	["@comment.error"] = { fg = c.on_fill, bg = "NvimLightRed", bold = true },
+	["@comment.error"] = { fg = c.on_fill, bg = c.err_bg, bold = true },
 	["@comment.note"] = { fg = c.on_fill, bg = c.note, bold = true },
 
 	["LspSignatureActiveParameter"] = { bg = "None" },

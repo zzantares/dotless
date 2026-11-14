@@ -1,8 +1,8 @@
 -- Hand-rolled statusline, no plugin. Originally by Tanuharja, R.A. (2024-12-20).
 local M = {}
 
--- Keyed by 'background', like colors/minimum.lua. Light is Solarized Light:
--- base2 fills, base01 text, base3 on the inverted modified-file segment.
+-- Keyed by 'background', like colors/minimum.lua, and greyscale in both: the
+-- modified-file segment is the one inversion, so it still shouts.
 M.styles = {
 	dark = {
 		statusline_file = { fg = "#EEEEEE", bg = "#333333", bold = true },
@@ -16,14 +16,14 @@ M.styles = {
 	},
 
 	light = {
-		statusline_file = { fg = "#586e75", bg = "#eee8d5", bold = true },
-		statusline_modifiedfile = { fg = "#fdf6e3", bg = "#586e75", bold = true },
-		statusline_diagnostics = { fg = "#586e75", bg = "#eee8d5" },
-		statusline_debugger_session = { fg = "#657b83", bg = "None" },
-		statusline_separator = { fg = "#93a1a1", bg = "None" },
-		statusline_misc = { fg = "#657b83", bg = "None" },
-		statusline_branch = { fg = "#586e75", bg = "#eee8d5" },
-		statusline_mode = { fg = "#586e75", bg = "#eee8d5", bold = true },
+		statusline_file = { fg = "#171717", bg = "#DDDDDD", bold = true },
+		statusline_modifiedfile = { fg = "#FFFFFF", bg = "#333333", bold = true },
+		statusline_diagnostics = { fg = "#171717", bg = "#EDEDED" },
+		statusline_debugger_session = { fg = "#333333", bg = "None" },
+		statusline_separator = { fg = "#CCCCCC", bg = "None" },
+		statusline_misc = { fg = "#333333", bg = "None" },
+		statusline_branch = { fg = "#171717", bg = "#EDEDED" },
+		statusline_mode = { fg = "#171717", bg = "#DDDDDD", bold = true },
 	},
 }
 
