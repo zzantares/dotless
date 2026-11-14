@@ -196,6 +196,18 @@ in
     "alacritty/colors-light.toml".source = palettes.light;
   };
 
+  # Alacritty skips an import that is missing when it reads the config, and
+  # then never watches that path. linkGeneration hands a running window the
+  # config below before any hook runs, so without this seed the first
+  # activation leaves that window on alacritty's built-in colors until it
+  # restarts. Only creates the file, never overwrites a mode already chosen.
+  home.activation.seedAlacrittyColors = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
+    colors=${lib.escapeShellArg activeColors}
+    if [ ! -e "$colors" ]; then
+      run install -Dm644 ${palettes.dark} "$colors"
+    fi
+  '';
+
   # A copy, not a symlink: alacritty watches the import path, and swapping a
   # symlink underneath it fires no inotify event.
   dotless.appearance.hooks.alacritty = ''
