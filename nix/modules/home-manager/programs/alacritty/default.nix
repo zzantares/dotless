@@ -198,9 +198,7 @@ in
 
   # A copy, not a symlink: alacritty watches the import path, and swapping a
   # symlink underneath it fires no inotify event.
-  dotless.appearance.hooks = [
-    ''
-      install -m644 "${config.xdg.configHome}/alacritty/colors-$mode.toml" ${lib.escapeShellArg activeColors}
-    ''
-  ];
+  dotless.appearance.hooks.alacritty = ''
+    install -m644 "${config.xdg.configHome}/alacritty/colors-$mode.toml" ${lib.escapeShellArg activeColors}
+  '';
 }

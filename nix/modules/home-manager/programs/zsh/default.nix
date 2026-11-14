@@ -26,11 +26,9 @@
       + "border:#93a1a1,header:#93a1a1\n";
   };
 
-  dotless.appearance.hooks = [
-    ''
-      install -m644 "${config.xdg.configHome}/fzf/colors-$mode" ${lib.escapeShellArg "${config.xdg.configHome}/fzf/colors-active"}
-    ''
-  ];
+  dotless.appearance.hooks.fzf = ''
+    install -m644 "${config.xdg.configHome}/fzf/colors-$mode" ${lib.escapeShellArg "${config.xdg.configHome}/fzf/colors-active"}
+  '';
 
   home.shellAliases = {
     gs = "git status";

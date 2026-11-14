@@ -135,14 +135,12 @@ in
   # A running server keeps its options until told otherwise, so re-source the
   # file in every server on this machine. Sockets live under TMUX_TMPDIR, which
   # `secureSocket` points at XDG_RUNTIME_DIR.
-  dotless.appearance.hooks = [
-    ''
-      install -m644 "${config.xdg.configHome}/tmux/theme-$mode.conf" ${lib.escapeShellArg activeTheme}
+  dotless.appearance.hooks.tmux = ''
+    install -m644 "${config.xdg.configHome}/tmux/theme-$mode.conf" ${lib.escapeShellArg activeTheme}
 
-      for socket in "''${TMUX_TMPDIR:-''${XDG_RUNTIME_DIR:-/tmp}}"/tmux-"$(id -u)"/* /tmp/tmux-"$(id -u)"/*; do
-        [ -S "$socket" ] || continue
-        tmux -S "$socket" source-file ${lib.escapeShellArg activeTheme} || true
-      done
-    ''
-  ];
+    for socket in "''${TMUX_TMPDIR:-''${XDG_RUNTIME_DIR:-/tmp}}"/tmux-"$(id -u)"/* /tmp/tmux-"$(id -u)"/*; do
+      [ -S "$socket" ] || continue
+      tmux -S "$socket" source-file ${lib.escapeShellArg activeTheme} || true
+    done
+  '';
 }

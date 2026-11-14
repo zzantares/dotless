@@ -14,15 +14,27 @@ let
   # the ones that can't.
   schemaKey = "org.gnome.desktop.interface color-scheme";
 
-  # One subshell each, so an app that is missing or wedged cannot stop the rest
-  # from repainting.
-  hookBlocks = lib.concatMapStringsSep "\n" (hook: ''
-    if ! (
-    ${hook}
-    ); then
-      echo "appearance-switch: a hook failed" >&2
-    fi
-  '') cfg.hooks;
+  # A script each, not a subshell: bash drops errexit inside a subshell used as
+  # a condition or an and-or operand, so an in-process hook would run on past
+  # its own failures and report the wrong status.
+  hookScript =
+    name: hook:
+    pkgs.writeShellApplication {
+      name = "appearance-hook-${name}";
+      runtimeInputs = cfg.path;
+      text = ''
+        mode="$1"
+        ${hook}
+      '';
+    };
+
+  hookRuns = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (
+      name: hook:
+      "${hookScript name hook}/bin/appearance-hook-${name} \"$mode\" "
+      + "|| echo \"appearance-switch: the ${name} hook failed\" >&2"
+    ) cfg.hooks
+  );
 
   switch = pkgs.writeShellApplication {
     name = "appearance-switch";
@@ -54,7 +66,7 @@ let
       mkdir -p "$(dirname "$state")"
       printf '%s\n' "$mode" >"$state"
 
-      ${hookBlocks}
+      ${hookRuns}
     '';
   };
 
@@ -64,12 +76,12 @@ in
     enable = lib.mkEnableOption "light/dark palette switching driven by the GNOME appearance toggle";
 
     hooks = lib.mkOption {
-      type = lib.types.listOf lib.types.lines;
-      default = [ ];
+      type = lib.types.attrsOf lib.types.lines;
+      default = { };
       description = ''
-        Shell snippets run on every switch with `$mode` set to `light` or
-        `dark`. Each program module adds its own repaint. Each runs in its own
-        subshell, so one failing only costs that app its repaint.
+        Repaints to run on every switch, keyed by the program they belong to,
+        with `$mode` set to `light` or `dark`. Each runs as its own script, so
+        one failing costs only that program its repaint and says which.
       '';
     };
 

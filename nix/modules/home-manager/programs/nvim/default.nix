@@ -200,14 +200,12 @@ in
         # changes only where the terminal implements DEC mode 2031, which
         # Alacritty does not. Tell each live instance instead; 'background'
         # takes the same two words as $mode.
-        dotless.appearance.hooks = [
-          ''
-            for socket in "''${XDG_RUNTIME_DIR:-/tmp}"/nvim.*; do
-              [ -S "$socket" ] || continue
-              nvim --server "$socket" --remote-expr "execute('set background=$mode')" >/dev/null 2>&1 || true
-            done
-          ''
-        ];
+        dotless.appearance.hooks.nvim = ''
+          for socket in "''${XDG_RUNTIME_DIR:-/tmp}"/nvim.*; do
+            [ -S "$socket" ] || continue
+            nvim --server "$socket" --remote-expr "execute('set background=$mode')" >/dev/null 2>&1 || true
+          done
+        '';
       }
 
       (lib.mkIf wholeDir {
