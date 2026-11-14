@@ -98,6 +98,9 @@ let
 in
 
 {
+  # Brings the `dotless.appearance` options this module sets.
+  imports = [ ./../../appearance ];
+
   options.dotless.editors.doom = {
     enable = lib.mkEnableOption "the dotless Doom Emacs configuration" // {
       default = config.programs.emacs.enable;

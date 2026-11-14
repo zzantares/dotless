@@ -42,6 +42,9 @@ let
   '';
 in
 {
+  # Brings the `dotless.appearance` options this module sets.
+  imports = [ ./../../appearance ];
+
   home.sessionVariables = {
     T_SESSION_USE_GIT_ROOT = lib.mkDefault "true";
   };

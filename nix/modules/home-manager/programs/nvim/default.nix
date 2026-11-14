@@ -115,6 +115,9 @@ let
   hasLiveItem = rel: builtins.elem rel liveItems;
 in
 {
+  # Brings the `dotless.appearance` options this module sets.
+  imports = [ ./../../appearance ];
+
   options.dotless.editors.nvim = {
     enable = lib.mkOption {
       type = lib.types.bool;

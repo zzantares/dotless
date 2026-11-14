@@ -4,15 +4,20 @@
 (defvar dotless/dark-theme 'nordic-night)
 (defvar dotless/light-theme 'doom-solarized-light)
 
-(setopt doom-theme dotless/dark-theme)
+;; A cons is Doom's (DARK . LIGHT): at startup it reads the desktop's
+;; color-scheme off the XDG portal and picks. Only at startup - its
+;; `enable-theme' hook then overwrites this with the theme it loaded.
+(setopt doom-theme (cons dotless/dark-theme dotless/light-theme))
 
 (defun dotless/apply-appearance (mode)
-  "Load the MODE theme, where MODE is \"light\" or \"dark\".
+  "Load the theme for MODE, either \"light\" or \"dark\".
 Called over emacsclient by `appearance-switch'."
   (interactive (list (completing-read "Mode: " '("light" "dark"))))
   (let ((theme (if (equal mode "light") dotless/light-theme dotless/dark-theme)))
-    (unless (eq theme doom-theme)
-      ;; Doom's loader disables the outgoing theme first; a bare `load-theme'
-      ;; stacks them and leaves faces from both.
-      (setopt doom-theme theme)
-      (doom/reload-theme))))
+    (unless (custom-theme-enabled-p theme)
+      ;; Only ours: `custom-enabled-themes' also holds the face customizations
+      ;; Doom re-enables rather than reloads.
+      (mapc #'disable-theme
+            (seq-intersection custom-enabled-themes
+                              (list dotless/dark-theme dotless/light-theme)))
+      (load-theme theme t))))

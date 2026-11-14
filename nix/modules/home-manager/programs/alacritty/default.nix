@@ -23,6 +23,9 @@ let
 
 in
 {
+  # Brings the `dotless.appearance` options this module sets.
+  imports = [ ./../../appearance ];
+
   programs.alacritty = {
     enable = lib.mkDefault true;
     package =
