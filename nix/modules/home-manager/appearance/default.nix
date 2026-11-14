@@ -31,10 +31,14 @@ let
       mode=''${1:-auto}
 
       if [ "$mode" = auto ]; then
-        # No GNOME, no schema: there is nothing to follow, so stay dark.
-        case "$(gsettings get ${schemaKey} 2>/dev/null || echo prefer-dark)" in
-          *prefer-light*) mode=light ;;
-          *) mode=dark ;;
+        # No GNOME, no schema: nothing to follow, so stay dark.
+        scheme=$(gsettings get ${schemaKey} 2>/dev/null || echo prefer-dark)
+
+        # Only prefer-dark is dark. GNOME's Appearance panel sets `default` for
+        # Light, not `prefer-light`, and that is the toggle this follows.
+        case "$scheme" in
+          *prefer-dark*) mode=dark ;;
+          *) mode=light ;;
         esac
       fi
 
