@@ -15,6 +15,7 @@ included, but designed to be extended with your own private layer.
 - **NixOS presets** — system-level role bundles (`base`, `bare-metal`, `server`, `desktop`, `node`)
 - **NixOS modules** — opt-in system services (`sops`, `syncthing`, `tailscale`, `gnome`, `kde`) and an opt-in nix daemon module (`nix`) usable on any platform
 - **nix-darwin presets** — system-level foundation (`base`) that unblocks Home Manager integration
+- **Appearance** — one GNOME toggle repaints every terminal, editor and TUI, light or dark ([docs](nix/modules/home-manager/appearance/README.md))
 - **Overlay** — curated toolchain groupings (`haskell`, `rust`, `python`, `ops`, `network`, …) and the [`nitpick`](nix/pkgs/emacs/nitpick/README.md) Emacs package
 - **Lib** — flake discovery utilities (`discoverHome`, `discoverDarwin`, `discoverNixos`)
 
