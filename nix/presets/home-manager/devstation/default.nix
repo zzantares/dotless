@@ -69,19 +69,25 @@
     "${config.home.homeDirectory}/.local/bin"
   ];
 
-  home.sessionVariables = {
-    DOTFILES_FLAKE_ROOT = lib.mkDefault "${config.home.homeDirectory}/${profile.flakeRoot}";
-    ASPELL_CONF = lib.mkDefault "data-dir ${pkgs.aspell-with-dicts}/lib/aspell";
+  # gh-dash reads this path instead of its default, so the switch hook can own
+  # a copy. Guarded: with no hook to write it, the path would not exist.
+  home.sessionVariables =
+    lib.optionalAttrs config.dotless.appearance.enable {
+      GH_DASH_CONFIG = "${config.xdg.configHome}/gh-dash/config-active.yml";
+    }
+    // {
+      DOTFILES_FLAKE_ROOT = lib.mkDefault "${config.home.homeDirectory}/${profile.flakeRoot}";
+      ASPELL_CONF = lib.mkDefault "data-dir ${pkgs.aspell-with-dicts}/lib/aspell";
 
-    # Improves Ansible interaction
-    ANSIBLE_FORCE_COLOR = lib.mkDefault "True";
-    ANSIBLE_STDOUT_CALLBACK = lib.mkDefault "yaml";
-    ANSIBLE_SSH_ARGS = lib.mkDefault "-o ControlMaster=auto -o ControlPersist=60s -F ${config.home.homeDirectory}/.ssh/config";
-    ANSIBLE_REMOTE_USER = lib.mkDefault config.home.username;
+      # Improves Ansible interaction
+      ANSIBLE_FORCE_COLOR = lib.mkDefault "True";
+      ANSIBLE_STDOUT_CALLBACK = lib.mkDefault "yaml";
+      ANSIBLE_SSH_ARGS = lib.mkDefault "-o ControlMaster=auto -o ControlPersist=60s -F ${config.home.homeDirectory}/.ssh/config";
+      ANSIBLE_REMOTE_USER = lib.mkDefault config.home.username;
 
-    # Speed up Emacs LSP: https://emacs-lsp.github.io/lsp-mode/page/performance/#use-plists-for-deserialization
-    LSP_USE_PLISTS = lib.mkDefault "true";
-  };
+      # Speed up Emacs LSP: https://emacs-lsp.github.io/lsp-mode/page/performance/#use-plists-for-deserialization
+      LSP_USE_PLISTS = lib.mkDefault "true";
+    };
 
   # Crates pinned for offline use (pkgs.rust-batteries), reachable two ways.
   # `cargo-warm` pre-fetches them into ~/.cargo so plain `cargo` resolves them
@@ -121,8 +127,8 @@
   #
   # config.yml is written by the switch hook rather than linked, since diffnav
   # reads it once at startup - only a new run picks up a change.
-  xdg.configFile =
-    lib.mapAttrs'
+  xdg.configFile = lib.mkMerge [
+    (lib.mapAttrs'
       (mode: theme: {
         name = "diffnav/config-${mode}.yml";
         value.text = ''
@@ -134,11 +140,52 @@
       {
         dark = "nord";
         light = "builtin_solarized_light";
-      };
+      }
+    )
+
+    # gh-dash's light side: the sections and keybindings below, with a
+    # Solarized Light palette merged in. Its dark side is the config.yml
+    # home-manager already writes, whose default palette suits a dark
+    # terminal.
+    {
+      "gh-dash/config-light.yml".source = (pkgs.formats.yaml { }).generate "gh-dash-light.yml" (
+        lib.recursiveUpdate config.programs.gh-dash.settings {
+          theme.colors = {
+            text = {
+              primary = "#586e75";
+              secondary = "#657b83";
+              inverted = "#fdf6e3";
+              faint = "#93a1a1";
+              warning = "#b58900";
+              success = "#859900";
+            };
+            background.selected = "#eee8d5";
+            border = {
+              primary = "#657b83";
+              secondary = "#93a1a1";
+              faint = "#eee8d5";
+            };
+          };
+        }
+      );
+    }
+  ];
 
   dotless.appearance.hooks.diffnav = ''
     install -m644 "${config.xdg.configHome}/diffnav/config-$mode.yml" \
       ${lib.escapeShellArg "${config.xdg.configHome}/diffnav/config.yml"}
+  '';
+
+  # Startup-read as well.
+  dotless.appearance.hooks.gh-dash = ''
+    if [ "$mode" = light ]; then
+      source="${config.xdg.configHome}/gh-dash/config-light.yml"
+    else
+      source="${config.xdg.configHome}/gh-dash/config.yml"
+    fi
+
+    install -m644 "$source" \
+      ${lib.escapeShellArg "${config.xdg.configHome}/gh-dash/config-active.yml"}
   '';
 
   programs.gh-dash.enable = true;

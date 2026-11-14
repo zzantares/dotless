@@ -37,6 +37,9 @@ let
     };
 in
 {
+  # Brings the `dotless.appearance` options this module sets.
+  imports = [ ./../../appearance ];
+
   programs.claude-code = {
     enable = lib.mkDefault (
       builtins.elem pkgs.stdenv.hostPlatform.system pkgs.claude-code.meta.platforms
@@ -268,4 +271,29 @@ in
 
   #   };
   # };
+
+  dotless.appearance.path = [ pkgs.jq ];
+
+  # settings.json also takes `theme`, but home-manager owns that file. The copy
+  # in ~/.claude.json is writable and Claude Code reads it the same way. Only
+  # written when it actually changes, and through a temporary: every running
+  # session writes this file too.
+  dotless.appearance.hooks.claude-code = ''
+    config="$HOME/.claude.json"
+    [ -f "$config" ] || exit 0
+
+    if [ "$mode" = light ]; then
+      theme=light
+    else
+      theme=dark
+    fi
+
+    if [ "$(jq -r '.theme // ""' "$config")" = "$theme" ]; then
+      exit 0
+    fi
+
+    tmp=$(mktemp "$config.XXXXXX")
+    jq --arg theme "$theme" '.theme = $theme' "$config" >"$tmp"
+    mv "$tmp" "$config"
+  '';
 }

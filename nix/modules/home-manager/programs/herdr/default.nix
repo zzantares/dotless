@@ -52,6 +52,9 @@ let
   };
 in
 {
+  # Brings the `dotless.appearance` options this module sets.
+  imports = [ ./../../appearance ];
+
   home.packages = [ herdr-t ];
 
   programs.herdr = {
@@ -215,4 +218,24 @@ in
       };
     };
   };
+
+  dotless.appearance.path = [ pkgs.jaq ];
+
+  # `mutableSettings` makes config.toml a real file rather than a link, so the
+  # theme can be rewritten in place. herdr writes this file too, hence the
+  # read-modify-write through a temporary.
+  dotless.appearance.hooks.herdr = ''
+    if [ "$mode" = light ]; then
+      theme=solarized-light
+    else
+      theme=catppuccin
+    fi
+
+    settings=${lib.escapeShellArg "${config.xdg.configHome}/herdr/config.toml"}
+    [ -f "$settings" ] || exit 0
+
+    tmp=$(mktemp "$settings.XXXXXX")
+    jaq --from toml --to toml ".theme.name = \"$theme\"" "$settings" >"$tmp"
+    mv "$tmp" "$settings"
+  '';
 }
