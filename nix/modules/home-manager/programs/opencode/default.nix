@@ -1,5 +1,6 @@
 {
   inputs,
+  config,
   lib,
   pkgs,
   ...
@@ -11,6 +12,9 @@ let
   knowledge = import ../agentic/knowledge.nix { inherit pkgs inputs lib; };
 in
 {
+  # Brings the `dotless.appearance` options this module sets.
+  imports = [ ./../../appearance ];
+
   programs.opencode = {
     enable = lib.mkDefault true;
     package = pkgs.opencode;
@@ -91,8 +95,36 @@ in
       #   };
       # };
     };
-    # themes = {};
+    # opencode's built-in nord carries a light variant for every key, but which
+    # one it uses comes from querying the terminal - and that answer is tmux's,
+    # not the terminal's, whenever opencode runs inside tmux. This is the same
+    # palette with the light side flattened out, so picking it is decisive.
+    themes.nord-light = ./themes/nord-light.json;
+
     # agents = {};
     # commands = {};
   };
+
+  # opencode reads its TUI config from this path, so the hook can own a copy
+  # with the theme swapped and leave home-manager's file alone. Guarded: with
+  # no hook to write it, the path would not exist.
+  home.sessionVariables = lib.mkIf config.dotless.appearance.enable {
+    OPENCODE_TUI_CONFIG = "${config.xdg.configHome}/opencode/tui-active.json";
+  };
+
+  dotless.appearance.path = [ pkgs.jq ];
+
+  # Startup-read, like diffnav: the next session gets the new theme.
+  dotless.appearance.hooks.opencode = ''
+    # Not `[ ... ] && theme=...`: under errexit a false test ends the hook.
+    if [ "$mode" = light ]; then
+      theme=nord-light
+    else
+      theme=nord
+    fi
+
+    jq --arg theme "$theme" '.theme = $theme' \
+      "${config.xdg.configHome}/opencode/tui.json" \
+      >"${config.xdg.configHome}/opencode/tui-active.json"
+  '';
 }

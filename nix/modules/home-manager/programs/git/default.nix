@@ -40,7 +40,8 @@ in
     # delta. Set enableGitIntegration = true to restore full auto-integration.
     enableGitIntegration = lib.mkDefault false;
     options = {
-      dark = true;
+      # No `dark`/`light`: either one pins the palette, and without them delta
+      # falls back to --detect-dark-light=auto and asks the terminal.
       navigate = true; # use n and N to move between diff sections
       line-numbers = true;
       side-by-side = true;

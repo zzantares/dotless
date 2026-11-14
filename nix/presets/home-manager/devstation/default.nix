@@ -111,17 +111,34 @@
     settings.git_protocol = "ssh";
   };
 
-  # diffnav reads this file and overrides only the keys it names, so the rest of
-  # its defaults stand. Unified beats side-by-side at this terminal width; `s`
-  # still toggles per session.
+  # diffnav reads config.yml and overrides only the keys it names, so the rest
+  # of its defaults stand. Unified beats side-by-side at this terminal width;
+  # `s` still toggles per session.
   #
   # The theme also picks the diff colours: added lines take the tint's Green
   # darkened 80%, removed its Red, changed words the Bright pair halved.
   # tokyo_night's `Green` is a teal; dracula's is neon.
-  xdg.configFile."diffnav/config.yml".text = ''
-    ui:
-      sideBySide: false
-      theme: nord
+  #
+  # config.yml is written by the switch hook rather than linked, since diffnav
+  # reads it once at startup - only a new run picks up a change.
+  xdg.configFile =
+    lib.mapAttrs'
+      (mode: theme: {
+        name = "diffnav/config-${mode}.yml";
+        value.text = ''
+          ui:
+            sideBySide: false
+            theme: ${theme}
+        '';
+      })
+      {
+        dark = "nord";
+        light = "builtin_solarized_light";
+      };
+
+  dotless.appearance.hooks.diffnav = ''
+    install -m644 "${config.xdg.configHome}/diffnav/config-$mode.yml" \
+      ${lib.escapeShellArg "${config.xdg.configHome}/diffnav/config.yml"}
   '';
 
   programs.gh-dash.enable = true;
