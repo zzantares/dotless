@@ -8,6 +8,7 @@
 }:
 
 {
+  appearance-fallbacks = import ./appearance-fallbacks.nix { inherit inputs self pkgs; };
   smoke-home = import ./smoke-home.nix { inherit inputs self pkgs; };
   smoke-nixos = import ./smoke-nixos.nix { inherit inputs self system; };
   zed-compose = import ./zed-compose.nix { inherit inputs self pkgs; };

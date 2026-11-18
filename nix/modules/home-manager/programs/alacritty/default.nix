@@ -208,6 +208,11 @@ in
     fi
   '';
 
+  dotless.appearance.fallbacks.alacritty = {
+    source = palettes.dark;
+    target = activeColors;
+  };
+
   # A copy, not a symlink: alacritty watches the import path, and swapping a
   # symlink underneath it fires no inotify event.
   dotless.appearance.hooks.alacritty = ''

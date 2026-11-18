@@ -6,6 +6,24 @@
   ...
 }:
 
+let
+  diffnavConfigs =
+    lib.mapAttrs
+      (
+        mode: theme:
+        pkgs.writeText "diffnav-config-${mode}.yml" ''
+          ui:
+            sideBySide: false
+            theme: ${theme}
+        ''
+      )
+      {
+        dark = "nord";
+        light = "builtin_solarized_light";
+      };
+
+  diffnavActive = "${config.xdg.configHome}/diffnav/config.yml";
+in
 {
   imports = [
     ./../base
@@ -128,20 +146,10 @@
   # config.yml is written by the switch hook rather than linked, since diffnav
   # reads it once at startup - only a new run picks up a change.
   xdg.configFile = lib.mkMerge [
-    (lib.mapAttrs'
-      (mode: theme: {
-        name = "diffnav/config-${mode}.yml";
-        value.text = ''
-          ui:
-            sideBySide: false
-            theme: ${theme}
-        '';
-      })
-      {
-        dark = "nord";
-        light = "builtin_solarized_light";
-      }
-    )
+    (lib.mapAttrs' (mode: file: {
+      name = "diffnav/config-${mode}.yml";
+      value.source = file;
+    }) diffnavConfigs)
 
     # gh-dash's light side: the sections and keybindings below, with a
     # Solarized Light palette merged in. Its dark side is the config.yml
@@ -171,9 +179,14 @@
     }
   ];
 
+  dotless.appearance.fallbacks.diffnav = {
+    source = diffnavConfigs.dark;
+    target = diffnavActive;
+  };
+
   dotless.appearance.hooks.diffnav = ''
     install -m644 "${config.xdg.configHome}/diffnav/config-$mode.yml" \
-      ${lib.escapeShellArg "${config.xdg.configHome}/diffnav/config.yml"}
+      ${lib.escapeShellArg diffnavActive}
   '';
 
   # Startup-read as well.

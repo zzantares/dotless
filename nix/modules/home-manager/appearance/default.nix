@@ -91,6 +91,31 @@ in
       description = "Extra packages the hooks need on PATH.";
     };
 
+    fallbacks = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            source = lib.mkOption {
+              type = lib.types.path;
+              description = "Store path holding the dark palette.";
+            };
+
+            target = lib.mkOption {
+              type = lib.types.str;
+              description = "Path the program reads, which a hook owns when switching is on.";
+            };
+          };
+        }
+      );
+      default = { };
+      description = ''
+        Dark palettes to install when switching is off, keyed by the program
+        they belong to. A program whose palette only a hook writes reverts to
+        its stock theme on a platform with no switch (Darwin), so every such
+        path needs an entry here.
+      '';
+    };
+
     stateFile = lib.mkOption {
       type = lib.types.str;
       default = "${config.xdg.stateHome}/dotless/appearance";
@@ -99,39 +124,53 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    home.packages = [ switch ];
+  config = lib.mkMerge [
+    # Nothing repaints these, so they hold the dark palette and stay fresh:
+    # installed every activation, since a generation may have changed it.
+    (lib.mkIf (!cfg.enable) {
+      home.activation.appearanceFallback = lib.hm.dag.entryAfter [ "linkGeneration" ] (
+        lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (
+            _: f: "run install -Dm644 ${f.source} ${lib.escapeShellArg f.target}"
+          ) cfg.fallbacks
+        )
+      );
+    })
 
-    # Hooks read files that linkGeneration has just put in place, and a fresh
-    # generation may have changed a palette, so repaint on every activation.
-    home.activation.appearanceSwitch = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-      run ${switch}/bin/appearance-switch auto
-    '';
+    (lib.mkIf cfg.enable {
+      home.packages = [ switch ];
 
-    # `gsettings monitor` prints a line per change and never exits.
-    systemd.user.services = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
-      appearance-switch = {
-        Unit = {
-          Description = "Repaint terminals and editors on a GNOME appearance change";
-          PartOf = [ "graphical-session.target" ];
+      # Hooks read files that linkGeneration has just put in place, and a fresh
+      # generation may have changed a palette, so repaint on every activation.
+      home.activation.appearanceSwitch = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        run ${switch}/bin/appearance-switch auto
+      '';
+
+      # `gsettings monitor` prints a line per change and never exits.
+      systemd.user.services = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
+        appearance-switch = {
+          Unit = {
+            Description = "Repaint terminals and editors on a GNOME appearance change";
+            PartOf = [ "graphical-session.target" ];
+          };
+
+          Service = {
+            Type = "simple";
+            ExecStartPre = "${switch}/bin/appearance-switch auto";
+            ExecStart = toString (
+              pkgs.writeShellScript "appearance-watch" ''
+                ${pkgs.glib}/bin/gsettings monitor ${schemaKey} | while read -r _; do
+                  ${switch}/bin/appearance-switch auto
+                done
+              ''
+            );
+            Restart = "on-failure";
+            RestartSec = 5;
+          };
+
+          Install.WantedBy = [ "graphical-session.target" ];
         };
-
-        Service = {
-          Type = "simple";
-          ExecStartPre = "${switch}/bin/appearance-switch auto";
-          ExecStart = toString (
-            pkgs.writeShellScript "appearance-watch" ''
-              ${pkgs.glib}/bin/gsettings monitor ${schemaKey} | while read -r _; do
-                ${switch}/bin/appearance-switch auto
-              done
-            ''
-          );
-          Restart = "on-failure";
-          RestartSec = 5;
-        };
-
-        Install.WantedBy = [ "graphical-session.target" ];
       };
-    };
-  };
+    })
+  ];
 }

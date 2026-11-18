@@ -132,6 +132,13 @@ in
     pkgs.coreutils
   ];
 
+  # `source-file -q` in tmux.conf means a missing file costs the whole theme
+  # in silence, leaving tmux's stock status bar.
+  dotless.appearance.fallbacks.tmux = {
+    source = themeConf "dark";
+    target = activeTheme;
+  };
+
   # A running server keeps its options until told otherwise, so re-source the
   # file in every server on this machine. Sockets live under TMUX_TMPDIR, which
   # `secureSocket` points at XDG_RUNTIME_DIR.

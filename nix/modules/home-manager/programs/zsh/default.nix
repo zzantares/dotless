@@ -7,23 +7,36 @@
   ...
 }:
 
+let
+  colors = {
+    dark = pkgs.writeText "fzf-colors-dark" "--color=dark,fg:white\n";
+
+    # Solarized Light. bg stays -1 so the terminal shows through, as in dark.
+    light = pkgs.writeText "fzf-colors-light" (
+      "--color=light,fg:#657b83,bg:-1,hl:#268bd2,fg+:#586e75,bg+:#eee8d5,hl+:#268bd2,"
+      + "info:#93a1a1,prompt:#859900,pointer:#d33682,marker:#cb4b16,spinner:#2aa198,"
+      + "border:#93a1a1,header:#93a1a1\n"
+    );
+  };
+in
 {
   # Brings the `dotless.appearance` options this module sets.
   imports = [ ./../../appearance ];
 
-  # Guarded: fzf exits 2 if this points at a file that is not there, and only
-  # the switch hook creates it.
-  home.sessionVariables = lib.mkIf config.dotless.appearance.enable {
+  # fzf exits 2 if this points at a file that is not there; the fallback below
+  # keeps it present when no hook writes it.
+  home.sessionVariables = {
     FZF_DEFAULT_OPTS_FILE = "${config.xdg.configHome}/fzf/colors-active";
   };
 
   xdg.configFile = {
-    "fzf/colors-dark".text = "--color=dark,fg:white\n";
-    # Solarized Light. bg stays -1 so the terminal shows through, as in dark.
-    "fzf/colors-light".text =
-      "--color=light,fg:#657b83,bg:-1,hl:#268bd2,fg+:#586e75,bg+:#eee8d5,hl+:#268bd2,"
-      + "info:#93a1a1,prompt:#859900,pointer:#d33682,marker:#cb4b16,spinner:#2aa198,"
-      + "border:#93a1a1,header:#93a1a1\n";
+    "fzf/colors-dark".source = colors.dark;
+    "fzf/colors-light".source = colors.light;
+  };
+
+  dotless.appearance.fallbacks.fzf = {
+    source = colors.dark;
+    target = "${config.xdg.configHome}/fzf/colors-active";
   };
 
   dotless.appearance.hooks.fzf = ''
