@@ -95,10 +95,23 @@ in
   emacsPackagesFor =
     emacs:
     (prev.emacsPackagesFor emacs).overrideScope (
-      efinal: _eprev: {
+      efinal: eprev: {
         # `gh' is passed from the top-level set: the emacs scope has its own
         # `gh' (an elisp library), which is not the GitHub CLI we shell out to.
         nitpick = efinal.callPackage ./../pkgs/emacs/nitpick { inherit (final) gh; };
+
+        # MELPA fetches kiwix.el from repo.or.cz, which geoblocks the UK since
+        # 2025-07-25 and answers git with an HTML notice. Same commit, from the
+        # emacsmirror copy. The rev follows MELPA, so an emacs-overlay bump
+        # fails on the hash: re-prefetch it, or drop this if the block lifts.
+        kiwix = eprev.kiwix.overrideAttrs (old: {
+          src = final.fetchFromGitHub {
+            owner = "emacsmirror";
+            repo = "kiwix";
+            inherit (old.src) rev;
+            hash = "sha256-EYClMht/oe8ewTwRfVsu8W+0V5UbQfWjEWq+tJIFWqs=";
+          };
+        });
       }
     );
 
