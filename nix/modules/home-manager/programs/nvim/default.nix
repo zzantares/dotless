@@ -200,8 +200,16 @@ in
         # changes only where the terminal implements DEC mode 2031, which
         # Alacritty does not. Tell each live instance instead; 'background'
         # takes the same two words as $mode.
+        # Nvim puts its socket under stdpath('run'), which is two shapes:
+        # $XDG_RUNTIME_DIR/nvim.<pid>.0 where that is set, and
+        # $TMPDIR/nvim.<user>/<random>/nvim.<pid>.0 where it is not, which is
+        # every mac. Both patterns are listed; the -S test drops what neither
+        # platform has, so an unmatched glob costs nothing.
         dotless.appearance.hooks.nvim = ''
-          for socket in "''${XDG_RUNTIME_DIR:-/tmp}"/nvim.*; do
+          for socket in \
+            "''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/nvim.* \
+            "''${TMPDIR:-/tmp}"/nvim.*/*/nvim.* \
+            /tmp/nvim.*/*/nvim.*; do
             [ -S "$socket" ] || continue
             nvim --server "$socket" --remote-expr "execute('set background=$mode')" >/dev/null 2>&1 || true
           done
