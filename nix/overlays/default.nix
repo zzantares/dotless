@@ -122,9 +122,9 @@ in
   diffnav = prev.diffnav.overrideAttrs (old: {
     # `--replace-fail` makes the build fail loudly if upstream reworks these lines
     # on a `nix flake update` — the signal to re-sync this patch — rather than
-    # silently reverting to vim defaults. The `o` and tab cases patch behaviour,
-    # not just key strings, so a bump can also leave them matching but change
-    # what surrounds them: re-read both switch cases.
+    # silently reverting to vim defaults. The step-in and tab cases patch
+    # behaviour, not just key strings, so a bump can also leave them matching
+    # but change what surrounds them: re-read both switch cases.
     #
     # The append is guarded on a sentinel so it is idempotent: this overlay can
     # be composed onto the same pkgs set more than once (e.g. a NixOS config
@@ -145,11 +145,28 @@ in
           --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
           --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
           --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),' \
-          --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),' \
+          --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse / tree pane"),' \
+          --replace-fail 'key.WithHelp("l", "expand"),' 'key.WithHelp("l", "expand / diff pane"),' \
+          --replace-fail 'key.WithHelp("enter", "toggle"),' 'key.WithHelp("enter", "expand / diff pane"),' \
           --replace-fail 'key.WithHelp("tab", "switch panel"),' 'key.WithHelp("tab", "fold dir / switch panel"),'
+
+        # Upstream leaves the three tree-navigation keys out of KeyGroups, so
+        # they never reach the help panel. List them, now that they move focus.
+        substituteInPlace pkg/ui/keys.go \
+          --replace-fail '
+        	return [][]key.Binding{{
+        		keys.SwitchPanel,' '
+        	return [][]key.Binding{{
+        		keys.SwitchPanel,
+        		keys.ExpandNode,
+        		keys.CollapseNode,
+        		keys.ToggleNode,'
+
         substituteInPlace pkg/ui/panes/filetree/keys.go \
           --replace-fail 'key.WithKeys("h"),' 'key.WithKeys("j"),' \
-          --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse"),'
+          --replace-fail 'key.WithHelp("h", "collapse"),' 'key.WithHelp("j", "collapse / tree pane"),' \
+          --replace-fail 'key.WithHelp("l", "expand"),' 'key.WithHelp("l", "expand / diff pane"),' \
+          --replace-fail 'key.WithHelp("enter", "toggle"),' 'key.WithHelp("enter", "expand / diff pane"),'
 
         # The diff pane scrolls through its own viewport keymap, not keys.go
         # above, so it needs the same Colemak nav.
@@ -159,7 +176,7 @@ in
           --replace-fail 'key.WithHelp("↑/k", "prev file"),' 'key.WithHelp("↑/h", "prev file"),' \
           --replace-fail 'key.WithHelp("↓/j", "next file"),' 'key.WithHelp("↓/k", "next file"),'
 
-        # Expand and Toggle, for the `o` and tab cases below.
+        # StepIn and ToggleDir, for the step-in and tab cases below.
         substituteInPlace pkg/ui/panes/filetree/filetree.go \
           --replace-fail '
         func (m *Model) GetCurrNode() *tree.Node {
@@ -169,18 +186,40 @@ in
         	return m.t.NodeAtCurrentOffset()
         }
 
-        // Expand opens the selected node, leaving the cursor where it is.
-        func (m *Model) Expand() {
+        // StepIn opens the selected dir if it is closed, and reports whether it
+        // did. A file, or a dir already open, reports false: nothing left to
+        // open here, so the caller steps right into the diff.
+        func (m *Model) StepIn() bool {
+        	node := m.t.NodeAtCurrentOffset()
+        	if node == nil || node.IsOpen() {
+        		return false
+        	}
+        	if _, isDir := node.GivenValue().(*dirnode.DirNode); !isDir {
+        		return false
+        	}
         	m.t.OpenCurrentNode()
+        	return true
         }
 
-        // Toggle closes the selected node if it is open, and opens it if closed.
-        func (m *Model) Toggle() {
+        // ToggleDir folds or unfolds the selected dir, and reports whether the
+        // selection was a dir at all.
+        func (m *Model) ToggleDir() bool {
+        	node := m.t.NodeAtCurrentOffset()
+        	if node == nil {
+        		return false
+        	}
+        	if _, isDir := node.GivenValue().(*dirnode.DirNode); !isDir {
+        		return false
+        	}
         	m.t.ToggleCurrentNode()
+        	return true
         }'
 
-        # `o` steps inward - expand a closed dir, else move to the diff, and
-        # from the diff open the editor. Matches `o` in mini.files and treemacs.
+        # `l`, enter and `o` step inward - expand a closed dir, else move to
+        # the diff pane; `j` steps back out of the diff pane to the tree. The
+        # directional pair matches mini.files and treemacs, and upstream leaves
+        # `l` and enter dead on a file or an open dir. `o` from the diff pane
+        # still opens the editor.
         substituteInPlace pkg/ui/tui.go \
           --replace-fail '
         		case key.Matches(msg, keys.OpenInEditor):
@@ -189,11 +228,8 @@ in
         				cmds = append(cmds, cmd)
         			}' '
         		case key.Matches(msg, keys.OpenInEditor):
-        			if node := m.fileTree.GetCurrNode(); m.activePanel == FileTreePanel && node != nil {
-        				_, isDir := node.GivenValue().(*dirnode.DirNode)
-        				if isDir && !node.IsOpen() {
-        					m.fileTree.Expand()
-        				} else {
+        			if m.activePanel == FileTreePanel {
+        				if !m.fileTree.StepIn() {
         					m.activePanel = DiffViewerPanel
         				}
         			} else {
@@ -201,7 +237,13 @@ in
         				if cmd != nil {
         					cmds = append(cmds, cmd)
         				}
-        			}'
+        			}
+        		case m.activePanel == FileTreePanel && key.Matches(msg, keys.ExpandNode, keys.ToggleNode):
+        			if !m.fileTree.StepIn() {
+        				m.activePanel = DiffViewerPanel
+        			}
+        		case m.activePanel == DiffViewerPanel && m.isShowingFileTree && !m.diffViewer.Filtering() && key.Matches(msg, keys.CollapseNode):
+        			m.activePanel = FileTreePanel'
 
         # tab folds a directory, the way it does in mini.files and treemacs.
         # Upstream binds tab/shift+tab to the panel switch; shift+tab keeps
@@ -217,14 +259,11 @@ in
         				}
         			}' '
         		case key.Matches(msg, keys.SwitchPanel):
-        			node := m.fileTree.GetCurrNode()
-        			isDir := false
-        			if node != nil {
-        				_, isDir = node.GivenValue().(*dirnode.DirNode)
+        			folded := false
+        			if msg.String() == "tab" && m.activePanel == FileTreePanel {
+        				folded = m.fileTree.ToggleDir()
         			}
-        			if isDir && msg.String() == "tab" && m.activePanel == FileTreePanel {
-        				m.fileTree.Toggle()
-        			} else if m.isShowingFileTree {
+        			if !folded && m.isShowingFileTree {
         				if m.activePanel == FileTreePanel {
         					m.activePanel = DiffViewerPanel
         				} else {
