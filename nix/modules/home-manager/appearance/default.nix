@@ -8,11 +8,20 @@
 let
   cfg = config.dotless.appearance;
 
-  # GNOME's toggle is the source of truth. `color-scheme` is also what the XDG
-  # settings portal serves as org.freedesktop.appearance, so portal-aware apps
-  # (Zed, WezTerm, GTK) follow it with no help from us; this script is only for
-  # the ones that can't.
-  schemaKey = "org.gnome.desktop.interface color-scheme";
+  # What `auto` means per platform. Empty for a platform with no default yet;
+  # the assertion below tells the user to name one.
+  autoProvider = if pkgs.stdenv.hostPlatform.isLinux then "linux" else "";
+
+  selected = if cfg.provider == "auto" then autoProvider else cfg.provider;
+
+  # The stub keeps a bad name from throwing here, so the assertion is what the
+  # user actually reads.
+  provider =
+    cfg.providers.${selected} or {
+      detect = "echo dark";
+      watch = null;
+      path = [ ];
+    };
 
   # A script each, not a subshell: bash drops errexit inside a subshell used as
   # a condition or an and-or operand, so an in-process hook would run on past
@@ -38,20 +47,18 @@ let
 
   switch = pkgs.writeShellApplication {
     name = "appearance-switch";
-    runtimeInputs = [ pkgs.glib ] ++ cfg.path;
+    runtimeInputs = provider.path ++ cfg.path;
     text = ''
+      # Prints light or dark. Supplied by the provider, which owns every
+      # desktop-specific command in this module.
+      detect() {
+        ${provider.detect}
+      }
+
       mode=''${1:-auto}
 
       if [ "$mode" = auto ]; then
-        # No GNOME, no schema: nothing to follow, so stay dark.
-        scheme=$(gsettings get ${schemaKey} 2>/dev/null || echo prefer-dark)
-
-        # Only prefer-dark is dark. GNOME's Appearance panel sets `default` for
-        # Light, not `prefer-light`, and that is the toggle this follows.
-        case "$scheme" in
-          *prefer-dark*) mode=dark ;;
-          *) mode=light ;;
-        esac
+        mode=$(detect)
       fi
 
       case "$mode" in
@@ -70,10 +77,62 @@ let
     '';
   };
 
+  # `appearance-switch` is on its PATH, so a provider's watch body calls it by
+  # name rather than threading a store path through.
+  watcher = pkgs.writeShellApplication {
+    name = "appearance-watch";
+    runtimeInputs = [ switch ] ++ provider.path ++ cfg.path;
+    text = provider.watch;
+  };
+
 in
 {
   options.dotless.appearance = {
-    enable = lib.mkEnableOption "light/dark palette switching driven by the GNOME appearance toggle";
+    enable = lib.mkEnableOption "light/dark palette switching driven by the desktop's appearance toggle";
+
+    provider = lib.mkOption {
+      type = lib.types.str;
+      default = "auto";
+      description = ''
+        Which entry of `providers` supplies the mode. `auto` picks the one for
+        this platform.
+      '';
+    };
+
+    providers = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            detect = lib.mkOption {
+              type = lib.types.lines;
+              description = "Shell that prints `light` or `dark`, and nothing else.";
+            };
+
+            watch = lib.mkOption {
+              type = lib.types.nullOr lib.types.lines;
+              default = null;
+              description = ''
+                Long-running shell that calls `appearance-switch auto` on every
+                change. Null for a provider with no signal to watch, which
+                leaves the mode to an explicit `appearance-switch light|dark`.
+              '';
+            };
+
+            path = lib.mkOption {
+              type = lib.types.listOf lib.types.package;
+              default = [ ];
+              description = "Packages `detect` and `watch` need on PATH.";
+            };
+          };
+        }
+      );
+      default = { };
+      description = ''
+        Sources for the light/dark signal, keyed by the environment they read.
+        Open on purpose: a desktop dotless does not ship can add its own pair
+        without a change here.
+      '';
+    };
 
     hooks = lib.mkOption {
       type = lib.types.attrsOf lib.types.lines;
@@ -125,6 +184,33 @@ in
   };
 
   config = lib.mkMerge [
+    {
+      # GNOME, KDE, Hyprland and sway all serve the XDG settings portal, and
+      # darkman is a portal backend for a session with no desktop of its own.
+      # gsettings is the last resort: dconf answers with no portal running.
+      dotless.appearance.providers.linux = {
+        path = [ pkgs.glib ];
+
+        detect = ''
+          scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || echo prefer-dark)
+
+          # Only prefer-dark is dark. GNOME's Appearance panel sets `default`
+          # for Light, not `prefer-light`, and that is the toggle this follows.
+          case "$scheme" in
+            *prefer-dark*) echo dark ;;
+            *) echo light ;;
+          esac
+        '';
+
+        # `gsettings monitor` prints a line per change and never exits.
+        watch = ''
+          gsettings monitor org.gnome.desktop.interface color-scheme | while read -r _; do
+            appearance-switch auto
+          done
+        '';
+      };
+    }
+
     # Nothing repaints these, so they hold the dark palette and stay fresh:
     # installed every activation, since a generation may have changed it.
     (lib.mkIf (!cfg.enable) {
@@ -138,6 +224,17 @@ in
     })
 
     (lib.mkIf cfg.enable {
+      assertions = [
+        {
+          assertion = cfg.providers ? ${selected};
+          message =
+            if selected == "" then
+              "dotless.appearance: no provider for this platform yet; set dotless.appearance.provider."
+            else
+              "dotless.appearance.provider names '${selected}', which dotless.appearance.providers does not define.";
+        }
+      ];
+
       home.packages = [ switch ];
 
       # Hooks read files that linkGeneration has just put in place, and a fresh
@@ -146,24 +243,17 @@ in
         run ${switch}/bin/appearance-switch auto
       '';
 
-      # `gsettings monitor` prints a line per change and never exits.
-      systemd.user.services = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
+      systemd.user.services = lib.mkIf (pkgs.stdenv.hostPlatform.isLinux && provider.watch != null) {
         appearance-switch = {
           Unit = {
-            Description = "Repaint terminals and editors on a GNOME appearance change";
+            Description = "Repaint terminals and editors on a desktop appearance change";
             PartOf = [ "graphical-session.target" ];
           };
 
           Service = {
             Type = "simple";
             ExecStartPre = "${switch}/bin/appearance-switch auto";
-            ExecStart = toString (
-              pkgs.writeShellScript "appearance-watch" ''
-                ${pkgs.glib}/bin/gsettings monitor ${schemaKey} | while read -r _; do
-                  ${switch}/bin/appearance-switch auto
-                done
-              ''
-            );
+            ExecStart = "${watcher}/bin/appearance-watch";
             Restart = "on-failure";
             RestartSec = 5;
           };
