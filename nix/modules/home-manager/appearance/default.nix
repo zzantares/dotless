@@ -26,9 +26,17 @@ let
 
   schemaKey = "org.gnome.desktop.interface color-scheme";
 
+  defaultsBin = "/usr/bin/defaults";
+
   # What `auto` means per platform. Empty for a platform with no default yet;
   # the assertion below tells the user to name one.
-  autoProvider = if pkgs.stdenv.hostPlatform.isLinux then "linux" else "";
+  autoProvider =
+    if pkgs.stdenv.hostPlatform.isLinux then
+      "linux"
+    else if pkgs.stdenv.hostPlatform.isDarwin then
+      "darwin"
+    else
+      "";
 
   selected = if cfg.provider == "auto" then autoProvider else cfg.provider;
 
@@ -280,6 +288,35 @@ in
       };
     }
 
+    {
+      # macOS leaves AppleInterfaceStyle unset for Light rather than writing a
+      # value, so an exit code is the answer. `defaults` is addressed by
+      # absolute path: writeShellApplication only prepends to PATH, and nothing
+      # guarantees /usr/bin is on the inherited one.
+      dotless.appearance.providers.darwin = {
+        path = [ pkgs.dark-mode-notify ];
+
+        detect = ''
+          if [ ! -x ${defaultsBin} ]; then
+            # Not macOS after all, so nothing to follow: stay dark, as linux
+            # does when no portal and no dconf answer.
+            echo dark
+          elif [ "$(${defaultsBin} read -g AppleInterfaceStyle 2>/dev/null)" = Dark ]; then
+            # The test position keeps errexit from treating the Light exit
+            # code, which is 1, as fatal.
+            echo dark
+          else
+            echo light
+          fi
+        '';
+
+        # Runs the command once at startup, on every appearance change, and on
+        # wake. It also exports DARKMODE, which we ignore: `auto` re-reads the
+        # setting, so there is one answer to the question, not two.
+        watch = "dark-mode-notify appearance-switch auto";
+      };
+    }
+
     # Nothing repaints these, so they hold the dark palette and stay fresh:
     # installed every activation, since a generation may have changed it.
     (lib.mkIf (!cfg.enable) {
@@ -328,6 +365,21 @@ in
           };
 
           Install.WantedBy = [ cfg.watchTarget ];
+        };
+      };
+
+      # launchd has no graphical-session.target, so the agent loads at login
+      # and KeepAlive restarts it. dark-mode-notify runs the switch itself on
+      # startup, which is why there is no separate pre-step here.
+      launchd.agents = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && provider.watch != null) {
+        appearance-switch.config = {
+          ProgramArguments = [ "${watcher}/bin/appearance-watch" ];
+          RunAtLoad = true;
+          KeepAlive = true;
+
+          # Ask macOS for the interactive scheduling tier, as the emacs agent
+          # does: this repaints what the user is looking at.
+          ProcessType = "Interactive";
         };
       };
     })
