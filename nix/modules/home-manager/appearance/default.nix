@@ -8,6 +8,24 @@
 let
   cfg = config.dotless.appearance;
 
+  # The cross-desktop appearance setting, and the names needed to read it.
+  portalName = "org.freedesktop.portal.Desktop";
+  portalPath = "/org/freedesktop/portal/desktop";
+  portalIface = "org.freedesktop.portal.Settings";
+  portalSetting = "org.freedesktop.appearance color-scheme";
+
+  # Embedded in double quotes so the single quotes D-Bus wants survive and the
+  # generated script stays readable. escapeShellArg would be correct but turns
+  # the rule into a thicket of '\'' for anyone reading it.
+  matchRule = lib.concatStringsSep "," [
+    "type='signal'"
+    "interface='${portalIface}'"
+    "member='SettingChanged'"
+    "arg0='org.freedesktop.appearance'"
+  ];
+
+  schemaKey = "org.gnome.desktop.interface color-scheme";
+
   # What `auto` means per platform. Empty for a platform with no default yet;
   # the assertion below tells the user to name one.
   autoProvider = if pkgs.stdenv.hostPlatform.isLinux then "linux" else "";
@@ -185,28 +203,69 @@ in
 
   config = lib.mkMerge [
     {
-      # GNOME, KDE, Hyprland and sway all serve the XDG settings portal, and
-      # darkman is a portal backend for a session with no desktop of its own.
-      # gsettings is the last resort: dconf answers with no portal running.
+      # GNOME, KDE, Hyprland and sway all serve `org.freedesktop.appearance`
+      # over the XDG settings portal, and darkman is a portal backend for a
+      # session with no desktop of its own. gsettings is the last resort: dconf
+      # still answers where no portal runs at all.
       dotless.appearance.providers.linux = {
-        path = [ pkgs.glib ];
+        path = [
+          pkgs.glib
+          pkgs.dbus
+          pkgs.gnugrep
+        ];
 
         detect = ''
-          scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || echo prefer-dark)
+          portal() {
+            gdbus call --session --dest ${portalName} \
+              --object-path ${portalPath} \
+              --method "${portalIface}.$1" \
+              ${portalSetting} 2>/dev/null
+          }
 
-          # Only prefer-dark is dark. GNOME's Appearance panel sets `default`
-          # for Light, not `prefer-light`, and that is the toggle this follows.
+          # `Read` is deprecated but answers on an older portal. It wraps the
+          # variant twice where ReadOne wraps it once, so match on the digit.
+          scheme=$(portal ReadOne || portal Read || true)
+
+          # 1 is prefer-dark and 2 is prefer-light. 0 means the desktop has no
+          # preference, which falls through to gsettings like a missing portal.
           case "$scheme" in
-            *prefer-dark*) echo dark ;;
-            *) echo light ;;
+            *"uint32 1"*) echo dark ;;
+            *"uint32 2"*) echo light ;;
+            *)
+              # GNOME's Appearance panel sets `default` for Light, not
+              # `prefer-light`, and that is the toggle this follows. No answer
+              # at all means nothing to follow, so stay dark.
+              case "$(gsettings get ${schemaKey} 2>/dev/null || true)" in
+                *prefer-dark*) echo dark ;;
+                "") echo dark ;;
+                *) echo light ;;
+              esac
+              ;;
           esac
         '';
 
-        # `gsettings monitor` prints a line per change and never exits.
         watch = ''
-          gsettings monitor org.gnome.desktop.interface color-scheme | while read -r _; do
-            appearance-switch auto
-          done
+          # A session either serves the portal or it does not, and the unit is
+          # PartOf graphical-session.target, so decide once at start.
+          if gdbus call --session --dest ${portalName} \
+               --object-path ${portalPath} \
+               --method ${portalIface}.ReadOne \
+               ${portalSetting} >/dev/null 2>&1; then
+            # The match rule filters on the bus, so no other setting wakes us.
+            # dbus-monitor prints a header line and one line per argument; the
+            # grep keeps the header, one per signal, and drops the NameAcquired
+            # it gets for its own connection.
+            dbus-monitor --session "${matchRule}" \
+              | grep --line-buffered -F 'member=SettingChanged' \
+              | while read -r _; do
+                  appearance-switch auto
+                done
+          else
+            # `gsettings monitor` prints a line per change and never exits.
+            gsettings monitor ${schemaKey} | while read -r _; do
+              appearance-switch auto
+            done
+          fi
         '';
       };
     }
