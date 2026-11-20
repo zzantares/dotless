@@ -8,6 +8,7 @@
 }:
 
 {
+  appearance-darwin = import ./appearance-darwin.nix { inherit inputs self pkgs; };
   appearance-fallbacks = import ./appearance-fallbacks.nix { inherit inputs self pkgs; };
   appearance-provider = import ./appearance-provider.nix { inherit inputs self pkgs; };
   smoke-home = import ./smoke-home.nix { inherit inputs self pkgs; };

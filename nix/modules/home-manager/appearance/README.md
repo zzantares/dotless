@@ -32,6 +32,13 @@ a desktop.
 | `watch` | Long-running shell that calls `appearance-switch auto` per change |
 | `path` | Packages the two need on PATH |
 
+Two ship today.
+
+| Provider | Reads | Watches with |
+| --- | --- | --- |
+| `linux` | the portal, then gsettings | a D-Bus match rule, or `gsettings monitor` |
+| `darwin` | `AppleInterfaceStyle` | `dark-mode-notify` |
+
 `provider = "auto"` picks the one for the platform. The set is open, so a
 desktop dotless does not ship can add its own pair from a consumer's
 configuration and name it:
@@ -46,7 +53,21 @@ dotless.appearance.providers.sway-idle = {
 
 A provider with no `watch` leaves the mode to an explicit
 `appearance-switch light` or `appearance-switch dark`, from a key binding.
-The module keeps the supervision, so a provider never knows about systemd.
+The module keeps the supervision, so a provider never knows which supervisor
+it has: a systemd user service on Linux, a launchd agent on macOS.
+
+## macOS
+
+Light leaves `AppleInterfaceStyle` unset instead of writing a value, so the
+exit code of `defaults` is the answer. `dark-mode-notify` runs the switch at
+login, on every change, and on wake.
+
+launchd has no `graphical-session.target`, so the agent carries `RunAtLoad` and
+`KeepAlive` instead, and needs no pre-step because `dark-mode-notify` switches
+once by itself when it starts.
+
+Doom reads the portal for its startup theme and macOS has none, but the agent
+runs the switch as it loads, so the daemon is corrected at login.
 
 ## Three kinds of program
 
@@ -65,7 +86,7 @@ names no program. It reads ten entries today.
 
 | Option | What it holds |
 | --- | --- |
-| `enable` | Turns switching on. Linux only today |
+| `enable` | Turns switching on |
 | `provider` | Which `providers` entry supplies the mode, or `auto` |
 | `providers` | The sources themselves, keyed by the environment they read |
 | `hooks` | Shell snippets keyed by program, with `$mode` set to `light` or `dark` |
@@ -126,13 +147,16 @@ and the hook undo each other.
 
 ## Where switching is off
 
+Both platforms switch now, so this covers an explicit `enable = false` and a
+platform with no provider.
+
 With `enable = false` nothing repaints, so a program whose palette only a hook
 writes would fall back to its own built-in theme. `fallbacks` installs the dark
 palette into that same path on every activation instead. Every activation, not
 once, because a new generation may have changed the palette and nothing else
 would ever update it.
 
-This is why tmux showed its stock green status bar on macOS: `source-file -q`
+This is what tmux's stock green status bar on macOS was: `source-file -q`
 reports no error for a file that is not there.
 
 ## Repaint or next run
