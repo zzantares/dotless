@@ -52,8 +52,11 @@ in
     ./secrets.nix
   ];
 
-  # Light/dark palette switching. Linux only: the trigger is a GNOME gsetting.
-  dotless.appearance.enable = lib.mkDefault pkgs.stdenv.hostPlatform.isLinux;
+  # Light/dark palette switching. Both platforms have a provider; anything
+  # else has none, so it would have nothing to follow.
+  dotless.appearance.enable = lib.mkDefault (
+    pkgs.stdenv.hostPlatform.isLinux || pkgs.stdenv.hostPlatform.isDarwin
+  );
 
   fonts.fontconfig = {
     enable = true;
