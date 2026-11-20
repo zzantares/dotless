@@ -68,7 +68,10 @@ in
     # scrollback that copy-mode can still reach the start of a conversation.
     historyLimit = 50000;
     keyMode = "vi";
-    secureSocket = lib.mkDefault true;
+    # Linux only, which is home-manager's own default: it points TMUX_TMPDIR
+    # at /run/user, and macOS has no /run. tmux ignores an unusable value and
+    # falls back to /tmp, so forcing it on was harmless but wrong.
+    secureSocket = lib.mkDefault pkgs.stdenv.hostPlatform.isLinux;
     terminal = "tmux-256color";
     prefix = "C-b";
     shell = "${config.programs.zsh.package}/bin/zsh";
@@ -140,8 +143,8 @@ in
   };
 
   # A running server keeps its options until told otherwise, so re-source the
-  # file in every server on this machine. Sockets live under TMUX_TMPDIR, which
-  # `secureSocket` points at XDG_RUNTIME_DIR.
+  # file in every server on this machine. `secureSocket` points TMUX_TMPDIR at
+  # XDG_RUNTIME_DIR on linux; a mac has neither and uses /tmp.
   dotless.appearance.hooks.tmux = ''
     install -m644 "${config.xdg.configHome}/tmux/theme-$mode.conf" ${lib.escapeShellArg activeTheme}
 
