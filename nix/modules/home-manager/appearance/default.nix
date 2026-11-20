@@ -193,6 +193,16 @@ in
       '';
     };
 
+    watchTarget = lib.mkOption {
+      type = lib.types.str;
+      default = "graphical-session.target";
+      description = ''
+        The systemd user target the watcher binds to. GNOME, KDE, Hyprland and
+        sway all start `graphical-session.target`, but a hand-written session
+        may not, and the watcher never runs if nothing pulls it in.
+      '';
+    };
+
     stateFile = lib.mkOption {
       type = lib.types.str;
       default = "${config.xdg.stateHome}/dotless/appearance";
@@ -306,7 +316,7 @@ in
         appearance-switch = {
           Unit = {
             Description = "Repaint terminals and editors on a desktop appearance change";
-            PartOf = [ "graphical-session.target" ];
+            PartOf = [ cfg.watchTarget ];
           };
 
           Service = {
@@ -317,7 +327,7 @@ in
             RestartSec = 5;
           };
 
-          Install.WantedBy = [ "graphical-session.target" ];
+          Install.WantedBy = [ cfg.watchTarget ];
         };
       };
     })
