@@ -20,8 +20,9 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-refresh` | Resync the worktree to the PR head after the author pushes |
 | `nitpick-diff-hl-set-base` | Diff the project against a revision you pick, instead of its checkout |
 | `nitpick-diff-hl-line-mode` | Paint the changed lines, not only the fringe |
-| `nitpick-tree` | Toggle the side pane of the files the review changed, and nothing else |
-| `nitpick-tree-visit-diff` | Read the line at point as a diff instead of a file (`d` in the pane) |
+| `nitpick-tree` | Toggle the review: the pane of changed files, and the diff beside it |
+| `nitpick-tree-visit-diff` | Reveal the line at point in the diff (`d` in the pane) |
+| `nitpick-tree-toggle-follow` | Stop or resume the diff following the point (`f` in the pane) |
 | `nitpick-diff-buffer-file` | The same diff for the file being visited, from anywhere |
 
 ## Binding
@@ -73,14 +74,25 @@ are the PR head's only for the last commit on the branch. And a file with
 uncommitted changes is refused, because the new side of the diff is the
 worktree: edit it and the numbers stop being the PR's.
 
-## The changed-file pane
+## The diff navigator
 
 `nitpick-tree` opens a treemacs side pane holding only the files that differ
-from the revision under review, nested by directory - what diffnav draws next
-to its diff. Each line carries the file's status marker and its line counts,
-and `RET` opens the real file, where diff-hl has already painted the same
-revision's changes. A prefix argument keeps the focus in the pane, so a review
-can be opened file by file without leaving it.
+from the revision under review, nested by directory, and the diff of the whole
+range beside it - what diffnav draws. Each line carries the file's status
+marker and its line counts.
+
+Moving in the pane scrolls the diff to the file at point, or to the subtree of
+the directory at point, so a review reads by walking the pane. `nitpick-tree-follow`
+turns that off and `f` toggles it; `d` is then how a diff is asked for.
+
+Keys in the pane: `RET` hands the point to the diff, where magit's own keys
+read it and `nitpick-comment` comments on it. `o` opens the real file, where
+diff-hl has already painted the same revision's changes; a prefix argument
+keeps the focus in the pane.
+
+Opening takes the frame and `q` gives it back, the way magit's status buffer
+does - the pane and its diff want the frame to themselves. `nitpick-tree-full-frame`
+turns that off.
 
 The revision is the one this worktree last picked, through
 `nitpick-diff-hl-set-base` or through checking out a PR's worktree, and failing
@@ -133,9 +145,8 @@ instead - the read-only blob magit would show.
 
 ### Two views of the same change
 
-`RET` opens the file; `d` opens the diff - `nitpick-tree-visit-diff`, in a
-magit diff buffer limited to that one path. They answer different questions
-and neither replaces the other:
+The diff is what the pane navigates; `o` opens the file. They answer different
+questions and neither replaces the other:
 
 - The **file** is where LSP works, where jump-to-definition and the type
   errors live, and where you fix what the review turns up. Both views take a
@@ -148,21 +159,23 @@ and neither replaces the other:
   side window can show nothing but the pane, so it makes room rather than
   reuse.
 - The **diff** is the reading view - before and after together, removals as
-  text, unchanged context folded away. On a directory node it is the diff of
-  everything under it, so `d` on a collapsed `nix/pkgs/emacs` reads the whole
-  subtree as one diff.
+  text, unchanged context folded away. A directory reveals its subtree, so a
+  collapsed `nix/pkgs/emacs` reads as one diff.
 
 `nitpick-diff-buffer-file` is the same diff for the file being visited rather
 than the one at point, so a file reached any other way still reads as a diff.
 diff-hl's own `diff-hl-diff-reference-goto-hunk` compares the same two things
 and renders a `vc-diff` buffer instead of a magit one.
 
-The diff is `git diff` against the pane's own revision, with your saved magit
-diff arguments, so it agrees with what the pane lists and reads like every
-other diff you look at. A rename is asked for by both of its paths: git pairs
-them to recognise the rename, and asking for only the new path shows an
-addition, or nothing. An untracked file has no committed version to compare
-with, so `d` says so rather than opening an empty diff.
+One magit buffer holds the whole range - `git diff` against the pane's own
+revision, with your saved magit diff arguments - and a file is revealed by
+scrolling to its section. So following the point costs a `goto-char`, nothing
+is spawned per keystroke, and the diff stays continuous: the file before and
+the file after are a scroll away.
+
+An untracked file is in no range diff, since git holds no version of it to
+compare against, so it gets a `diff-mode` buffer of its own: `git diff
+--no-index` against `/dev/null`, all additions.
 
 `r` re-reads the diff, and `g` does too outside evil, in place of treemacs'
 `treemacs-refresh` - which redraws the nodes the pane already holds and
@@ -179,8 +192,13 @@ an auxiliary map for the key to be seen at all:
 (after! treemacs-evil
   (evil-define-key 'treemacs nitpick-tree-mode-map
     (kbd "d") #'nitpick-tree-visit-diff
+    (kbd "o") #'nitpick-tree-visit
+    (kbd "f") #'nitpick-tree-toggle-follow
     (kbd "r") #'nitpick-tree-refresh))
 ```
+
+`o` is treemacs' prefix for opening a node in a split. Here the other window
+is the diff, so the pane takes `o` for the file itself.
 
 treemacs is needed at run time only, and the command loads it. Its extension
 API is macros, which a build without treemacs in scope could not compile -

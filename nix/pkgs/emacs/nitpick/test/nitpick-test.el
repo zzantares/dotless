@@ -1239,88 +1239,6 @@ stub can answer the three calls a tree needs."
                           (substring-no-properties
                            (nitpick-tree--header "HEAD" '(1 1 0))))))
 
-;;;; Changed-file tree: the diff view
-
-(ert-deftest nitpick-test-tree-diff-paths-of-a-file-is-the-one-path ()
-  "Nothing clever for the common case."
-  (should (equal (nitpick-tree--diff-paths '(:file "src/a.el") "/tmp/wt")
-                 '("src/a.el"))))
-
-(ert-deftest nitpick-test-tree-diff-paths-of-a-rename-names-both-sides ()
-  "git pairs the two paths to see the rename; asking for one shows an add."
-  (should (equal (nitpick-tree--diff-paths
-                  '(:file "new.el" :from "src/old.el") "/tmp/wt")
-                 '("new.el" "src/old.el"))))
-
-(ert-deftest nitpick-test-tree-diff-paths-of-a-directory-is-its-subtree ()
-  "A directory node diffs everything under it, named relative to the root."
-  (should (equal (nitpick-tree--diff-paths
-                  '(:dir t :name "pkgs" :path "/tmp/wt/nix/pkgs") "/tmp/wt")
-                 '("nix/pkgs"))))
-
-(ert-deftest nitpick-test-tree-diff-refuses-an-untracked-file ()
-  "git holds no version of it, so there is no diff to show - say so."
-  (let ((buffer (generate-new-buffer " *nitpick-test-pane*")))
-    (unwind-protect
-        (with-current-buffer buffer
-          (setq-local nitpick-tree--root "/tmp/wt"
-                      nitpick-tree--revision "master")
-          (nitpick-test--with-stubs
-              ((nitpick-tree--node-at-point
-                (lambda () '(:file "new.el" :status "?")))
-               (magit-diff-range (lambda (&rest _) (error "should not be called"))))
-            (should-error (nitpick-tree-visit-diff) :type 'user-error)))
-      (kill-buffer buffer))))
-
-(ert-deftest nitpick-test-tree-diff-asks-magit-for-the-panes-revision ()
-  "The same revision the pane lists, so the diff agrees with what it says."
-  (let ((buffer (generate-new-buffer " *nitpick-test-pane*"))
-        (sent nil))
-    (unwind-protect
-        (with-current-buffer buffer
-          (setq-local nitpick-tree--root "/tmp/wt"
-                      nitpick-tree--revision "origin/master")
-          (nitpick-test--with-stubs
-              ((nitpick-tree--node-at-point
-                (lambda () '(:file "src/a.el" :status "M")))
-               ;; (ARGS FILES), as magit answers outside a transient: it
-               ;; fills both interactive slots, and its FILES is the last
-               ;; diff's, which must not reach git as a revision.
-               (magit-diff-arguments (lambda (&rest _) '(("--stat") ("stale.el"))))
-               (magit-diff-range (lambda (rev args files)
-                                   (setq sent (list rev args files)))))
-            (nitpick-tree-visit-diff)
-            (should (equal sent '("origin/master" ("--stat") ("src/a.el"))))))
-      (kill-buffer buffer))))
-
-(ert-deftest nitpick-test-tree-diff-resolves-a-merge-base-revision ()
-  "A trailing `...' is the merge base here too, as everywhere in nitpick."
-  (let ((buffer (generate-new-buffer " *nitpick-test-pane*"))
-        (sent nil))
-    (unwind-protect
-        (with-current-buffer buffer
-          (setq-local nitpick-tree--root "/tmp/wt"
-                      nitpick-tree--revision "origin/master...")
-          (nitpick-test--with-stubs
-              ((nitpick-tree--node-at-point
-                (lambda () '(:file "a.el" :status "M")))
-               (magit-diff-arguments (lambda (&rest _) '(nil nil)))
-               (magit-git-string (lambda (&rest args)
-                                   (and (equal (car args) "merge-base") "abc123")))
-               (magit-diff-range (lambda (rev _args _files) (setq sent rev))))
-            (nitpick-tree-visit-diff)
-            (should (equal sent "abc123"))))
-      (kill-buffer buffer))))
-
-(ert-deftest nitpick-test-tree-pane-binds-d-to-the-diff ()
-  "`d' is diff in the pane, not `treemacs-delete-file'."
-  (should (eq (lookup-key nitpick-tree-mode-map "d") #'nitpick-tree-visit-diff)))
-
-(ert-deftest nitpick-test-tree-pane-refreshes-by-re-reading-the-diff ()
-  "`treemacs-refresh' would redraw the same nodes and claim success."
-  (should (eq (lookup-key nitpick-tree-mode-map "r") #'nitpick-tree-refresh))
-  (should (eq (lookup-key nitpick-tree-mode-map "g") #'nitpick-tree-refresh)))
-
 ;;;; Changed-file tree: which window a file opens in
 
 (defmacro nitpick-test--with-windows (names &rest body)
@@ -1653,6 +1571,400 @@ run before diff-hl has defined them."
 (ert-deftest nitpick-test-prefix-map-binds-d-to-the-file-diff ()
   "`d' is the file's diff wherever it is pressed: the pane, or the file."
   (should (eq (lookup-key nitpick-prefix-map "d") #'nitpick-diff-buffer-file)))
+
+;;;; Changed-file tree: the diff beside the pane
+
+(defun nitpick-test--section (type value &optional start children)
+  "Return a stand-in for a magit section of TYPE holding VALUE.
+A plist read through the stubbed `nitpick--oref' below: magit's classes are
+not here to instantiate, and every slot the pane reads goes through that one
+accessor.  START is the section's position, CHILDREN the sections under it."
+  (list :type type :value value :start (or start 1) :children children))
+
+(defun nitpick-test--oref-stub ()
+  "Return a `nitpick--oref' stub reading `nitpick-test--section' plists."
+  (lambda (object slot)
+    (plist-get object (intern (concat ":" (symbol-name slot))))))
+
+(defmacro nitpick-test--with-diff (sections &rest body)
+  "Run BODY with `buffer' bound to a diff buffer whose root holds SECTIONS."
+  (declare (indent 1))
+  `(let ((buffer (generate-new-buffer " *nitpick-test-diff*")))
+     (unwind-protect
+         (nitpick-test--with-stubs ((nitpick--oref (nitpick-test--oref-stub)))
+           (with-current-buffer buffer
+             (setq-local magit-root-section
+                         (nitpick-test--section 'diffbuf nil 1 ,sections)))
+           ,@body)
+       (kill-buffer buffer))))
+
+(ert-deftest nitpick-test-tree-section-of-a-file-is-the-one-named-by-it ()
+  "A file is revealed by scrolling to the section git wrote for it."
+  (nitpick-test--with-diff
+      (list (nitpick-test--section 'file "src/a.el" 10)
+            (nitpick-test--section 'file "src/b.el" 20))
+    (should (= (plist-get (nitpick-tree--find-section
+                           buffer '(:file "src/b.el") "/tmp/wt")
+                          :start)
+               20))))
+
+(ert-deftest nitpick-test-tree-section-of-a-directory-is-its-first-file ()
+  "git orders a diff by path, so a subtree begins at its first file."
+  (nitpick-test--with-diff
+      (list (nitpick-test--section 'file "docs/x.md" 10)
+            (nitpick-test--section 'file "src/a.el" 20)
+            (nitpick-test--section 'file "src/b.el" 30))
+    (should (= (plist-get (nitpick-tree--find-section
+                           buffer '(:dir t :path "/tmp/wt/src") "/tmp/wt")
+                          :start)
+               20))))
+
+(ert-deftest nitpick-test-tree-section-of-a-directory-matches-whole-names ()
+  "`src' is not the directory of `srcfoo/a.el': the prefix ends in a slash."
+  (nitpick-test--with-diff
+      (list (nitpick-test--section 'file "srcfoo/a.el" 10))
+    (should-not (nitpick-tree--find-section
+                 buffer '(:dir t :path "/tmp/wt/src") "/tmp/wt"))))
+
+(ert-deftest nitpick-test-tree-section-ignores-anything-but-a-file ()
+  "The diffstat names the same files; its sections are not where they start."
+  (nitpick-test--with-diff
+      (list (nitpick-test--section 'diffstat "src/a.el" 5)
+            (nitpick-test--section 'file "src/a.el" 40))
+    (should (= (plist-get (nitpick-tree--find-section
+                           buffer '(:file "src/a.el") "/tmp/wt")
+                          :start)
+               40))))
+
+(ert-deftest nitpick-test-tree-section-of-a-file-not-in-the-diff-is-nil ()
+  "A pane read before the last commit lists files the diff no longer has."
+  (nitpick-test--with-diff
+      (list (nitpick-test--section 'file "src/a.el" 10))
+    (should-not (nitpick-tree--find-section
+                 buffer '(:file "src/gone.el") "/tmp/wt"))))
+
+(ert-deftest nitpick-test-tree-build-diff-asks-for-the-whole-range ()
+  "One `git diff' per review, not one per file: no pathspec at all.
+The user's diff arguments are kept; the pathspec magit answers with - its
+last diff's - is dropped, the way `nitpick-diff-show' drops it."
+  (let ((sent nil)
+        (noselect nil))
+    (nitpick-test--with-stubs
+        ((magit-diff-arguments (lambda (&rest _) '(("--stat") ("stale.el"))))
+         (magit-diff-range
+          (lambda (rev args files)
+            (setq sent (list rev args files)
+                  noselect magit-display-buffer-noselect)
+            (current-buffer))))
+      (nitpick-tree--build-diff "/tmp/wt" "origin/master")
+      (should (equal sent '("origin/master" ("--stat") nil)))
+      ;; The pane keeps the point: magit would select the diff it displays.
+      (should noselect))))
+
+(ert-deftest nitpick-test-tree-build-diff-resolves-a-merge-base-revision ()
+  "A trailing `...' is the merge base here too, as everywhere in nitpick."
+  (let ((sent nil))
+    (nitpick-test--with-stubs
+        ((magit-diff-arguments (lambda (&rest _) '(nil nil)))
+         (magit-git-string (lambda (&rest args)
+                             (and (equal (car args) "merge-base") "abc123")))
+         (magit-diff-range (lambda (rev &rest _)
+                             (setq sent rev)
+                             (current-buffer))))
+      (nitpick-tree--build-diff "/tmp/wt" "origin/master...")
+      (should (equal sent "abc123")))))
+
+(ert-deftest nitpick-test-tree-build-diff-remembers-the-buffer-it-read ()
+  "Which is what the next reveal scrolls instead of reading the range again."
+  (let ((nitpick-tree--diff-buffer nil))
+    (nitpick-test--with-windows (diff)
+      (nitpick-test--with-stubs
+          ((magit-diff-arguments (lambda (&rest _) '(nil nil)))
+           (magit-diff-range (lambda (&rest _) diff)))
+        (should (eq (nitpick-tree--build-diff "/tmp/wt" "master") diff))
+        (should (eq nitpick-tree--diff-buffer diff))
+        ;; And is not read a second time.
+        (nitpick-test--with-stubs
+            ((magit-diff-range (lambda (&rest _) (error "already read"))))
+          (should (eq (nitpick-tree--ensure-diff "/tmp/wt" "master") diff)))))))
+
+(ert-deftest nitpick-test-tree-build-diff-insists-on-a-buffer ()
+  "Everything downstream scrolls that buffer; nil would fail line by line."
+  (let ((nitpick-tree--diff-buffer nil))
+    (nitpick-test--with-stubs
+        ((magit-diff-arguments (lambda (&rest _) '(nil nil)))
+         (magit-diff-range (lambda (&rest _) nil)))
+      (should-error (nitpick-tree--build-diff "/tmp/wt" "master")))))
+
+(ert-deftest nitpick-test-tree-main-window-passes-over-a-side-window ()
+  "The pane lives in one, and a side window shows nothing but the pane."
+  (nitpick-test--with-windows (side main)
+    (set-window-buffer (selected-window) main)
+    (display-buffer-in-side-window side '((side . left) (slot . 1)))
+    (should (eq (nitpick-tree--main-window) (get-buffer-window main)))))
+
+(ert-deftest nitpick-test-tree-diff-is-on-screen-only-when-a-window-shows-it ()
+  "A refresh re-reads the range only when it would land where it already is."
+  (nitpick-test--with-windows (other diff)
+    (let ((nitpick-tree--diff-buffer diff))
+      (set-window-buffer (selected-window) other)
+      (should-not (nitpick-tree--diff-on-screen-p))
+      (set-window-buffer (selected-window) diff)
+      (should (nitpick-tree--diff-on-screen-p)))))
+
+(ert-deftest nitpick-test-tree-reveal-shows-the-section-and-puts-it-on-top ()
+  "Expanded first: magit draws a deleted file collapsed, and that is a file
+a review has to read."
+  (let ((shown nil))
+    (nitpick-test--with-windows (pane diff)
+      (with-current-buffer diff
+        (insert (make-string 400 ?\n)))
+      (set-window-buffer (selected-window) diff)
+      (with-current-buffer pane
+        (setq-local nitpick-tree--root "/tmp/wt"
+                    nitpick-tree--revision "master")
+        (nitpick-test--with-stubs
+            ((nitpick--oref (nitpick-test--oref-stub))
+             (magit-section-show (lambda (section) (setq shown section)))
+             (nitpick-tree--ensure-diff (lambda (&rest _) diff))
+             (nitpick-tree--find-section
+              (lambda (&rest _) (nitpick-test--section 'file "a.el" 120))))
+          (should (nitpick-tree--reveal '(:file "a.el" :status "M")))
+          (should (equal (plist-get shown :value) "a.el"))
+          (should (= (with-current-buffer diff (point)) 120))
+          (should (= (window-start (get-buffer-window diff)) 120)))))))
+
+(ert-deftest nitpick-test-tree-reveal-keeps-the-point-unless-asked ()
+  "Following the point must not take it: the pane is still being navigated."
+  (nitpick-test--with-windows (pane diff)
+    (let ((pane-window (selected-window))
+          (diff-window (split-window)))
+      (set-window-buffer pane-window pane)
+      (set-window-buffer diff-window diff)
+      (with-current-buffer pane
+        (setq-local nitpick-tree--root "/tmp/wt"
+                    nitpick-tree--revision "master")
+        (nitpick-test--with-stubs
+            ((nitpick--oref (nitpick-test--oref-stub))
+             (magit-section-show #'ignore)
+             (nitpick-tree--ensure-diff (lambda (&rest _) diff))
+             (nitpick-tree--find-section
+              (lambda (&rest _) (nitpick-test--section 'file "a.el" 1))))
+          (nitpick-tree--reveal '(:file "a.el" :status "M"))
+          (should (eq (selected-window) pane-window))
+          (nitpick-tree--reveal '(:file "a.el" :status "M") :select)
+          (should (eq (selected-window) diff-window)))))))
+
+(ert-deftest nitpick-test-tree-reveal-says-so-when-the-diff-has-no-section ()
+  "Silence would read as a diff that has not moved."
+  (let ((said nil))
+    (nitpick-test--with-windows (pane diff)
+      (set-window-buffer (selected-window) diff)
+      (with-current-buffer pane
+        (setq-local nitpick-tree--root "/tmp/wt"
+                    nitpick-tree--revision "master")
+        (nitpick-test--with-stubs
+            ((nitpick-tree--ensure-diff (lambda (&rest _) diff))
+             (nitpick-tree--find-section (lambda (&rest _) nil))
+             (message (lambda (fmt &rest args)
+                        (setq said (apply #'format fmt args)))))
+          (nitpick-tree--reveal '(:file "gone.el" :status "M"))
+          (should (string-match-p "gone.el" said)))))))
+
+(ert-deftest nitpick-test-tree-reveal-of-an-untracked-file-diffs-it-alone ()
+  "git holds no version of it, so it is in no range diff - show it anyway."
+  (let ((args nil))
+    (unwind-protect
+        (nitpick-test--with-windows (pane other)
+          (set-window-buffer (selected-window) other)
+          (with-current-buffer pane
+            (setq-local nitpick-tree--root "/tmp/wt"
+                        nitpick-tree--revision "master")
+            (nitpick-test--with-stubs
+                ((nitpick-tree--git-output
+                  (lambda (&rest called) (setq args called) "+added\n"))
+                 (nitpick-tree--ensure-diff
+                  (lambda (&rest _) (error "the range diff has no untracked file"))))
+              (should (nitpick-tree--reveal '(:file "new.el" :status "?")))
+              (should (equal args '("diff" "--no-index" "--"
+                                    "/dev/null" "new.el")))
+              (with-current-buffer nitpick-tree-untracked-buffer-name
+                (should (derived-mode-p 'diff-mode))
+                (should (equal default-directory "/tmp/wt"))
+                (should (string-match-p "added" (buffer-string)))))))
+      (let ((buffer (get-buffer nitpick-tree-untracked-buffer-name)))
+        (when buffer (kill-buffer buffer))))))
+
+(ert-deftest nitpick-test-tree-untracked-diff-says-an-empty-file-is-empty ()
+  "`--no-index' prints nothing at all for a file with no lines in it."
+  (unwind-protect
+      (nitpick-test--with-stubs
+          ((nitpick-tree--git-output (lambda (&rest _) "")))
+        (with-current-buffer (nitpick-tree--untracked-diff "new.el" "/tmp/wt")
+          (should (string-match-p "new.el is empty" (buffer-string)))))
+    (let ((buffer (get-buffer nitpick-tree-untracked-buffer-name)))
+      (when buffer (kill-buffer buffer)))))
+
+(ert-deftest nitpick-test-tree-follow-reveals-a-node-once ()
+  "Several commands run per keystroke, and one of them moved the point."
+  (let ((revealed nil))
+    (with-temp-buffer
+      (nitpick-test--with-stubs
+          ((nitpick-tree--node-at-point
+            (lambda () '(:file "a.el" :path "/tmp/wt/a.el")))
+           (nitpick-tree--reveal (lambda (node &optional _) (push node revealed))))
+        (nitpick-tree--follow)
+        (nitpick-tree--follow)
+        (should (= (length revealed) 1))))))
+
+(ert-deftest nitpick-test-tree-follow-reveals-the-next-node ()
+  (let ((nodes '((:file "a.el" :path "/tmp/wt/a.el")
+                 (:file "b.el" :path "/tmp/wt/b.el")))
+        (revealed nil))
+    (with-temp-buffer
+      (nitpick-test--with-stubs
+          ((nitpick-tree--node-at-point (lambda () (pop nodes)))
+           (nitpick-tree--reveal (lambda (node &optional _) (push node revealed))))
+        (nitpick-tree--follow)
+        (nitpick-tree--follow)
+        (should (= (length revealed) 2))))))
+
+(ert-deftest nitpick-test-tree-follow-obeys-its-option ()
+  "Off, the pane is a list of files again."
+  (let ((nitpick-tree-follow nil)
+        (revealed nil))
+    (with-temp-buffer
+      (nitpick-test--with-stubs
+          ((nitpick-tree--node-at-point (lambda () '(:file "a.el" :path "/a.el")))
+           (nitpick-tree--reveal (lambda (&rest _) (setq revealed t))))
+        (nitpick-tree--follow)
+        (should-not revealed)))))
+
+(ert-deftest nitpick-test-tree-follow-swallows-a-user-error ()
+  "It runs on every keystroke in the pane: a refusal must not break them all."
+  (with-temp-buffer
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:file "a.el" :path "/a.el")))
+         (nitpick-tree--reveal (lambda (&rest _) (user-error "No diff"))))
+      (should-not (nitpick-tree--follow)))))
+
+(ert-deftest nitpick-test-tree-follow-lets-a-real-error-through ()
+  "Only a refusal is swallowed; a bug in the reveal is still a bug."
+  (with-temp-buffer
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:file "a.el" :path "/a.el")))
+         (nitpick-tree--reveal (lambda (&rest _) (error "Boom"))))
+      (should-error (nitpick-tree--follow) :type 'error))))
+
+(ert-deftest nitpick-test-tree-toggle-follow-reveals-what-it-skipped ()
+  "Turned on with the point already on a file, that file is what to show."
+  (let ((nitpick-tree-follow nil)
+        (revealed nil))
+    (with-temp-buffer
+      (nitpick-test--with-stubs
+          ((nitpick-tree--node-at-point (lambda () '(:file "a.el" :path "/a.el")))
+           (nitpick-tree--reveal (lambda (&rest _) (setq revealed t)))
+           (message #'ignore))
+        (nitpick-tree-toggle-follow)
+        (should nitpick-tree-follow)
+        (should revealed)
+        (nitpick-tree-toggle-follow)
+        (should-not nitpick-tree-follow)))))
+
+(ert-deftest nitpick-test-tree-visit-diff-hands-the-point-to-the-diff ()
+  "`d' is how a diff is asked for when nothing is following the point."
+  (let ((select 'unset))
+    (with-temp-buffer
+      (nitpick-test--with-stubs
+          ((nitpick-tree--node-at-point
+            (lambda () '(:file "a.el" :path "/tmp/wt/a.el")))
+           (nitpick-tree--reveal (lambda (_node &optional arg) (setq select arg))))
+        (nitpick-tree-visit-diff)
+        (should select)
+        ;; And is not revealed again by the hook on the way out.
+        (should (equal nitpick-tree--followed "/tmp/wt/a.el"))
+        (nitpick-tree-visit-diff :stay)
+        (should-not select)))))
+
+(ert-deftest nitpick-test-tree-ret-steps-into-the-diff-of-a-file ()
+  "The pane navigates; the diff is where a hunk is read and commented on."
+  (let ((stepped nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:file "a.el")))
+         (nitpick-tree-visit-diff (lambda (&rest _) (setq stepped t)))
+         (nitpick-tree-visit (lambda (&rest _) (error "`o' opens the file"))))
+      (nitpick-tree-ret)
+      (should stepped))))
+
+(ert-deftest nitpick-test-tree-ret-folds-a-directory ()
+  "As everywhere in treemacs: RET on a directory is not a diff."
+  (let ((folded nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:dir t :name "src")))
+         (nitpick-tree-visit (lambda (&rest _) (setq folded t)))
+         (nitpick-tree-visit-diff (lambda (&rest _) (error "not a file"))))
+      (nitpick-tree-ret)
+      (should folded))))
+
+(ert-deftest nitpick-test-tree-pane-binds-d-to-the-diff ()
+  "`d' is diff in the pane, not `treemacs-delete-file'."
+  (should (eq (lookup-key nitpick-tree-mode-map "d") #'nitpick-tree-visit-diff)))
+
+(ert-deftest nitpick-test-tree-pane-refreshes-by-re-reading-the-diff ()
+  "`treemacs-refresh' would redraw the same nodes and claim success."
+  (should (eq (lookup-key nitpick-tree-mode-map "r") #'nitpick-tree-refresh))
+  (should (eq (lookup-key nitpick-tree-mode-map "g") #'nitpick-tree-refresh)))
+
+(ert-deftest nitpick-test-tree-pane-binds-o-to-the-file-itself ()
+  "treemacs' own `o' opens a node in a split, which a review has no use for."
+  (should (eq (lookup-key nitpick-tree-mode-map "o") #'nitpick-tree-visit)))
+
+(ert-deftest nitpick-test-tree-pane-binds-f-to-the-follow-toggle ()
+  (should (eq (lookup-key nitpick-tree-mode-map "f")
+              #'nitpick-tree-toggle-follow)))
+
+(ert-deftest nitpick-test-tree-takes-the-frame-and-gives-it-back ()
+  "A review is a mode of its own; the layout it replaced is not lost."
+  (nitpick-test--with-windows (one two)
+    (let ((nitpick-tree--window-config nil))
+      (set-window-buffer (selected-window) one)
+      (set-window-buffer (split-window) two)
+      (nitpick-test--with-stubs ((nitpick-tree--window (lambda () nil)))
+        (nitpick-tree--take-frame))
+      (should (= (length (window-list)) 1))
+      (should nitpick-tree--window-config)
+      (nitpick-tree--give-frame-back)
+      (should (= (length (window-list)) 2))
+      (should-not nitpick-tree--window-config))))
+
+(ert-deftest nitpick-test-tree-takes-the-frame-once ()
+  "The layout to give back is the one from before the review, not its own."
+  (nitpick-test--with-windows (pane)
+    (let ((nitpick-tree--window-config 'saved))
+      (nitpick-test--with-stubs
+          ((nitpick-tree--window (lambda () (selected-window))))
+        (nitpick-tree--take-frame))
+      (should (eq nitpick-tree--window-config 'saved)))))
+
+(ert-deftest nitpick-test-tree-leaves-the-frame-alone-when-told-to ()
+  (nitpick-test--with-windows (one two)
+    (let ((nitpick-tree-full-frame nil)
+          (nitpick-tree--window-config nil))
+      (set-window-buffer (selected-window) one)
+      (set-window-buffer (split-window) two)
+      (nitpick-test--with-stubs ((nitpick-tree--window (lambda () nil)))
+        (nitpick-tree--take-frame))
+      (should (= (length (window-list)) 2))
+      (should-not nitpick-tree--window-config))))
+
+(ert-deftest nitpick-test-tree-close-forgets-the-diff-it-navigated ()
+  "The buffer stays, the way magit's buffers do; the next review re-reads it."
+  (nitpick-test--with-windows (diff)
+    (let ((nitpick-tree--diff-buffer diff)
+          (nitpick-tree--window-config nil))
+      (nitpick-tree-close)
+      (should-not nitpick-tree--diff-buffer)
+      (should (buffer-live-p diff)))))
 
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

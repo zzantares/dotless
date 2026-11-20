@@ -13,8 +13,12 @@
     ;; on the minor mode is what evil consults first.
     ;; `r' but not `g': `g' is a prefix in motion state, and taking it would
     ;; cost `gg'. Non-evil users get `g' from the mode map itself.
+    ;; `o' is treemacs' prefix for opening a node in a split. Here the other
+    ;; window is the diff, so splitting it is the friction the pane removes.
     (after! treemacs-evil
       (evil-define-key 'treemacs nitpick-tree-mode-map
         (kbd "d") #'nitpick-tree-visit-diff
+        (kbd "o") #'nitpick-tree-visit
+        (kbd "f") #'nitpick-tree-toggle-follow
         (kbd "r") #'nitpick-tree-refresh
         (kbd "q") #'nitpick-tree-close))))

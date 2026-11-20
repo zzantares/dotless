@@ -8,16 +8,24 @@
 
 ;;; Commentary:
 
-;; A side pane listing only the files that differ from the revision under
-;; review, nested by directory, with each file's status and line counts.  The
-;; same thing diffnav shows next to its diff, for the review nitpick anchors on
-;; the files on disk: RET opens the real file, where diff-hl has already painted
-;; what the revision changed.
+;; A diff navigator: a side pane listing only the files that differ from the
+;; revision under review, nested by directory with each file's status and line
+;; counts, and the whole diff beside it.  Moving in the pane scrolls the diff to
+;; the file - or to the subtree of a directory - so a review reads by walking the
+;; pane, the way diffnav does it.  `o' opens the real file, where diff-hl has
+;; already painted what the revision changed, and RET steps into the diff, where
+;; magit's own keys and `nitpick-comment' work.
 ;;
 ;; One command, `nitpick-tree', which also refreshes the pane it opened.  The
 ;; revision is the one `nitpick-diff-hl-set-base' last picked for this worktree,
 ;; so the pane lists exactly the files diff-hl is painting; a prefix argument
 ;; asks for another.
+;;
+;; The diff is one magit buffer for the whole range, not one per file: the range
+;; is a single `git diff', each file is a section in it, and a file is revealed
+;; by scrolling to its section.  So following the point costs a `goto-char',
+;; nothing is spawned per keystroke, and the diff stays continuous - the file
+;; before and the file after are a scroll away, as they are in diffnav.
 ;;
 ;; treemacs is required at run time only.  Its node-type definitions are macros,
 ;; so they are evaluated once treemacs loads rather than compiled in here, the
@@ -38,11 +46,18 @@
 (declare-function treemacs-icon-for-file "treemacs-icons" (file))
 (declare-function treemacs-icon-for-dir "treemacs-icons" (dir state))
 (declare-function treemacs-collapse-extension-node "treemacs-treelib" (&optional arg))
+(declare-function magit-diff-range "magit-diff" (rev-or-range &optional args files))
+(declare-function magit-diff-arguments "magit-diff" (&optional mode))
+(declare-function magit-section-show "magit-section" (section))
 (declare-function diff-hl-mode "diff-hl" (&optional arg))
 (declare-function diff-hl-update "diff-hl" ())
 (declare-function diff-hl-next-hunk "diff-hl" (&optional backward))
 (defvar diff-hl-mode)
 (defvar diff-hl-update-async)
+(defvar magit-display-buffer-function)
+(defvar magit-display-buffer-noselect)
+(defvar magit-git-debug)
+(defvar magit-root-section)
 (defvar treemacs--open-node-states)
 (defvar treemacs-position)
 (defvar treemacs-space-between-root-nodes)
@@ -58,6 +73,30 @@
   "Name of the buffer the changed-file pane is rendered in.
 One pane, re-rendered per project, the way treemacs shows one tree."
   :type 'string
+  :group 'nitpick)
+
+(defcustom nitpick-tree-untracked-buffer-name "*nitpick-untracked*"
+  "Name of the buffer an untracked file's additions are rendered in.
+Not part of the range diff the pane navigates, so it cannot be a section of
+it: `git diff' has no version of an untracked file to compare against."
+  :type 'string
+  :group 'nitpick)
+
+(defcustom nitpick-tree-follow t
+  "Whether moving in the pane scrolls the diff to the line at point.
+What makes the pane a navigator rather than a list: the file under the point
+is the file on screen, with no key pressed to ask for it.  Off, `d' is what
+shows a diff, and `f' turns this back on."
+  :type 'boolean
+  :group 'nitpick)
+
+(defcustom nitpick-tree-full-frame t
+  "Whether opening the pane takes the frame, giving it back when it closes.
+A review is a mode of its own, the way magit's status buffer is: the pane and
+the diff it drives want the frame to themselves, and a layout of four other
+windows has nowhere to put the diff.  The layout from before the review is
+restored by `nitpick-tree-close'."
+  :type 'boolean
   :group 'nitpick)
 
 (defcustom nitpick-tree-collapse-dirs t
@@ -126,6 +165,15 @@ reading a review is one RET per file.  Needs `diff-hl-mode' in that buffer."
 Closing undoes its own painting and nothing else: a mode turned on with the
 command for it is the user's, and stays on.")
 
+(defvar nitpick-tree--diff-buffer nil
+  "The magit diff buffer the pane navigates, or nil.
+One diff for one pane, re-read when the pane is, and scrolled rather than
+re-run as the point moves.")
+
+(defvar nitpick-tree--window-config nil
+  "The frame's layout as it was before the pane took it, or nil.
+Given back by `nitpick-tree-close'.")
+
 (defvar-local nitpick-tree--root nil
   "Project root the pane was rendered for.")
 
@@ -134,6 +182,11 @@ command for it is the user's, and stays on.")
 
 (defvar-local nitpick-tree--items nil
   "The pane's top-level nodes, as built by `nitpick-tree--build'.")
+
+(defvar-local nitpick-tree--followed nil
+  "Key of the node the diff was last scrolled to.
+So that the several commands a keystroke runs reveal it once, and so that a
+command which leaves the point where it was reveals nothing.")
 
 ;;;; Reading the diff out of git
 
@@ -443,35 +496,206 @@ review can be opened without leaving it."
       (treemacs-collapse-extension-node arg))
      (t (treemacs-expand-extension-node arg)))))
 
-(defun nitpick-tree--diff-paths (node root)
-  "Return the pathspec magit should limit NODE's diff to, relative to ROOT.
-A directory limits the diff to everything under it.  A rename names both of
-its paths: git pairs the two to recognise the rename, and asking for only
-the new one shows an addition, or nothing at all."
-  (if (plist-get node :dir)
-      (list (file-relative-name (plist-get node :path) root))
-    (delq nil (list (plist-get node :file) (plist-get node :from)))))
+;;;; The diff the pane drives
+
+(defun nitpick-tree--main-window ()
+  "Return the window on this frame the diff belongs in, or nil.
+Never a side window: the pane is in one, and a side window shows nothing but
+what it was made for.  The last used one, so the diff and the files opened
+from the pane land in the same place."
+  (let ((mru (get-mru-window (selected-frame) nil :not-selected)))
+    (if (and mru (not (window-parameter mru 'window-side)))
+        mru
+      (seq-find (lambda (window) (not (window-parameter window 'window-side)))
+                (window-list nil 'nomini)))))
+
+(defun nitpick-tree--display-diff (buffer)
+  "Show BUFFER in this frame's main window and return that window.
+What magit's display function is replaced with while the diff is read: magit
+would split the window the pane opens files in, or take the frame, and the
+review's layout is the pane and the diff beside it."
+  (let ((window (nitpick-tree--main-window)))
+    (if window
+        (progn (set-window-buffer window buffer) window)
+      (display-buffer buffer))))
+
+(defun nitpick-tree--build-diff (root revision)
+  "Read ROOT's whole diff against REVISION into a magit buffer.
+The range, not a file of it: the pane reveals a file by scrolling to its
+section, so there is one `git diff' per review rather than one per keystroke.
+The user's diff arguments are kept, their last diff's pathspec is not - see
+`nitpick-diff-show'.
+
+Returned, and remembered as the pane's diff.  Magit's display function and
+its focus are taken over for the call: the diff goes in the main window, and
+the point stays in the pane."
+  (let* ((default-directory root)
+         (base (or (nitpick--base-revision revision)
+                   (user-error "Cannot work out a merge base for %s" revision)))
+         (magit-display-buffer-function #'nitpick-tree--display-diff)
+         (magit-display-buffer-noselect t)
+         (buffer (magit-diff-range base (car (magit-diff-arguments)) nil)))
+    (unless (bufferp buffer)
+      (error "Magit returned no diff buffer for %s" base))
+    (setq nitpick-tree--diff-buffer buffer)))
+
+(defun nitpick-tree--ensure-diff (root revision)
+  "Return the pane's diff buffer, reading it first if it is not there."
+  (if (buffer-live-p nitpick-tree--diff-buffer)
+      nitpick-tree--diff-buffer
+    (nitpick-tree--build-diff root revision)))
+
+(defun nitpick-tree--diff-on-screen-p ()
+  "Whether the pane's diff is in a window on this frame."
+  (and (buffer-live-p nitpick-tree--diff-buffer)
+       (get-buffer-window nitpick-tree--diff-buffer)
+       t))
+
+(defun nitpick-tree--show (buffer)
+  "Make sure BUFFER is on screen, and return the window showing it.
+Where it already is, else the main window - which is how the diff comes back
+after `o' put a file there."
+  (or (get-buffer-window buffer)
+      (nitpick-tree--display-diff buffer)))
+
+(defun nitpick-tree--find-section (buffer node root)
+  "Return the section of BUFFER where NODE's changes start, or nil.
+A file is the section whose value is its path - for a rename that is the new
+name, which is the one the pane lists.  A directory is the first section
+under it: git orders a diff by path, so a subtree is contiguous and its top
+is where reading it begins.
+
+Only the diff's own file sections are looked at, never the diffstat's: those
+are children of the diffstat section, not of the root."
+  (let* ((dir (plist-get node :dir))
+         (want (if dir
+                   (file-name-as-directory
+                    (file-relative-name (plist-get node :path) root))
+                 (plist-get node :file))))
+    (with-current-buffer buffer
+      (seq-find
+       (lambda (section)
+         (and (eq (nitpick--oref section 'type) 'file)
+              (let ((value (nitpick--oref section 'value)))
+                (and (stringp value)
+                     (if dir
+                         (string-prefix-p want value)
+                       (equal want value))))))
+       (and magit-root-section
+            (nitpick--oref magit-root-section 'children))))))
+
+(defun nitpick-tree--untracked-diff (file root)
+  "Return a buffer showing untracked FILE under ROOT as added lines.
+`git diff --no-index' against `/dev/null', in `diff-mode' rather than as a
+magit section: git holds no version of the file, so it is in no range diff -
+but a file a review forgot to add is the one most worth reading."
+  (let* ((default-directory root)
+         ;; --no-index exits non-zero whenever the two files differ, which is
+         ;; every time; `magit-git-debug' would report that as a failure.
+         (magit-git-debug nil)
+         (text (nitpick-tree--git-output "diff" "--no-index" "--" "/dev/null" file))
+         (buffer (get-buffer-create nitpick-tree-untracked-buffer-name)))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        ;; An empty file differs from /dev/null in nothing at all.
+        (insert (if (string-empty-p text) (format "%s is empty\n" file) text))
+        (diff-mode)
+        (setq-local default-directory root
+                    header-line-format (concat " " file "  untracked"))
+        (setq buffer-read-only t)
+        (goto-char (point-min))))
+    buffer))
+
+(defun nitpick-tree--reveal-untracked (node root select)
+  "Show NODE's untracked file on screen, selecting it when SELECT.
+Returns the window it went in."
+  (let* ((buffer (nitpick-tree--untracked-diff (plist-get node :file) root))
+         (window (nitpick-tree--show buffer)))
+    (when (and window select)
+      (select-window window))
+    window))
+
+(defun nitpick-tree--reveal (node &optional select)
+  "Scroll the pane's diff to NODE's changes, and return its window.
+The diff is read if it has not been, and put back on screen if something
+else took the window.  The section is expanded first - magit draws a deleted
+file collapsed - and left at the top of the window, so what is on screen
+begins where the file does.
+
+With SELECT the diff window is selected, which is RET: the pane hands the
+point over and magit's own keys take it from there."
+  (let ((root nitpick-tree--root)
+        (revision nitpick-tree--revision))
+    (if (equal (plist-get node :status) "?")
+        (nitpick-tree--reveal-untracked node root select)
+      (let* ((buffer (nitpick-tree--ensure-diff root revision))
+             (section (nitpick-tree--find-section buffer node root))
+             (window (nitpick-tree--show buffer)))
+        (cond
+         ((and window section)
+          (with-selected-window window
+            (magit-section-show section)
+            (goto-char (nitpick--oref section 'start))
+            (recenter 0)))
+         ((null section)
+          (message "%s: not in the diff - `r' re-reads it"
+                   (or (plist-get node :file) (plist-get node :name)))))
+        (when (and window select)
+          (select-window window))
+        window))))
+
+(defun nitpick-tree--follow ()
+  "Reveal the node the point has moved onto, once per node.
+On `post-command-hook' in the pane, where the navigation keys are: revealing
+is a `goto-char' in a buffer already read, so there is nothing to debounce.
+A `user-error' is swallowed - a file whose diff cannot be shown must not
+break every keystroke in the pane."
+  (when nitpick-tree-follow
+    (let* ((node (nitpick-tree--node-at-point))
+           (key (plist-get node :path)))
+      (unless (equal key nitpick-tree--followed)
+        (setq nitpick-tree--followed key)
+        (when node
+          (ignore-error user-error
+            (nitpick-tree--reveal node)))))))
+
+(defun nitpick-tree-toggle-follow ()
+  "Turn the diff that follows the point in the pane on or off.
+Off, the pane is a list of files and `d' is what shows a diff of one."
+  (interactive)
+  (setq nitpick-tree-follow (not nitpick-tree-follow)
+        nitpick-tree--followed nil)
+  (when nitpick-tree-follow
+    (nitpick-tree--follow))
+  (message "nitpick-tree: follow %s" (if nitpick-tree-follow "on" "off")))
 
 (defun nitpick-tree-visit-diff (&optional stay)
-  "Show the diff of the line at point, instead of the file itself.
+  "Show the changes of the line at point in the pane's diff.
 
-The file's changes against the pane's own revision, in a magit diff buffer -
-the reading view, where removed lines are text and unchanged context is
-folded away, next to `nitpick-tree-visit''s editing view of the same change.
-On a directory it is the diff of everything under it.
+The reading view of the same change `nitpick-tree-visit' opens the file for:
+removed lines are text, unchanged context is folded away.  On a directory it
+is everything under it.  What following the point does on its own - this is
+how to ask for it with `nitpick-tree-follow' off.
 
-With a prefix argument STAY the diff is shown but the pane keeps the focus."
+With a prefix argument STAY the diff is shown but the pane keeps the point."
   (interactive "P")
   (let ((node (nitpick-tree--node-at-point)))
     (when node
-      (when (equal (plist-get node :status) "?")
-        (user-error "%s is untracked: git has nothing to diff it against"
-                    (plist-get node :file)))
-      (let* ((root nitpick-tree--root)
-             (default-directory root))
-        (nitpick-diff-show (nitpick--base-revision nitpick-tree--revision)
-                           (nitpick-tree--diff-paths node root)
-                           stay)))))
+      (setq nitpick-tree--followed (plist-get node :path))
+      (nitpick-tree--reveal node (not stay)))))
+
+(defun nitpick-tree-ret (&optional arg)
+  "Step into the diff of the file at point, or fold the directory on it.
+A directory expands or collapses, as everywhere in treemacs.  A file hands
+the point to the diff window, where magit's keys read it and
+`nitpick-comment' comments on it; `o' is what opens the file itself.  ARG is
+treemacs' prefix argument for a directory."
+  (interactive "P")
+  (let ((node (nitpick-tree--node-at-point)))
+    (if (and node (not (plist-get node :dir)))
+        (nitpick-tree-visit-diff)
+      (nitpick-tree-visit arg))))
 
 (defvar nitpick-tree-mode-map
   (let ((map (make-sparse-keymap)))
@@ -480,6 +704,11 @@ With a prefix argument STAY the diff is shown but the pane keeps the focus."
     ;; wanted either way: `d' reads a diff everywhere else, and deleting a
     ;; file out of a review pane is no accident to invite.
     (define-key map "d" #'nitpick-tree-visit-diff)
+    ;; `o' is treemacs' prefix for opening a node in a split, which is the one
+    ;; thing a review does not want: the diff is in the other window and
+    ;; splitting it is how the old pane made reading one tiring.
+    (define-key map "o" #'nitpick-tree-visit)
+    (define-key map "f" #'nitpick-tree-toggle-follow)
     ;; `g' and `r' are `treemacs-refresh', which redraws the nodes the pane
     ;; already holds, reports "Refresh complete" and asks git nothing.  The
     ;; pane is a snapshot, so its refresh has to re-read the diff.
@@ -528,7 +757,7 @@ letter to `undefined'."
                           (list :nitpick-node item :leaf t))
        :children (plist-get item :children)
        :child-type 'nitpick-tree-node
-       :ret-action #'nitpick-tree-visit)
+       :ret-action #'nitpick-tree-ret)
 
      (treemacs-define-variadic-entry-node-type nitpick-tree-root
        :key 'nitpick-tree-root
@@ -544,8 +773,12 @@ STATS is what `nitpick-tree--totals' returned, for the header line."
                    (setq-local nitpick-tree--root root
                                nitpick-tree--revision revision
                                nitpick-tree--items items
+                               nitpick-tree--followed nil
                                treemacs-space-between-root-nodes nil
                                header-line-format (nitpick-tree--header revision stats))
+                   ;; Buffer-local, and re-added on every render: the locals
+                   ;; and the hooks both go when `treemacs-mode' restarts.
+                   (add-hook 'post-command-hook #'nitpick-tree--follow nil t)
                    (nitpick-tree-mode 1)))))
   "The treemacs definitions, held as data until treemacs is loaded.
 They are macro calls, so a build without treemacs in scope could not compile
@@ -574,20 +807,52 @@ pane left open on another one is not in the way here."
   (let ((buffer (get-buffer nitpick-tree-buffer-name)))
     (and buffer (get-buffer-window buffer))))
 
+(defun nitpick-tree--take-frame ()
+  "Save this frame's layout and leave one window for the diff.
+A review takes the frame the way magit's status buffer does: what the pane
+drives is the diff beside it, and a layout of four other windows has nowhere
+to put that.  Given back by `nitpick-tree-close'.
+
+Nothing is saved while the pane is up - the layout to give back is the one
+from before the review, not the review's own - and nothing is deleted from
+inside a side window, where it is an error."
+  (when (and nitpick-tree-full-frame (not (nitpick-tree--window)))
+    (setq nitpick-tree--window-config (current-window-configuration))
+    (let ((window (nitpick-tree--main-window)))
+      (when window
+        (select-window window)))
+    (unless (window-parameter (selected-window) 'window-side)
+      (delete-other-windows))))
+
+(defun nitpick-tree--give-frame-back ()
+  "Put back the layout `nitpick-tree--take-frame' saved, if it saved one."
+  (when nitpick-tree--window-config
+    (let ((config nitpick-tree--window-config))
+      (setq nitpick-tree--window-config nil)
+      (set-window-configuration config))))
+
 (defun nitpick-tree-close ()
-  "Close the pane and undo the painting it turned on.
+  "Close the pane, undo its painting and give the frame back.
 The buffer goes with the window: it holds a diff read once, and opening again
 reads a fresh one.  A base set along the way stays - that is the revision
 being reviewed rather than a way of drawing it, and
-`nitpick-diff-hl-set-base' is what changes it."
+`nitpick-diff-hl-set-base' is what changes it.
+
+The magit diff buffer stays too, the way magit's own buffers do; it is only
+forgotten, so the next review reads its own range."
   (interactive)
-  (let ((buffer (get-buffer nitpick-tree-buffer-name)))
+  (let ((buffer (get-buffer nitpick-tree-buffer-name))
+        (untracked (get-buffer nitpick-tree-untracked-buffer-name)))
     (dolist (window (and buffer (get-buffer-window-list buffer nil t)))
       (when (window-live-p window)
         (delete-window window)))
     (nitpick-tree--unpaint)
+    (setq nitpick-tree--diff-buffer nil)
     (when (buffer-live-p buffer)
-      (kill-buffer buffer))))
+      (kill-buffer buffer))
+    (when (buffer-live-p untracked)
+      (kill-buffer untracked))
+    (nitpick-tree--give-frame-back)))
 
 (defun nitpick-tree--display (buffer)
   "Show BUFFER in a side window on treemacs' own side, and return the window.
@@ -602,12 +867,19 @@ replacing it."
 
 ;;;###autoload
 (defun nitpick-tree (root revision)
-  "Show the files that differ between REVISION and ROOT's worktree.
+  "Review what REVISION and ROOT's worktree differ by, file by file.
 
 A side pane listing only those files, nested by directory, with each one's
 status marker and line counts - and nothing else in the project, which is what
-separates it from a file tree with git colours on it.  RET opens the real file,
-where diff-hl is painting the same revision's changes.
+separates it from a file tree with git colours on it - and the diff of the
+range beside it.  Moving in the pane scrolls the diff to the file at point, or
+to the subtree of the directory at point, so the review reads by walking the
+pane.
+
+RET hands the point to the diff, where magit's keys read it and
+`nitpick-comment' comments on it.  `o' opens the real file, where diff-hl is
+painting the same revision's changes.  `d' reveals a diff that `f' stopped
+following, and `q' closes the pane and gives the frame back.
 
 REVISION defaults to the one this worktree last picked - through
 `nitpick-diff-hl-set-base', or the PR a worktree was checked out for - and
@@ -647,7 +919,11 @@ committing, staging or unstaging."
     (nitpick-tree--open root revision)))
 
 (defun nitpick-tree--open (root revision)
-  "Render ROOT's differences from REVISION in the pane, and select it."
+  "Render ROOT's differences from REVISION in the pane, and select it.
+The diff beside it is read on a fresh opening, and re-read by a refresh that
+finds it on screen.  Not by one that does not: a refresh runs on every commit
+and every staging, and pushing a diff in front of the magit buffer the user is
+committing from is not a redraw of the pane."
   (nitpick-tree--define)
   (nitpick-tree--paint)
   ;; Before reading the diff: this also caches the revision, which is what
@@ -656,7 +932,9 @@ committing, staging or unstaging."
              (not (alist-get (nitpick-diff-hl--root root) nitpick-diff-hl--bases
                              nil nil #'string-equal)))
     (nitpick-diff-hl-set-base root revision))
-  (let* ((files (nitpick-tree--changes root revision))
+  (let* ((fresh (not (nitpick-tree--window)))
+         (diff (or fresh (nitpick-tree--diff-on-screen-p)))
+         (files (nitpick-tree--changes root revision))
          (items (nitpick-tree--build files root))
          (stats (nitpick-tree--totals files))
          (existing (get-buffer nitpick-tree-buffer-name))
@@ -664,14 +942,24 @@ committing, staging or unstaging."
          ;; top of a review being read line by line.
          (line (and existing (with-current-buffer existing (line-number-at-pos))))
          (buffer (or existing (get-buffer-create nitpick-tree-buffer-name))))
+    (nitpick-tree--take-frame)
     (with-current-buffer buffer
       (nitpick-tree--render root revision items stats))
     (let ((window (nitpick-tree--display buffer)))
+      ;; The diff after the pane: the pane's side window is the one window
+      ;; `nitpick-tree--main-window' has to pass over.
+      (when diff
+        (nitpick-tree--build-diff root revision))
       (when window
         (select-window window)
         (when line
           (goto-char (point-min))
-          (forward-line (1- line)))))
+          (forward-line (1- line)))
+        ;; Explicitly, rather than waiting for the hook: a refresh driven by
+        ;; a magit hook ends with the point somewhere else entirely.  And only
+        ;; where the diff was re-read, for the same reason it was not.
+        (when diff
+          (nitpick-tree--follow))))
     (when (called-interactively-p 'interactive)
       (message "%s" (nitpick-tree--header revision stats)))))
 
