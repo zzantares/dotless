@@ -6,6 +6,8 @@
   (nitpick-forge-mode 1)
   ;; without it diff-hl marks the wrong lines: see its docstring
   (nitpick-diff-hl-zero-context-mode 1)
+  ;; RET on a removed line opens the base's blob, not the file without it
+  (nitpick-diff-visit-base-mode 1)
   ;; the changed-file pane; a second feature, and nix ships no autoloads
   (when (require 'nitpick-tree nil t)
     ;; `nitpick-tree-mode-map' alone never sees `d': treemacs' evil state

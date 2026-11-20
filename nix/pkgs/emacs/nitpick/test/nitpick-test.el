@@ -1966,5 +1966,80 @@ a review has to read."
       (should-not nitpick-tree--diff-buffer)
       (should (buffer-live-p diff)))))
 
+;;;; Visiting the base's blob from a diff
+
+;; magit's buffer-locals, which the suite runs without magit to set.
+(defvar magit-buffer-diff-type nil)
+(defvar magit-buffer-diff-range nil)
+
+(defmacro nitpick-test--in-diff (type range &rest body)
+  "Run BODY as if in a magit diff buffer of TYPE showing RANGE."
+  (declare (indent 2))
+  `(nitpick-test--with-stubs
+       ((derived-mode-p (lambda (&rest modes) (memq 'magit-diff-mode modes)))
+        (magit-rev-verify (lambda (rev) (equal rev "abc123"))))
+     (let ((magit-buffer-diff-type ,type)
+           (magit-buffer-diff-range ,range))
+       ,@body)))
+
+(ert-deftest nitpick-test-visit-sides-names-the-revision-and-the-worktree ()
+  "`magit-split-range' answers nil for a bare revision, so magit has no sides."
+  (nitpick-test--in-diff 'committed "abc123"
+    (should (equal (nitpick--diff-visit-sides '((nil "a.el") (nil "a.el")))
+                   '(("abc123" "a.el") ("{worktree}" "a.el"))))))
+
+(ert-deftest nitpick-test-visit-sides-keeps-the-old-name-of-a-rename ()
+  "The left side is the file as the revision spelled it."
+  (nitpick-test--in-diff 'committed "abc123"
+    (should (equal (nitpick--diff-visit-sides '((nil "old.el") (nil "new.el")))
+                   '(("abc123" "old.el") ("{worktree}" "new.el"))))))
+
+(ert-deftest nitpick-test-visit-sides-leaves-magits-own-answers-alone ()
+  "A commit, a stash, staged, unstaged, a two-dot range: magit has the sides."
+  (nitpick-test--in-diff 'committed "abc123"
+    (dolist (sides '((("HEAD" "a.el") ("{index}" "a.el"))
+                     (("{index}" "a.el") ("{worktree}" "a.el"))
+                     (("abc123" "a.el") ("def456" "a.el"))))
+      (should (equal (nitpick--diff-visit-sides sides) sides)))))
+
+(ert-deftest nitpick-test-visit-sides-needs-a-committed-diff ()
+  "`--no-index' and the unresolved types have no revision to name."
+  (nitpick-test--in-diff 'undefined "abc123"
+    (should (equal (nitpick--diff-visit-sides '((nil "a.el") (nil "a.el")))
+                   '((nil "a.el") (nil "a.el"))))))
+
+(ert-deftest nitpick-test-visit-sides-needs-the-range-to-be-a-revision ()
+  "A three-dot range whose merge base cannot be worked out also lands here."
+  (nitpick-test--in-diff 'committed "origin/gone..."
+    (should (equal (nitpick--diff-visit-sides '((nil "a.el") (nil "a.el")))
+                   '((nil "a.el") (nil "a.el"))))))
+
+(ert-deftest nitpick-test-visit-sides-stays-out-of-other-buffers ()
+  "The two buffer-locals it reads are magit's; elsewhere they say nothing."
+  (nitpick-test--with-stubs
+      ((derived-mode-p (lambda (&rest _) nil))
+       (magit-rev-verify (lambda (&rest _) t)))
+    (let ((magit-buffer-diff-type 'committed)
+          (magit-buffer-diff-range "abc123"))
+      (should (equal (nitpick--diff-visit-sides '((nil "a.el") (nil "a.el")))
+                     '((nil "a.el") (nil "a.el")))))))
+
+(ert-deftest nitpick-test-visit-base-mode-adds-and-removes-its-advice ()
+  (nitpick-test--with-stubs
+      ((magit-diff-visit--sides (lambda (&rest _) '((nil "a.el") (nil "a.el")))))
+    (unwind-protect
+        (progn
+          (nitpick-diff-visit-base-mode 1)
+          (should (advice-member-p #'nitpick--diff-visit-sides
+                                   'magit-diff-visit--sides))
+          (nitpick-diff-visit-base-mode -1)
+          (should-not (advice-member-p #'nitpick--diff-visit-sides
+                                       'magit-diff-visit--sides)))
+      (nitpick-diff-visit-base-mode -1))))
+
+(ert-deftest nitpick-test-visit-base-mode-is-off-until-enabled ()
+  (should-not (advice-member-p #'nitpick--diff-visit-sides
+                              'magit-diff-visit--sides)))
+
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

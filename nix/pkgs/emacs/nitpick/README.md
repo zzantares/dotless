@@ -24,6 +24,7 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-tree-visit-diff` | Reveal the line at point in the diff (`d` in the pane) |
 | `nitpick-tree-toggle-follow` | Stop or resume the diff following the point (`f` in the pane) |
 | `nitpick-diff-buffer-file` | The same diff for the file being visited, from anywhere |
+| `nitpick-diff-visit-base-mode` | `RET` on a removed line opens the base's blob, not the file without it |
 
 ## Binding
 
@@ -161,6 +162,22 @@ questions and neither replaces the other:
 - The **diff** is the reading view - before and after together, removals as
   text, unchanged context folded away. A directory reveals its subtree, so a
   collapsed `nix/pkgs/emacs` reads as one diff.
+
+### RET on a removed line
+
+`magit-diff-visit-file` (`RET`) picks its side from the line at point: an added
+or context line opens our side, a removed line opens theirs - the blob that
+still has the line. It works that out from the range the diff buffer holds, and
+`magit-split-range` answers nil for a range with no separator in it. A bare
+revision against the worktree is exactly that shape, and it is every diff
+nitpick opens, so both sides came out as the worktree: `RET` on a removed line
+opened the file without the line, at whatever now sits on that line number.
+
+`nitpick-diff-visit-base-mode` fills in the sides magit has none for - the
+revision on the left, the worktree on the right - and leaves every shape magit
+resolves itself alone: a commit, a stash, staged, unstaged, two-dot ranges.
+`C-<return>` (`magit-diff-visit-worktree-file`) is still the worktree from
+anywhere in a hunk.
 
 `nitpick-diff-buffer-file` is the same diff for the file being visited rather
 than the one at point, so a file reached any other way still reads as a diff.

@@ -41,6 +41,7 @@
 (declare-function magit-read-branch-or-commit "magit-git" (prompt &optional secondary-default exclude))
 (declare-function magit-run-git "magit-process" (&rest args))
 (declare-function magit-diff-range "magit-diff" (rev-or-range &optional args files))
+(declare-function magit-diff-visit--sides "magit-diff" ())
 (declare-function magit-diff-arguments "magit-diff" (&optional mode))
 (declare-function forge--get-remote "forge-repo" (&optional remote))
 (declare-function diff-hl-set-reference-rev "diff-hl" (rev))
@@ -53,6 +54,8 @@
 (declare-function project-buffers "project" (project))
 (defvar diff-hl-mode)
 (defvar diff-hl-reference-revision)
+(defvar magit-buffer-diff-range)
+(defvar magit-buffer-diff-type)
 (defvar diff-hl-update-async)
 (defvar vc-git-diff-switches)
 (defvar diff-hl-highlight-function)
@@ -825,6 +828,56 @@ the focus."
          (revision (or (nitpick--base-revision picked)
                        (user-error "Cannot work out a merge base for %s" picked))))
     (nitpick-diff-show revision (list file) stay)))
+
+;;;; Visiting the base's own blob from a diff
+
+(defun nitpick--diff-visit-sides (sides)
+  "Fill in the old side of SIDES when the diff left it blank.
+
+`magit-diff-visit--sides' works the two sides of a diff out of the range its
+buffer holds, through `magit-split-range', which answers nil for a range with
+no separator in it: a bare revision, compared against the worktree.  Both
+sides then come out nil, which resolves to the worktree, so RET on a removed
+line opens the file as it is now - where that line is gone - instead of the
+blob that still has it.
+
+That is every diff nitpick opens, and magit's own `magit-diff-range' on a
+single revision.  Here the sides are known: the revision on the left, the
+worktree on the right, which is what the pane lists and what diff-hl paints.
+
+Only that case.  Both revisions nil, a committed diff, and a range that
+resolves to a revision of its own - so a commit, a stash, staged, unstaged,
+and every two-dot range are left to magit."
+  (pcase sides
+    (`((nil ,old-file) (nil ,new-file))
+     (let ((rev (and (derived-mode-p 'magit-diff-mode)
+                     (eq magit-buffer-diff-type 'committed)
+                     (stringp magit-buffer-diff-range)
+                     magit-buffer-diff-range)))
+       (if (and rev (magit-rev-verify rev))
+           (list (list rev old-file) (list "{worktree}" new-file))
+         sides)))
+    (_ sides)))
+
+;;;###autoload
+(define-minor-mode nitpick-diff-visit-base-mode
+  "Open the base's blob with RET on a removed line, not the file as it is now.
+
+In a diff of one revision against the worktree - what the changed-file pane
+shows, and `nitpick-diff-buffer-file' - magit cannot work out the old side and
+visits the worktree from either side of a hunk.  So a removed line, the one
+place the file on disk cannot answer for, opened the file without it.
+
+Magit does this correctly for a commit, a stash, staged and unstaged changes,
+and two-dot ranges; this fills in the one shape it has no sides for.
+`C-<return>' (`magit-diff-visit-worktree-file') is still the worktree from
+anywhere in the hunk."
+  :global t
+  :group 'nitpick
+  (if nitpick-diff-visit-base-mode
+      (advice-add 'magit-diff-visit--sides :filter-return
+                  #'nitpick--diff-visit-sides)
+    (advice-remove 'magit-diff-visit--sides #'nitpick--diff-visit-sides)))
 
 (defun nitpick-diff-hl--repaint (proj)
   "Redraw diff-hl in PROJ's file buffers, or every file buffer when PROJ is nil.
