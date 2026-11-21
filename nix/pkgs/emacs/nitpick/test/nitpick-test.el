@@ -2593,7 +2593,7 @@ the result by every line no parent is missing."
                     '(:file "new.el" :from "old.el") 'old)
                    '("origin/master" "old.el")))))
 
-(ert-deftest nitpick-test-tree-base-line-is-read-off-the-diff ()
+(ert-deftest nitpick-test-tree-node-line-is-read-off-the-diff ()
   "The pane already holds the diff, so opening the base runs no second one -
 and it asks the same mapper the diff keys use, from the file's heading."
   (nitpick-test--with-windows (diff)
@@ -2612,11 +2612,14 @@ and it asks the same mapper the diff keys use, from the file's heading."
                                   7)))
         (with-temp-buffer
           (setq-local nitpick-tree--root "/tmp/wt")
-          (should (= (nitpick-tree--base-line '(:file "a.el")) 7))
+          (should (= (nitpick-tree--node-line '(:file "a.el") 'old) 7))
           (should (eq asked 'old))
-          (should (eq where diff)))))))
+          (should (eq where diff))
+          ;; And the new side when that is the one being opened.
+          (should (= (nitpick-tree--node-line '(:file "a.el") 'new) 7))
+          (should (eq asked 'new)))))))
 
-(ert-deftest nitpick-test-tree-visit-reads-the-base-line-from-the-pane ()
+(ert-deftest nitpick-test-tree-visit-reads-the-line-from-the-pane ()
   "The revision, the root and the diff are pane locals, so the line has to be
 worked out before another buffer is switched to - which is where it lands."
   (nitpick-test--with-windows (pane file)
@@ -2627,7 +2630,7 @@ worked out before another buffer is switched to - which is where it lands."
         (setq-local nitpick-tree--root "/tmp/wt"
                     nitpick-tree--revision "master")
         (nitpick-test--with-stubs
-            ((nitpick-tree--base-line (lambda (&rest _)
+            ((nitpick-tree--node-line (lambda (&rest _)
                                         (setq asked-in (current-buffer))
                                         3))
              (nitpick--visit-exists-p (lambda (&rest _) t))
@@ -2825,6 +2828,84 @@ sections built by `nitpick-test--section' carry."
       (let ((nitpick-tree--patch '(:label "o/r#7")))
         (nitpick-tree-visit-pick)
         (should (equal asked '(:file "a.el")))))))
+
+(ert-deftest nitpick-test-range-target-names-both-revisions ()
+  "Neither side is the worktree: the pane compares two revisions."
+  (with-temp-buffer
+    (setq-local nitpick-tree--patch '(:label "a..b" :sides ("rev-a" . "rev-b")))
+    (should (equal (nitpick-tree--node-target '(:file "a.el") 'new)
+                   '("rev-b" "a.el")))
+    (should (equal (nitpick-tree--node-target '(:file "a.el") 'old)
+                   '("rev-a" "a.el")))
+    ;; A rename is still asked for by the name the side itself used.
+    (should (equal (nitpick-tree--node-target
+                    '(:file "new.el" :from "old.el") 'old)
+                   '("rev-a" "old.el")))))
+
+(ert-deftest nitpick-test-range-opens-blobs-rather-than-checking-out ()
+  "git holds both sides already, so there is nothing to fetch."
+  (let ((visited nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--visit-node (lambda (node side) (setq visited (list node side))))
+         (nitpick-tree--check-out (lambda (&rest _) (error "Checked a range out"))))
+      (let ((nitpick-tree--patch '(:label "a..b" :sides ("rev-a" . "rev-b"))))
+        (nitpick-tree--open-file '(:file "a.el") 'new)
+        (should (equal visited '((:file "a.el") new)))))))
+
+(ert-deftest nitpick-test-range-visit-pick-offers-the-two-revisions ()
+  "Not `worktree' and `base': the pane has neither."
+  (let ((offered nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:file "a.el")))
+         (nitpick--visit-exists-p (lambda (&rest _) t))
+         (nitpick-tree--visit-node #'ignore)
+         (completing-read (lambda (_prompt candidates &rest _)
+                            (setq offered (mapcar #'car candidates))
+                            "rev-a")))
+      (let ((nitpick-tree--patch '(:label "a..b" :sides ("rev-a" . "rev-b"))))
+        (with-temp-buffer
+          (setq-local nitpick-tree--root "/tmp/wt")
+          (nitpick-tree-visit-pick)
+          (should (equal offered '("rev-b" "rev-a"))))))))
+
+(ert-deftest nitpick-test-range-source-carries-the-sides-and-the-diff ()
+  "What the pane drives a range with: a label, the two sides, one diff."
+  (let ((asked nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--range-diff (lambda (root range)
+                                     (setq asked (list root range))
+                                     'buffer)))
+      (let ((source (nitpick-tree--range-source
+                     "/tmp/wt" "a...b" '("base" . "b"))))
+        (should (equal (plist-get source :label) "a...b"))
+        (should (equal (plist-get source :sides) '("base" . "b")))
+        (should-not (plist-get source :check-out))
+        (should (eq (funcall (plist-get source :diff)) 'buffer))
+        (should (equal asked '("/tmp/wt" "a...b")))))))
+
+(ert-deftest nitpick-test-range-command-opens-the-pane-on-a-range ()
+  "A three-dot range keeps its own spelling; the sides are resolved once."
+  (let ((opened nil))
+    (nitpick-test--with-stubs
+        ((magit-split-range (lambda (&rest _) '("merge-base" . "theirs")))
+         (nitpick-tree (lambda (root revision &optional patch)
+                         (setq opened (list root revision patch)))))
+      (nitpick-tree-range "/tmp/wt" "ours...theirs")
+      (should (equal (nth 0 opened) "/tmp/wt"))
+      (should-not (nth 1 opened))
+      (should (equal (plist-get (nth 2 opened) :label) "ours...theirs"))
+      (should (equal (plist-get (nth 2 opened) :sides)
+                     '("merge-base" . "theirs"))))))
+
+(ert-deftest nitpick-test-range-command-of-a-bare-revision-is-the-review ()
+  "One revision means the worktree is the other side after all."
+  (let ((opened nil))
+    (nitpick-test--with-stubs
+        ((magit-split-range (lambda (&rest _) nil))
+         (nitpick-tree (lambda (root revision &optional patch)
+                         (setq opened (list root revision patch)))))
+      (nitpick-tree-range "/tmp/wt" "origin/master")
+      (should (equal opened '("/tmp/wt" "origin/master" nil))))))
 
 (ert-deftest nitpick-test-patch-check-out-runs-what-the-patch-carries ()
   "The patch owns how it is materialised; the pane only asks."

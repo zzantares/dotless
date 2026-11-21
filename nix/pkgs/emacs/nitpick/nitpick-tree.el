@@ -36,6 +36,10 @@
 ;; carries what to run to materialise one - and the pane is re-read from git
 ;; there.
 ;;
+;; `nitpick-tree-range' drives it from two revisions, for reading work that is
+;; not yours without moving your own worktree.  Both sides are in git already,
+;; so `o' opens them as blobs rather than checking anything out.
+;;
 ;; treemacs is required at run time only.  Its node-type definitions are macros,
 ;; so they are evaluated once treemacs loads rather than compiled in here, the
 ;; same way nitpick waits for diff-hl before advising it.  Everything the
@@ -56,6 +60,8 @@
 (declare-function treemacs-icon-for-dir "treemacs-icons" (dir state))
 (declare-function treemacs-collapse-extension-node "treemacs-treelib" (&optional arg))
 (declare-function magit-diff-range "magit-diff" (rev-or-range &optional args files))
+(declare-function magit-diff-read-range-or-commit "magit-diff" (prompt &optional secondary-default mbase))
+(declare-function magit-split-range "magit-git" (range &optional abbrev))
 (declare-function magit-diff-arguments "magit-diff" (&optional mode))
 (declare-function magit-section-show "magit-section" (section))
 (declare-function diff-hl-mode "diff-hl" (&optional arg))
@@ -309,6 +315,11 @@ included, so the pane and diff-hl always agree on what is being compared."
 
 ;;;; Reading the diff out of a patch
 
+(defun nitpick-tree--sides ()
+  "Return the (OLD . NEW) revisions the pane compares, or nil.
+Nil is the ordinary pane, whose new side is the worktree."
+  (and nitpick-tree--patch (plist-get nitpick-tree--patch :sides)))
+
 (defun nitpick-tree--patch-status (header source)
   "Return git's status letter for a file section with HEADER and SOURCE.
 HEADER is the raw diff header magit kept, SOURCE the name a rename came from."
@@ -547,19 +558,25 @@ to the file you edit."
 
 (defun nitpick-tree--node-target (node side)
   "Return (REV FILE) naming the version SIDE holds of NODE's file.
-A rename is asked for by the name the side itself used."
-  (pcase side
-    ('old (list (nitpick--base-revision nitpick-tree--revision)
-                (or (plist-get node :from) (plist-get node :file))))
-    (_ (list "{worktree}" (plist-get node :file)))))
+A rename is asked for by the name the side itself used.  The new side is the
+worktree, unless the pane compares two revisions, where it is the newer of
+the two - neither of them is checked out."
+  (let ((sides (nitpick-tree--sides)))
+    (pcase side
+      ('old (list (if sides
+                      (car sides)
+                    (nitpick--base-revision nitpick-tree--revision))
+                  (or (plist-get node :from) (plist-get node :file))))
+      (_ (list (if sides (cdr sides) "{worktree}")
+               (plist-get node :file))))))
 
-(defun nitpick-tree--base-line (node)
-  "Return the line NODE's first change starts at on the base's side, or nil.
+(defun nitpick-tree--node-line (node side)
+  "Return the line NODE's first change starts at on SIDE, or nil.
 
-Asked of the diff the pane already holds, so opening the base runs no second
-`git diff' - and asked through `nitpick--visit-line', so the pane lands where
-`nitpick-visit-other' lands from that file's heading: on the change itself
-rather than on the first line of context above it."
+Asked of the diff the pane already holds, so opening a revision runs no
+second `git diff' - and asked through `nitpick--visit-line', so the pane
+lands where `nitpick-visit-other' lands from that file's heading: on the
+change itself rather than on the first line of context above it."
   (and (buffer-live-p nitpick-tree--diff-buffer)
        (and-let* ((root nitpick-tree--root)
                   (section (car (nitpick-tree--node-sections
@@ -573,7 +590,7 @@ rather than on the first line of context above it."
              (save-restriction
                (widen)
                (goto-char (nitpick--oref section 'start))
-               (nitpick--visit-line 'old)))))))
+               (nitpick--visit-line side)))))))
 
 (defun nitpick-tree--visit-node (node side)
   "Open NODE's file as SIDE holds it, and select the window it lands in.
@@ -582,10 +599,7 @@ pane's half of the rule `nitpick-visit' follows in a diff."
   (let* ((root nitpick-tree--root)
          (default-directory root)
          (asked side)
-         (note nil)
-         ;; Worked out while the pane is still the current buffer: the
-         ;; revision, the root and the diff it reads are all locals of it.
-         (base-line (nitpick-tree--base-line node)))
+         (note nil))
     (pcase-let ((`(,rev ,file) (nitpick-tree--node-target node side)))
       (unless (nitpick--visit-exists-p rev file)
         (setq side (nitpick--visit-complement side))
@@ -593,7 +607,10 @@ pane's half of the rule `nitpick-visit' follows in a diff."
         (unless (nitpick--visit-exists-p rev file)
           (user-error "No version of %s to open" (plist-get node :file)))
         (setq note (nitpick--visit-note asked side rev)))
-      (let* ((buffer (if (equal rev "{worktree}")
+      ;; Worked out while the pane is still the current buffer, and once the
+      ;; side is settled: the revision, the root and the diff are its locals.
+      (let* ((line (nitpick-tree--node-line node side))
+             (buffer (if (equal rev "{worktree}")
                          (find-file-noselect (expand-file-name file root))
                        (magit-find-file-noselect rev file)))
              (window (nitpick-tree--visit-window buffer)))
@@ -608,9 +625,9 @@ pane's half of the rule `nitpick-visit' follows in a diff."
           (if (equal rev "{worktree}")
               (progn (nitpick-tree--paint-buffer)
                      (nitpick-tree--show-hunk))
-            (when (and base-line nitpick-tree-visit-jumps-to-hunk)
+            (when (and line nitpick-tree-visit-jumps-to-hunk)
               (goto-char (point-min))
-              (forward-line (1- base-line)))))
+              (forward-line (1- line)))))
         (when note
           (message "%s: %s" file note))
         buffer))))
@@ -665,9 +682,15 @@ them, and it runs asynchronously, so the pane stays usable until it lands."
                  (user-error "This patch cannot be checked out"))
              (lambda (root) (nitpick-tree--adopt root file)))))
 
+(defun nitpick-tree--checks-out-p ()
+  "Whether the pane has to be checked out before a file can be opened.
+A patch holds no files.  Two revisions hold both sides already, so those are
+opened as blobs instead."
+  (and nitpick-tree--patch (not (nitpick-tree--sides))))
+
 (defun nitpick-tree--open-file (node side)
   "Open NODE's file as SIDE holds it, checking the patch out first if need be."
-  (if nitpick-tree--patch
+  (if (nitpick-tree--checks-out-p)
       (nitpick-tree--check-out node)
     (nitpick-tree--visit-node node side)))
 
@@ -711,16 +734,18 @@ Nothing to pick from a patch: both sides arrive with the checkout, so that is
 what this asks for there."
   (interactive)
   (let ((node (or (nitpick-tree--node-at-point) (user-error "No file here"))))
-    (if nitpick-tree--patch
+    (if (nitpick-tree--checks-out-p)
         (nitpick-tree--check-out node)
       (let* ((default-directory nitpick-tree--root)
+             (sides (nitpick-tree--sides))
              (candidates
               (seq-filter
                (lambda (candidate)
                  (pcase-let ((`(,rev ,file) (nitpick-tree--node-target
                                              node (cdr candidate))))
                    (nitpick--visit-exists-p rev file)))
-               (list (cons "worktree" 'new) (cons "base" 'old))))
+               (list (cons (if sides (cdr sides) "worktree") 'new)
+                     (cons (if sides (car sides) "base") 'old))))
              (label (completing-read "Open this file as: " candidates nil t)))
         (nitpick-tree--visit-node node (cdr (assoc label candidates)))))))
 
@@ -771,6 +796,27 @@ the point stays in the pane."
   "Return the diff buffer PATCH is washed into, remembered as the pane's.
 Built, not displayed: where the diff goes is the pane's business."
   (setq nitpick-tree--diff-buffer (funcall (plist-get patch :diff))))
+
+(defun nitpick-tree--range-diff (root range)
+  "Read ROOT's diff for RANGE into a magit buffer, and return it.
+RANGE as written, so git resolves `...' itself; the window and the focus are
+taken over the way `nitpick-tree--build-diff' takes them."
+  (let* ((default-directory root)
+         (magit-display-buffer-function #'nitpick-tree--display-diff)
+         (magit-display-buffer-noselect t)
+         (buffer (magit-diff-range range (car (magit-diff-arguments)) nil)))
+    (unless (bufferp buffer)
+      (error "Magit returned no diff buffer for %s" range))
+    buffer))
+
+(defun nitpick-tree--range-source (root range sides)
+  "Return what the pane needs to drive the diff of RANGE in ROOT.
+SIDES is the (OLD . NEW) revisions it compares, as `magit-split-range'
+resolves them - a three-dot range names its merge base.  No `:check-out':
+git holds both sides already, so `o' opens them as blobs."
+  (list :label range
+        :sides sides
+        :diff (lambda () (nitpick-tree--range-diff root range))))
 
 (defun nitpick-tree--ensure-diff (root revision)
   "Return the pane's diff buffer, reading it first if it is not there."
@@ -1211,8 +1257,8 @@ changes the pane lists.  A base already picked is left alone.  And unless
 lines rather than fringe marks alone.
 
 PATCH is for a pane with no worktree behind it - what `nitpick-pr' opens a
-pull request with - and replaces REVISION as the source of both the file list
-and the diff.
+pull request with, and what `nitpick-tree-range' opens two revisions with -
+and replaces REVISION as the source of both the file list and the diff.
 
 Called with the pane already open it closes it again, undoing the painting it
 turned on.  A prefix argument always opens, so it is also how an open pane is
@@ -1238,6 +1284,32 @@ committing, staging or unstaging."
   (if (and (null root) (null revision) (null patch))
       (nitpick-tree-close)
     (nitpick-tree--open root revision patch)))
+
+;;;###autoload
+(defun nitpick-tree-range (root range)
+  "Review the two revisions RANGE names in ROOT, neither one checked out.
+
+For reading work that is not yours: a colleague's branch against the base
+they ask you to compare it with, while your own worktree stays where it is.
+`A..B' compares the two endpoints and `A...B' compares B against the merge
+base, the way git reads them.  A bare revision is the ordinary review of the
+worktree against it, so that is what it opens.
+
+The pane, the tree, the narrowing and the diff keys are the ones
+`nitpick-tree' gives.  What a range cannot give is the worktree: `o' opens
+each side as the read-only blob git holds, so there is no editing, no LSP and
+no diff-hl painting of what is on screen.  `nitpick-comment' needs a pull
+request, which a range is not - `nitpick-pr' is the command for one of those."
+  (interactive
+   (let ((root (or (magit-toplevel) (user-error "Not inside a git repository"))))
+     (list root
+           (let ((default-directory root))
+             (magit-diff-read-range-or-commit "Tree of changes for range")))))
+  (let ((sides (let ((default-directory root)) (magit-split-range range))))
+    (if sides
+        (nitpick-tree root nil (nitpick-tree--range-source root range sides))
+      ;; Not a range: the worktree is one of the two sides after all.
+      (nitpick-tree root range))))
 
 (defun nitpick-tree--open (root revision &optional patch)
   "Render ROOT's differences from REVISION in the pane, and select it.

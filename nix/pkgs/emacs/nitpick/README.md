@@ -22,6 +22,7 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-diff-hl-line-mode` | Paint the changed lines, not only the fringe |
 | `nitpick-tree` | Toggle the review: the pane of changed files, and the diff beside it |
 | `nitpick-pr` | Read a pull request in that pane without checking it out |
+| `nitpick-tree-range` | Read two revisions in that pane, neither one checked out |
 | `nitpick-tree-visit-diff` | Reveal the line at point in the diff (`d` in the pane) |
 | `nitpick-tree-toggle-follow` | Stop or resume the diff following the point (`f` in the pane) |
 | `nitpick-tree-toggle-narrow` | Narrow the diff to the line at point, or widen it (`N` in the pane) |
@@ -366,6 +367,27 @@ So reading a PR costs one HTTP request, and only a review that opens a file
 pays for a worktree. `pr-diff` and `pr-review`, the gh-dash keys, check out
 first because diffnav and octo both resolve files against the checkout they
 were started from.
+
+## Reading two revisions
+
+`nitpick-tree-range` opens the pane on a range instead of on your worktree,
+for reading work that is not yours without moving your own checkout. It takes
+what magit's range reader takes: `A..B` compares the two endpoints, `A...B`
+compares B against the merge base, and a bare revision is the ordinary review
+of the worktree, so that is what it opens instead.
+
+It is the same patch source `nitpick-pr` uses, with two differences. The diff
+is magit's own `git diff A..B`, which costs nothing new. And there is nothing
+to check out: both sides are already in the object database, so `o` opens each
+side as the read-only blob git holds, through the same `magit-find-file-noselect`
+the base side of a normal review uses. The sides come from `magit-split-range`,
+which resolves a three-dot range to its merge base once, so the blobs and the
+diff agree on what `A...B` means.
+
+What a range cannot give is the worktree. No editing, no LSP, and no diff-hl
+painting of what is on screen, since neither side is on disk. `nitpick-comment`
+needs a pull request, which a range is not. The pane, the tree, narrowing, `f`,
+`d`, `N` and `RET` all work as usual.
 
 ## Whole-line highlighting
 
