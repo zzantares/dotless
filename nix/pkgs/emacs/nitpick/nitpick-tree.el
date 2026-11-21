@@ -10,11 +10,12 @@
 
 ;; A diff navigator: a side pane listing only the files that differ from the
 ;; revision under review, nested by directory with each file's status and line
-;; counts, and the whole diff beside it.  Moving in the pane scrolls the diff to
-;; the file - or to the subtree of a directory - so a review reads by walking the
-;; pane, the way diffnav does it.  `o' opens the real file, where diff-hl has
-;; already painted what the revision changed, and RET steps into the diff, where
-;; magit's own keys and `nitpick-comment' work.
+;; counts, and the diff beside it - narrowed to what the line at point covers, a
+;; file's own diff or a directory's whole subtree, the way diffnav draws them.
+;; So a review reads by walking the pane; `N' gives the whole range back.  `o'
+;; opens the real file, where diff-hl has already painted what the revision
+;; changed, and RET steps into the diff, where magit's own keys and
+;; `nitpick-comment' work.
 ;;
 ;; One command, `nitpick-tree', which also refreshes the pane it opened.  The
 ;; revision is the one `nitpick-diff-hl-set-base' last picked for this worktree,
@@ -22,10 +23,12 @@
 ;; asks for another.
 ;;
 ;; The diff is one magit buffer for the whole range, not one per file: the range
-;; is a single `git diff', each file is a section in it, and a file is revealed
-;; by scrolling to its section.  So following the point costs a `goto-char',
-;; nothing is spawned per keystroke, and the diff stays continuous - the file
-;; before and the file after are a scroll away, as they are in diffnav.
+;; is a single `git diff', each file is a section in it, and a node is revealed
+;; by narrowing to the span of its sections - which git's ordering by path makes
+;; one run.  So following the point costs a `narrow-to-region' and nothing is
+;; spawned per keystroke, where diffnav re-serializes the subtree's parsed patch
+;; and runs delta over it again.  Widened, the same buffer reads continuously:
+;; the file before and the file after are a scroll away.
 ;;
 ;; treemacs is required at run time only.  Its node-type definitions are macros,
 ;; so they are evaluated once treemacs loads rather than compiled in here, the
@@ -87,6 +90,14 @@ it: `git diff' has no version of an untracked file to compare against."
 What makes the pane a navigator rather than a list: the file under the point
 is the file on screen, with no key pressed to ask for it.  Off, `d' is what
 shows a diff, and `f' turns this back on."
+  :type 'boolean
+  :group 'nitpick)
+
+(defcustom nitpick-tree-narrow t
+  "Whether the diff shows only what the line at point covers.
+A file reads as its own diff and a directory as the diff of its subtree, the
+way diffnav draws them.  Off, the diff is the whole range scrolled to that
+file, so the file before and the file after are a scroll away; `N' switches."
   :type 'boolean
   :group 'nitpick)
 
@@ -483,12 +494,18 @@ Asked of the diff the pane already holds, so opening the base runs no second
 rather than on the first line of context above it."
   (and (buffer-live-p nitpick-tree--diff-buffer)
        (and-let* ((root nitpick-tree--root)
-                  (section (nitpick-tree--find-section
-                            nitpick-tree--diff-buffer node root)))
+                  (section (car (nitpick-tree--node-sections
+                                 (nitpick-tree--file-sections
+                                  nitpick-tree--diff-buffer)
+                                 node root))))
          (with-current-buffer nitpick-tree--diff-buffer
            (save-excursion
-             (goto-char (nitpick--oref section 'start))
-             (nitpick--visit-line 'old))))))
+             ;; Widened: the diff is narrowed to the node the point is on, and
+             ;; the file being opened need not be that one.
+             (save-restriction
+               (widen)
+               (goto-char (nitpick--oref section 'start))
+               (nitpick--visit-line 'old)))))))
 
 (defun nitpick-tree--visit-node (node side)
   "Open NODE's file as SIDE holds it, and select the window it lands in.
@@ -641,31 +658,64 @@ after `o' put a file there."
   (or (get-buffer-window buffer)
       (nitpick-tree--display-diff buffer)))
 
-(defun nitpick-tree--find-section (buffer node root)
-  "Return the section of BUFFER where NODE's changes start, or nil.
-A file is the section whose value is its path - for a rename that is the new
-name, which is the one the pane lists.  A directory is the first section
-under it: git orders a diff by path, so a subtree is contiguous and its top
-is where reading it begins.
+(defun nitpick-tree--file-sections (buffer)
+  "Return BUFFER's own file sections, in the order the diff wrote them.
+The diff's own, never the diffstat's: those name the same files and are
+children of the diffstat section rather than of the root."
+  (with-current-buffer buffer
+    (seq-filter
+     (lambda (section)
+       (and (eq (nitpick--oref section 'type) 'file)
+            (stringp (nitpick--oref section 'value))))
+     (and magit-root-section
+          (nitpick--oref magit-root-section 'children)))))
 
-Only the diff's own file sections are looked at, never the diffstat's: those
-are children of the diffstat section, not of the root."
+(defun nitpick-tree--node-sections (all node root)
+  "Return the sections of ALL that NODE's changes are in, in diff order.
+A file is the one section whose value is its path - for a rename that is the
+new name, which is the one the pane lists.  A directory is every section
+under it.  Empty when the diff holds none: a pane read before the last commit
+lists files the diff no longer has."
   (let* ((dir (plist-get node :dir))
          (want (if dir
                    (file-name-as-directory
                     (file-relative-name (plist-get node :path) root))
                  (plist-get node :file))))
-    (with-current-buffer buffer
-      (seq-find
-       (lambda (section)
-         (and (eq (nitpick--oref section 'type) 'file)
-              (let ((value (nitpick--oref section 'value)))
-                (and (stringp value)
-                     (if dir
-                         (string-prefix-p want value)
-                       (equal want value))))))
-       (and magit-root-section
-            (nitpick--oref magit-root-section 'children))))))
+    (seq-filter
+     (lambda (section)
+       (let ((value (nitpick--oref section 'value)))
+         (if dir (string-prefix-p want value) (equal want value))))
+     all)))
+
+(defun nitpick-tree--contiguous-p (all sections)
+  "Whether SECTIONS are a run of ALL with nothing of ALL between them.
+What narrowing needs, and what git's own ordering by path gives a subtree -
+but rename detection can place a file outside its directory's run, and Emacs
+cannot narrow around a hole."
+  (let ((from (seq-position all (car sections) #'eq))
+        (to (seq-position all (car (last sections)) #'eq)))
+    (and from to (= (length sections) (1+ (- to from))))))
+
+(defun nitpick-tree--scope (sections narrow)
+  "Put the first of SECTIONS at the top of the current window.
+With NARROW the window shows nothing but SECTIONS: the diff is narrowed to
+the span they cover, which for a directory is its subtree alone.  Expanded
+first either way - magit draws a deleted file collapsed, and that is a file a
+review has to read."
+  (widen)
+  (if narrow
+      (progn (mapc #'magit-section-show sections)
+             (narrow-to-region (nitpick--oref (car sections) 'start)
+                               (nitpick--oref (car (last sections)) 'end)))
+    (magit-section-show (car sections)))
+  (goto-char (nitpick--oref (car sections) 'start))
+  (recenter 0))
+
+(defun nitpick-tree--widen ()
+  "Give the pane's diff its whole range back, if it is narrowed to a node."
+  (when (buffer-live-p nitpick-tree--diff-buffer)
+    (with-current-buffer nitpick-tree--diff-buffer
+      (widen))))
 
 (defvar-local nitpick-tree--untracked-file nil
   "Absolute name of the untracked file the preview shows.")
@@ -723,11 +773,15 @@ Returns the window it went in."
     window))
 
 (defun nitpick-tree--reveal (node &optional select)
-  "Scroll the pane's diff to NODE's changes, and return its window.
+  "Show NODE's changes in the pane's diff, and return its window.
 The diff is read if it has not been, and put back on screen if something
-else took the window.  The section is expanded first - magit draws a deleted
-file collapsed - and left at the top of the window, so what is on screen
-begins where the file does.
+else took the window.  Unless `nitpick-tree-narrow' says otherwise it is
+narrowed to NODE - a file to its own diff, a directory to its subtree;
+otherwise the whole range stays, scrolled so NODE is at the top.
+
+A subtree the diff holds out of order is scrolled to rather than narrowed:
+Emacs narrows to one region, and a hole in that region would hide a file the
+review has to read.
 
 With SELECT the diff window is selected, which is RET: the pane hands the
 point over and magit's own keys take it from there."
@@ -736,15 +790,17 @@ point over and magit's own keys take it from there."
     (if (equal (plist-get node :status) "?")
         (nitpick-tree--reveal-untracked node root select)
       (let* ((buffer (nitpick-tree--ensure-diff root revision))
-             (section (nitpick-tree--find-section buffer node root))
+             (all (nitpick-tree--file-sections buffer))
+             (sections (nitpick-tree--node-sections all node root))
              (window (nitpick-tree--show buffer)))
         (cond
-         ((and window section)
+         ((and window sections)
           (with-selected-window window
-            (magit-section-show section)
-            (goto-char (nitpick--oref section 'start))
-            (recenter 0)))
-         ((null section)
+            (nitpick-tree--scope
+             sections
+             (and nitpick-tree-narrow
+                  (nitpick-tree--contiguous-p all sections)))))
+         ((null sections)
           (message "%s: not in the diff - `r' re-reads it"
                    (or (plist-get node :file) (plist-get node :name)))))
         (when (and window select)
@@ -776,13 +832,26 @@ Off, the pane is a list of files and `d' is what shows a diff of one."
     (nitpick-tree--follow))
   (message "nitpick-tree: follow %s" (if nitpick-tree-follow "on" "off")))
 
+(defun nitpick-tree-toggle-narrow ()
+  "Narrow the diff to the line at point, or give it the whole range back.
+Narrowed, a directory reads as the diff of its subtree and a file as its own.
+Widened, the diff is the whole range scrolled to that file, so the file
+before and the file after are one scroll away."
+  (interactive)
+  (setq nitpick-tree-narrow (not nitpick-tree-narrow)
+        nitpick-tree--followed nil)
+  (nitpick-tree--widen)
+  (nitpick-tree--follow)
+  (message "nitpick-tree: narrow %s" (if nitpick-tree-narrow "on" "off")))
+
 (defun nitpick-tree-visit-diff (&optional stay)
   "Show the changes of the line at point in the pane's diff.
 
 The reading view of the same change `nitpick-tree-visit' opens the file for:
 removed lines are text, unchanged context is folded away.  On a directory it
-is everything under it.  What following the point does on its own - this is
-how to ask for it with `nitpick-tree-follow' off.
+is everything under it, and nothing else unless `N' widens the diff.  What
+following the point does on its own - this is how to ask for it with
+`nitpick-tree-follow' off.
 
 With a prefix argument STAY the diff is shown but the pane keeps the point."
   (interactive "P")
@@ -816,6 +885,10 @@ treemacs' prefix argument for a directory."
     (define-key map "o" #'nitpick-tree-visit)
     (define-key map "O" #'nitpick-tree-visit-other)
     (define-key map "f" #'nitpick-tree-toggle-follow)
+    ;; `N' rather than `n', which is `treemacs-next-line': the pane is walked
+    ;; with it.  Under evil it costs the reverse search, which a pane of a
+    ;; dozen file names has no use for.
+    (define-key map "N" #'nitpick-tree-toggle-narrow)
     ;; `g' and `r' are `treemacs-refresh', which redraws the nodes the pane
     ;; already holds, reports "Refresh complete" and asks git nothing.  The
     ;; pane is a snapshot, so its refresh has to re-read the diff.
@@ -954,6 +1027,7 @@ forgotten, so the next review reads its own range."
       (when (window-live-p window)
         (delete-window window)))
     (nitpick-tree--unpaint)
+    (nitpick-tree--widen)
     (setq nitpick-tree--diff-buffer nil)
     (when (buffer-live-p buffer)
       (kill-buffer buffer))
@@ -979,9 +1053,9 @@ replacing it."
 A side pane listing only those files, nested by directory, with each one's
 status marker and line counts - and nothing else in the project, which is what
 separates it from a file tree with git colours on it - and the diff of the
-range beside it.  Moving in the pane scrolls the diff to the file at point, or
+range beside it.  Moving in the pane narrows the diff to the file at point, or
 to the subtree of the directory at point, so the review reads by walking the
-pane.
+pane; `N' gives the whole range back.
 
 RET hands the point to the diff, where magit's keys read it and
 `nitpick-comment' comments on it.  `o' opens the real file, where diff-hl is

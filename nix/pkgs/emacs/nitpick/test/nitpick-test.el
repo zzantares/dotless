@@ -1574,12 +1574,14 @@ run before diff-hl has defined them."
 
 ;;;; Changed-file tree: the diff beside the pane
 
-(defun nitpick-test--section (type value &optional start children)
+(defun nitpick-test--section (type value &optional start children end)
   "Return a stand-in for a magit section of TYPE holding VALUE.
 A plist read through the stubbed `nitpick--oref' below: magit's classes are
 not here to instantiate, and every slot the pane reads goes through that one
-accessor.  START is the section's position, CHILDREN the sections under it."
-  (list :type type :value value :start (or start 1) :children children))
+accessor.  START and END are the section's span, CHILDREN the sections under
+it."
+  (list :type type :value value :start (or start 1) :children children
+        :end end))
 
 (defun nitpick-test--oref-stub ()
   "Return a `nitpick--oref' stub reading `nitpick-test--section' plists."
@@ -1598,50 +1600,80 @@ accessor.  START is the section's position, CHILDREN the sections under it."
            ,@body)
        (kill-buffer buffer))))
 
-(ert-deftest nitpick-test-tree-section-of-a-file-is-the-one-named-by-it ()
-  "A file is revealed by scrolling to the section git wrote for it."
+(defun nitpick-test--starts (sections)
+  "Return the positions SECTIONS start at."
+  (mapcar (lambda (section) (plist-get section :start)) sections))
+
+(defun nitpick-test--sections-of (buffer node)
+  "Return the sections of BUFFER's diff that NODE covers."
+  (nitpick-tree--node-sections
+   (nitpick-tree--file-sections buffer) node "/tmp/wt"))
+
+(ert-deftest nitpick-test-tree-sections-of-a-file-are-the-one-named-by-it ()
+  "A file is revealed through the section git wrote for it, and no other."
   (nitpick-test--with-diff
       (list (nitpick-test--section 'file "src/a.el" 10)
             (nitpick-test--section 'file "src/b.el" 20))
-    (should (= (plist-get (nitpick-tree--find-section
-                           buffer '(:file "src/b.el") "/tmp/wt")
-                          :start)
-               20))))
+    (should (equal (nitpick-test--starts
+                    (nitpick-test--sections-of buffer '(:file "src/b.el")))
+                   '(20)))))
 
-(ert-deftest nitpick-test-tree-section-of-a-directory-is-its-first-file ()
-  "git orders a diff by path, so a subtree begins at its first file."
+(ert-deftest nitpick-test-tree-sections-of-a-directory-are-its-whole-subtree ()
+  "What the diff is narrowed to: the subtree alone, in the order git wrote it."
   (nitpick-test--with-diff
       (list (nitpick-test--section 'file "docs/x.md" 10)
             (nitpick-test--section 'file "src/a.el" 20)
-            (nitpick-test--section 'file "src/b.el" 30))
-    (should (= (plist-get (nitpick-tree--find-section
-                           buffer '(:dir t :path "/tmp/wt/src") "/tmp/wt")
-                          :start)
-               20))))
+            (nitpick-test--section 'file "src/sub/c.el" 30)
+            (nitpick-test--section 'file "src/b.el" 40))
+    (should (equal (nitpick-test--starts
+                    (nitpick-test--sections-of
+                     buffer '(:dir t :path "/tmp/wt/src")))
+                   '(20 30 40)))))
 
-(ert-deftest nitpick-test-tree-section-of-a-directory-matches-whole-names ()
+(ert-deftest nitpick-test-tree-sections-of-a-directory-match-whole-names ()
   "`src' is not the directory of `srcfoo/a.el': the prefix ends in a slash."
   (nitpick-test--with-diff
       (list (nitpick-test--section 'file "srcfoo/a.el" 10))
-    (should-not (nitpick-tree--find-section
-                 buffer '(:dir t :path "/tmp/wt/src") "/tmp/wt"))))
+    (should-not (nitpick-test--sections-of
+                 buffer '(:dir t :path "/tmp/wt/src")))))
 
-(ert-deftest nitpick-test-tree-section-ignores-anything-but-a-file ()
+(ert-deftest nitpick-test-tree-sections-ignore-anything-but-a-file ()
   "The diffstat names the same files; its sections are not where they start."
   (nitpick-test--with-diff
       (list (nitpick-test--section 'diffstat "src/a.el" 5)
             (nitpick-test--section 'file "src/a.el" 40))
-    (should (= (plist-get (nitpick-tree--find-section
-                           buffer '(:file "src/a.el") "/tmp/wt")
-                          :start)
-               40))))
+    (should (equal (nitpick-test--starts
+                    (nitpick-test--sections-of buffer '(:file "src/a.el")))
+                   '(40)))))
 
-(ert-deftest nitpick-test-tree-section-of-a-file-not-in-the-diff-is-nil ()
+(ert-deftest nitpick-test-tree-sections-of-a-file-not-in-the-diff-are-none ()
   "A pane read before the last commit lists files the diff no longer has."
   (nitpick-test--with-diff
       (list (nitpick-test--section 'file "src/a.el" 10))
-    (should-not (nitpick-tree--find-section
-                 buffer '(:file "src/gone.el") "/tmp/wt"))))
+    (should-not (nitpick-test--sections-of buffer '(:file "src/gone.el")))))
+
+(ert-deftest nitpick-test-tree-sections-of-a-subtree-are-one-run ()
+  "Which is what narrowing needs: git orders a diff by path."
+  (nitpick-test--with-diff
+      (list (nitpick-test--section 'file "docs/x.md" 10)
+            (nitpick-test--section 'file "src/a.el" 20)
+            (nitpick-test--section 'file "src/b.el" 30))
+    (let ((node '(:dir t :path "/tmp/wt/src")))
+      (should (nitpick-tree--contiguous-p
+               (nitpick-tree--file-sections buffer)
+               (nitpick-test--sections-of buffer node))))))
+
+(ert-deftest nitpick-test-tree-sections-split-by-a-foreign-file-are-not ()
+  "Rename detection can place a file outside its own directory's run, and
+Emacs cannot narrow around the hole that leaves."
+  (nitpick-test--with-diff
+      (list (nitpick-test--section 'file "src/a.el" 10)
+            (nitpick-test--section 'file "docs/x.md" 20)
+            (nitpick-test--section 'file "src/b.el" 30))
+    (let ((node '(:dir t :path "/tmp/wt/src")))
+      (should-not (nitpick-tree--contiguous-p
+                   (nitpick-tree--file-sections buffer)
+                   (nitpick-test--sections-of buffer node))))))
 
 (ert-deftest nitpick-test-tree-build-diff-asks-for-the-whole-range ()
   "One `git diff' per review, not one per file: no pathspec at all.
@@ -1727,9 +1759,12 @@ a review has to read."
             ((nitpick--oref (nitpick-test--oref-stub))
              (magit-section-show (lambda (section) (setq shown section)))
              (nitpick-tree--ensure-diff (lambda (&rest _) diff))
-             (nitpick-tree--find-section
-              (lambda (&rest _) (nitpick-test--section 'file "a.el" 120))))
-          (should (nitpick-tree--reveal '(:file "a.el" :status "M")))
+             (nitpick-tree--file-sections (lambda (&rest _) nil))
+             (nitpick-tree--node-sections
+              (lambda (&rest _)
+                (list (nitpick-test--section 'file "a.el" 120)))))
+          (let ((nitpick-tree-narrow nil))
+            (should (nitpick-tree--reveal '(:file "a.el" :status "M"))))
           (should (equal (plist-get shown :value) "a.el"))
           (should (= (with-current-buffer diff (point)) 120))
           (should (= (window-start (get-buffer-window diff)) 120)))))))
@@ -1748,8 +1783,10 @@ a review has to read."
             ((nitpick--oref (nitpick-test--oref-stub))
              (magit-section-show #'ignore)
              (nitpick-tree--ensure-diff (lambda (&rest _) diff))
-             (nitpick-tree--find-section
-              (lambda (&rest _) (nitpick-test--section 'file "a.el" 1))))
+             (nitpick-tree--file-sections (lambda (&rest _) nil))
+             (nitpick-tree--node-sections
+              (lambda (&rest _)
+                (list (nitpick-test--section 'file "a.el" 1 nil 1)))))
           (nitpick-tree--reveal '(:file "a.el" :status "M"))
           (should (eq (selected-window) pane-window))
           (nitpick-tree--reveal '(:file "a.el" :status "M") :select)
@@ -1765,11 +1802,103 @@ a review has to read."
                     nitpick-tree--revision "master")
         (nitpick-test--with-stubs
             ((nitpick-tree--ensure-diff (lambda (&rest _) diff))
-             (nitpick-tree--find-section (lambda (&rest _) nil))
+             (nitpick-tree--file-sections (lambda (&rest _) nil))
+             (nitpick-tree--node-sections (lambda (&rest _) nil))
              (message (lambda (fmt &rest args)
                         (setq said (apply #'format fmt args)))))
           (nitpick-tree--reveal '(:file "gone.el" :status "M"))
           (should (string-match-p "gone.el" said)))))))
+
+(defun nitpick-test--reveal-span (sections node narrow)
+  "Reveal NODE over SECTIONS, narrowing when NARROW.
+Returns what the diff window then shows, as (POINT-MIN POINT-MAX POINT) in a
+buffer of 300 characters."
+  (let ((span nil))
+    (nitpick-test--with-windows (pane diff)
+      (with-current-buffer diff
+        (insert (make-string 300 ?x))
+        (setq-local magit-root-section
+                    (nitpick-test--section 'diffbuf nil 1 sections)))
+      (set-window-buffer (selected-window) diff)
+      (with-current-buffer pane
+        (setq-local nitpick-tree--root "/tmp/wt"
+                    nitpick-tree--revision "master")
+        (nitpick-test--with-stubs
+            ((nitpick--oref (nitpick-test--oref-stub))
+             (magit-section-show #'ignore)
+             (nitpick-tree--ensure-diff (lambda (&rest _) diff)))
+          (let ((nitpick-tree-narrow narrow))
+            (nitpick-tree--reveal node))))
+      (with-current-buffer diff
+        (setq span (list (point-min) (point-max) (point)))))
+    span))
+
+(defconst nitpick-test--spans
+  (list (nitpick-test--section 'file "src/a.el" 10 nil 100)
+        (nitpick-test--section 'file "src/b.el" 100 nil 200)
+        (nitpick-test--section 'file "docs/x.md" 200 nil 300))
+  "Three file sections of a 300-character diff, in the order git wrote them.")
+
+(ert-deftest nitpick-test-tree-reveal-narrows-a-directory-to-its-subtree ()
+  "The point of it: a file outside the subtree is not on screen to read."
+  (should (equal (nitpick-test--reveal-span
+                  nitpick-test--spans '(:dir t :path "/tmp/wt/src") t)
+                 '(10 200 10))))
+
+(ert-deftest nitpick-test-tree-reveal-narrows-a-file-to-its-own-diff ()
+  "A leaf narrows too: the diff of that file, not the range it sits in."
+  (should (equal (nitpick-test--reveal-span
+                  nitpick-test--spans '(:file "src/b.el" :status "M") t)
+                 '(100 200 100))))
+
+(ert-deftest nitpick-test-tree-reveal-keeps-the-whole-range-when-widened ()
+  "`N' off is the continuous diff: the file before and after a scroll away."
+  (should (equal (nitpick-test--reveal-span
+                  nitpick-test--spans '(:file "src/b.el" :status "M") nil)
+                 '(1 301 100))))
+
+(ert-deftest nitpick-test-tree-reveal-scrolls-to-a-subtree-git-split ()
+  "Emacs narrows to one region, and the hole would hide a file to read."
+  (should (equal (nitpick-test--reveal-span
+                  (list (nitpick-test--section 'file "src/a.el" 10 nil 100)
+                        (nitpick-test--section 'file "docs/x.md" 100 nil 200)
+                        (nitpick-test--section 'file "src/b.el" 200 nil 300))
+                  '(:dir t :path "/tmp/wt/src") t)
+                 '(1 301 10))))
+
+(ert-deftest nitpick-test-tree-widen-gives-the-whole-range-back ()
+  "What `N' and closing the pane do, so no narrowed diff is left behind."
+  (let ((buffer (generate-new-buffer " *nitpick-test-diff*")))
+    (unwind-protect
+        (let ((nitpick-tree--diff-buffer buffer))
+          (with-current-buffer buffer
+            (insert (make-string 300 ?x))
+            (narrow-to-region 10 20))
+          (nitpick-tree--widen)
+          (with-current-buffer buffer
+            (should (= (point-min) 1))
+            (should (= (point-max) 301))))
+      (kill-buffer buffer))))
+
+(ert-deftest nitpick-test-tree-toggle-narrow-widens-and-reveals-again ()
+  "Widened first: the node is revealed into a diff that holds its range."
+  (let ((revealed nil)
+        (buffer (generate-new-buffer " *nitpick-test-diff*")))
+    (unwind-protect
+        (let ((nitpick-tree--diff-buffer buffer)
+              (nitpick-tree-narrow t))
+          (with-current-buffer buffer
+            (insert (make-string 300 ?x))
+            (narrow-to-region 10 20))
+          (nitpick-test--with-stubs
+              ((nitpick-tree--follow
+                (lambda ()
+                  (setq revealed (with-current-buffer buffer
+                                   (list (point-min) (point-max)))))))
+            (nitpick-tree-toggle-narrow))
+          (should-not nitpick-tree-narrow)
+          (should (equal revealed '(1 301))))
+      (kill-buffer buffer))))
 
 (ert-deftest nitpick-test-tree-reveal-of-an-untracked-file-diffs-it-alone ()
   "git holds no version of it, so it is in no range diff - show it anyway."
@@ -2462,8 +2591,9 @@ and it asks the same mapper the diff keys use, from the file's heading."
       (with-current-buffer diff (insert "diff\n"))
       (nitpick-test--with-stubs
           ((nitpick--oref (nitpick-test--oref-stub))
-           (nitpick-tree--find-section
-            (lambda (&rest _) (nitpick-test--section 'file "a.el" 1)))
+           (nitpick-tree--file-sections
+            (lambda (&rest _)
+              (list (nitpick-test--section 'file "a.el" 1))))
            (nitpick--visit-line (lambda (side)
                                   (setq asked side
                                         where (current-buffer))

@@ -23,6 +23,7 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-tree` | Toggle the review: the pane of changed files, and the diff beside it |
 | `nitpick-tree-visit-diff` | Reveal the line at point in the diff (`d` in the pane) |
 | `nitpick-tree-toggle-follow` | Stop or resume the diff following the point (`f` in the pane) |
+| `nitpick-tree-toggle-narrow` | Narrow the diff to the line at point, or widen it (`N` in the pane) |
 | `nitpick-diff-buffer-file` | The same diff for the file being visited, from anywhere |
 | `nitpick-visit` | Open the file at point as the version the line belongs to (`RET`) |
 | `nitpick-visit-other` | Open it as the other version (`S-RET`) |
@@ -81,13 +82,16 @@ worktree: edit it and the numbers stop being the PR's.
 ## The diff navigator
 
 `nitpick-tree` opens a treemacs side pane holding only the files that differ
-from the revision under review, nested by directory, and the diff of the whole
+from the revision under review, nested by directory, and the diff of that
 range beside it - what diffnav draws. Each line carries the file's status
 marker and its line counts.
 
-Moving in the pane scrolls the diff to the file at point, or to the subtree of
-the directory at point, so a review reads by walking the pane. `nitpick-tree-follow`
-turns that off and `f` toggles it; `d` is then how a diff is asked for.
+Moving in the pane narrows the diff to the file at point, or to the subtree of
+the directory at point, so a review reads by walking the pane and a file
+outside what the point covers is not on screen at all. `nitpick-tree-narrow`
+turns that off and `N` toggles it, which is how the whole range is read
+continuously. `nitpick-tree-follow` stops the diff following the point at all,
+`f` toggles that, and `d` is then how a diff is asked for.
 
 Keys in the pane: `RET` hands the point to the diff, where magit's own keys
 read it and `nitpick-comment` comments on it. `o` opens the real file, where
@@ -213,10 +217,28 @@ questions and neither replaces the other:
   collapsed `nix/pkgs/emacs` reads as one diff.
 
 One magit buffer holds the whole range - `git diff` against the pane's own
-revision, with your saved magit diff arguments - and a file is revealed by
-scrolling to its section. So following the point costs a `goto-char`, nothing
-is spawned per keystroke, and the diff stays continuous: the file before and
-the file after are a scroll away.
+revision, with your saved magit diff arguments - and a node is revealed by
+narrowing to the span its sections cover. So following the point costs a
+`narrow-to-region` and nothing is spawned per keystroke. Widened with `N`, the
+same buffer reads continuously: the file before and the file after are a
+scroll away.
+
+### Narrowing, and what diffnav does instead
+
+git orders a diff by path, so a directory's files are one run of the file
+sections in that buffer - which is the whole trick: the span from the first to
+the last is what the window is narrowed to.
+
+diffnav arrives at the same picture from the other end. It parses the diff
+once into file objects, sorts them itself, hangs them off the tree, and for a
+directory re-serializes that subtree's objects back into patch text and runs
+`delta` over it again, caching the result per node. Ordering never comes into
+it, and nothing is narrowed.
+
+The cost of leaning on the order is rename detection, which can place a file
+outside its own directory's run. Emacs narrows to one region and a hole in it
+would hide a file the review has to read, so a subtree the diff holds out of
+order is scrolled to instead, exactly as it was before narrowing existed.
 
 An untracked file is in no range diff, since git holds no version of it to
 compare against, so it gets a `diff-mode` buffer of its own: `git diff
@@ -262,11 +284,14 @@ an auxiliary map for the key to be seen at all:
     (kbd "o") #'nitpick-tree-visit
     (kbd "O") #'nitpick-tree-visit-other
     (kbd "f") #'nitpick-tree-toggle-follow
+    (kbd "N") #'nitpick-tree-toggle-narrow
     (kbd "r") #'nitpick-tree-refresh))
 ```
 
 `o` is treemacs' prefix for opening a node in a split. Here the other window
-is the diff, so the pane takes `o` for the file itself.
+is the diff, so the pane takes `o` for the file itself. `N` rather than `n`
+for the narrowing toggle: `n` is `treemacs-next-line`, which is how the pane
+is walked.
 
 The diff's own two keys go in magit's section maps, which are text-property
 keymaps and so outrank any minor mode's - there is nowhere else to say it:

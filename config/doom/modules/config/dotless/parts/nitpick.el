@@ -35,5 +35,6 @@
         (kbd "o") #'nitpick-tree-visit
         (kbd "O") #'nitpick-tree-visit-other
         (kbd "f") #'nitpick-tree-toggle-follow
+        (kbd "N") #'nitpick-tree-toggle-narrow
         (kbd "r") #'nitpick-tree-refresh
         (kbd "q") #'nitpick-tree-close))))
