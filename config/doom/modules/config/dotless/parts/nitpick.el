@@ -8,6 +8,18 @@
   (nitpick-diff-hl-zero-context-mode 1)
   ;; RET on a removed line opens the base's blob, not the file without it
   (nitpick-diff-visit-base-mode 1)
+  ;; The two visit keys, in magit's own section maps: RET opens the version the
+  ;; line at point belongs to, S-RET the other one. Those maps are text-property
+  ;; keymaps, which outrank any minor mode's, so this is the only place to say
+  ;; it - and it has to be said after evil-collection-magit, which points RET
+  ;; at `magit-diff-visit-worktree-file' and so loses the base side.
+  (defun +dotless-nitpick-bind-visit-keys ()
+    (dolist (map (list magit-file-section-map magit-hunk-section-map))
+      (define-key map (kbd "RET") #'nitpick-visit)
+      (define-key map (kbd "S-<return>") #'nitpick-visit-other)))
+  (after! magit (+dotless-nitpick-bind-visit-keys))
+  (after! evil-collection-magit (+dotless-nitpick-bind-visit-keys))
+
   ;; the changed-file pane; a second feature, and nix ships no autoloads
   (when (require 'nitpick-tree nil t)
     ;; `nitpick-tree-mode-map' alone never sees `d': treemacs' evil state
@@ -21,6 +33,7 @@
       (evil-define-key 'treemacs nitpick-tree-mode-map
         (kbd "d") #'nitpick-tree-visit-diff
         (kbd "o") #'nitpick-tree-visit
+        (kbd "O") #'nitpick-tree-visit-other
         (kbd "f") #'nitpick-tree-toggle-follow
         (kbd "r") #'nitpick-tree-refresh
         (kbd "q") #'nitpick-tree-close))))

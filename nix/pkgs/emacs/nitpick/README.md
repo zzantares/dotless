@@ -24,7 +24,10 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-tree-visit-diff` | Reveal the line at point in the diff (`d` in the pane) |
 | `nitpick-tree-toggle-follow` | Stop or resume the diff following the point (`f` in the pane) |
 | `nitpick-diff-buffer-file` | The same diff for the file being visited, from anywhere |
-| `nitpick-diff-visit-base-mode` | `RET` on a removed line opens the base's blob, not the file without it |
+| `nitpick-visit` | Open the file at point as the version the line belongs to (`RET`) |
+| `nitpick-visit-other` | Open it as the other version (`S-RET`) |
+| `nitpick-visit-pick` | Open it as a version picked by name (`C-u` on either key) |
+| `nitpick-diff-visit-base-mode` | Let magit name the base side of a bare-revision diff |
 
 ## Binding
 
@@ -144,17 +147,63 @@ What a line says:
 A deleted file has nothing on disk to open, so it opens from the revision
 instead - the read-only blob magit would show.
 
+### Two keys: now and before
+
+A diff position names a file and a line on two sides. The keystroke names
+which side to open - nothing is inferred from where the cursor sits:
+
+- **`RET`** (`nitpick-visit`) opens the version the line at point belongs to.
+- **`S-RET`** (`nitpick-visit-other`) opens the other one.
+- In the pane the same pair is **`o`** and **`O`**.
+
+So the pair is total: no hunk shape can put a version out of reach, which is
+what `magit-diff-visit-file` alone cannot promise - on a hunk of nothing but
+additions it has no removed line to stand on, and its escape hatch
+(`magit-diff-visit-worktree-file`) is the worktree rather than the other side.
+
+| Where the point is | `RET` / `o` | `S-RET` / `O` |
+| --- | --- | --- |
+| Pane, file node | worktree, at its first change | base blob, at its first change |
+| Pane, deleted file | base blob | base blob |
+| Pane, new or untracked file | worktree | worktree |
+| Pane, directory | expand / collapse | nothing to open |
+| Diff, file heading | worktree, first change | base blob, first change |
+| Diff, context line | worktree, that line | base blob, same line |
+| Diff, added line | worktree, that line | base blob, the insertion point |
+| Diff, removed line | base blob, that line | worktree, the line now there |
+| Diff, hunk of only deletions | base blob, that line | worktree, the removal point |
+| Diff, hunk of only additions | worktree, that line | base blob, the insertion point |
+| Combined diff, context line | worktree, that line | the base of the conflict |
+| Combined diff, a parent's line | that parent, its own line | worktree, with the markers |
+| Combined diff, marker line | worktree, that line | the base of the conflict |
+| Untracked preview | the file | the file |
+
+Two rules behind the table:
+
+- **A line belongs to the version its column says it does.** An added line is
+  in the worktree, a removed one in the base, a context line in both - where
+  the worktree wins, since that is the file you edit. A combined diff carries
+  one column per parent, and a line is the other side of the parent whose
+  column differs from the rest.
+- **A side the file has no version in opens the side it has, and says so.**
+  The base of a file this review added, the worktree of one it deleted:
+  the key still opens something, and the echo area says which and why.
+
+Outside a hunk - a file heading, a pane node - no line belongs anywhere, so
+both keys land on the file's first change.
+
+With a prefix argument either key picks the version by name instead, which is
+the way to the ones no line belongs to: the base of a conflict, or the parent a
+line is not marked against.
+
 ### Two views of the same change
 
-The diff is what the pane navigates; `o` opens the file. They answer different
+The diff is what the pane navigates; `o` opens a file. They answer different
 questions and neither replaces the other:
 
 - The **file** is where LSP works, where jump-to-definition and the type
   errors live, and where you fix what the review turns up. Both views take a
-  comment; only the file takes one on a line the diff never showed. What it cannot show is a removal:
-  diff-hl marks the line *after* removed text in the fringe and has no way to
-  draw the text that is gone, which is why `nitpick-diff-hl-line-mode`
-  deliberately leaves deletions unpainted.
+  comment; only the file takes one on a line the diff never showed.
 - The **file** opens in the window last used, reusing the one already showing
   it if there is one - never a split. `display-buffer` splits here, because a
   side window can show nothing but the pane, so it makes room rather than
@@ -162,27 +211,6 @@ questions and neither replaces the other:
 - The **diff** is the reading view - before and after together, removals as
   text, unchanged context folded away. A directory reveals its subtree, so a
   collapsed `nix/pkgs/emacs` reads as one diff.
-
-### RET on a removed line
-
-`magit-diff-visit-file` (`RET`) picks its side from the line at point: an added
-or context line opens our side, a removed line opens theirs - the blob that
-still has the line. It works that out from the range the diff buffer holds, and
-`magit-split-range` answers nil for a range with no separator in it. A bare
-revision against the worktree is exactly that shape, and it is every diff
-nitpick opens, so both sides came out as the worktree: `RET` on a removed line
-opened the file without the line, at whatever now sits on that line number.
-
-`nitpick-diff-visit-base-mode` fills in the sides magit has none for - the
-revision on the left, the worktree on the right - and leaves every shape magit
-resolves itself alone: a commit, a stash, staged, unstaged, two-dot ranges.
-`C-<return>` (`magit-diff-visit-worktree-file`) is still the worktree from
-anywhere in a hunk.
-
-`nitpick-diff-buffer-file` is the same diff for the file being visited rather
-than the one at point, so a file reached any other way still reads as a diff.
-diff-hl's own `diff-hl-diff-reference-goto-hunk` compares the same two things
-and renders a `vc-diff` buffer instead of a magit one.
 
 One magit buffer holds the whole range - `git diff` against the pane's own
 revision, with your saved magit diff arguments - and a file is revealed by
@@ -193,6 +221,28 @@ the file after are a scroll away.
 An untracked file is in no range diff, since git holds no version of it to
 compare against, so it gets a `diff-mode` buffer of its own: `git diff
 --no-index` against `/dev/null`, all additions.
+
+`nitpick-diff-buffer-file` is the same diff for the file being visited rather
+than the one at point, so a file reached any other way still reads as a diff.
+diff-hl's own `diff-hl-diff-reference-goto-hunk` compares the same two things
+and renders a `vc-diff` buffer instead of a magit one.
+
+### What the two keys stand on
+
+Three magit details, each measured rather than assumed:
+
+- `magit-diff-visit--sides` works the sides out of the range its buffer holds,
+  and `magit-split-range` answers nil for a range with no separator in it - a
+  bare revision against the worktree, which is every diff nitpick opens. Both
+  sides then came out as the worktree. `nitpick-diff-visit-base-mode` fills in
+  that one pair and leaves every shape magit resolves itself alone.
+- A combined diff keeps its per-parent ranges in the hunk's `from-range` slot
+  and leaves `from-ranges` - which magit's own line counting reads - empty, so
+  the per-parent line numbers are counted here instead.
+- `magit-find-file-noselect` answers an index stage with an empty buffer: it
+  inserts by the revision of the buffer it made, and a stage is not one. A
+  conflict's three sides are read directly, into read-only buffers named the
+  way magit names a blob's.
 
 `r` re-reads the diff, and `g` does too outside evil, in place of treemacs'
 `treemacs-refresh` - which redraws the nodes the pane already holds and
@@ -210,12 +260,29 @@ an auxiliary map for the key to be seen at all:
   (evil-define-key 'treemacs nitpick-tree-mode-map
     (kbd "d") #'nitpick-tree-visit-diff
     (kbd "o") #'nitpick-tree-visit
+    (kbd "O") #'nitpick-tree-visit-other
     (kbd "f") #'nitpick-tree-toggle-follow
     (kbd "r") #'nitpick-tree-refresh))
 ```
 
 `o` is treemacs' prefix for opening a node in a split. Here the other window
 is the diff, so the pane takes `o` for the file itself.
+
+The diff's own two keys go in magit's section maps, which are text-property
+keymaps and so outrank any minor mode's - there is nowhere else to say it:
+
+```elisp
+(defun my/nitpick-visit-keys ()
+  (dolist (map (list magit-file-section-map magit-hunk-section-map))
+    (define-key map (kbd "RET") #'nitpick-visit)
+    (define-key map (kbd "S-<return>") #'nitpick-visit-other)))
+(after! magit (my/nitpick-visit-keys))
+(after! evil-collection-magit (my/nitpick-visit-keys))
+```
+
+Twice, because `evil-collection-magit` points `RET` at
+`magit-diff-visit-worktree-file` when it loads, and whichever of the two loads
+last has the say.
 
 treemacs is needed at run time only, and the command loads it. Its extension
 API is macros, which a build without treemacs in scope could not compile -

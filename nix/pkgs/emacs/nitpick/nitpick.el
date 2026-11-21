@@ -42,6 +42,12 @@
 (declare-function magit-run-git "magit-process" (&rest args))
 (declare-function magit-diff-range "magit-diff" (rev-or-range &optional args files))
 (declare-function magit-diff-visit--sides "magit-diff" ())
+(declare-function magit-diff-visit-file--setup "magit-diff" (buf pos))
+(declare-function magit-diff-hunk-line "magit-diff" (section goto-from))
+(declare-function magit-diff--hunk-section "magit-diff" ())
+(declare-function magit-find-file-noselect "magit-files" (rev file &optional no-restore-position volatile))
+(declare-function magit--file-index-stages "magit-git" (file))
+(declare-function magit-git-insert "magit-git" (&rest args))
 (declare-function magit-diff-arguments "magit-diff" (&optional mode))
 (declare-function forge--get-remote "forge-repo" (&optional remote))
 (declare-function diff-hl-set-reference-rev "diff-hl" (rev))
@@ -56,6 +62,7 @@
 (defvar diff-hl-reference-revision)
 (defvar magit-buffer-diff-range)
 (defvar magit-buffer-diff-type)
+(defvar magit-buffer-revision)
 (defvar diff-hl-update-async)
 (defvar vc-git-diff-switches)
 (defvar diff-hl-highlight-function)
@@ -828,6 +835,348 @@ the focus."
          (revision (or (nitpick--base-revision picked)
                        (user-error "Cannot work out a merge base for %s" picked))))
     (nitpick-diff-show revision (list file) stay)))
+
+;;;; Visiting: the version a line belongs to, and the other one
+;;
+;; One rule: the point names a file and a line on two or more sides, and the
+;; keystroke names which side to open.  `nitpick-visit' opens the side the line
+;; at point belongs to - an added line is in the worktree, a removed line is in
+;; the base, a context line is in both and the live file wins.
+;; `nitpick-visit-other' opens the other one.  So no hunk shape can put a side
+;; out of reach: the pair is total where magit's `magit-diff-visit-file' alone
+;; leaves a green-only hunk with no way back to the base.
+
+(defun nitpick--visit-parent-ranges (section)
+  "Return SECTION's ranges, one per parent, or nil for a plain hunk.
+magit keeps them in the hunk's `from-range' slot, as a list of ranges where a
+plain hunk holds one range - and leaves the `from-ranges' slot its own line
+counting reads empty, which is why that counting cannot be used here."
+  (let ((from (nitpick--oref section 'from-range)))
+    (and (consp (car from)) from)))
+
+(defun nitpick--visit-combined-columns (section)
+  "Return how many parent columns SECTION's lines carry, or nil for a plain diff.
+A combined diff prefixes each line with one column per parent, which is also
+what tells a line apart from the parent it belongs to."
+  (and (nitpick--oref section 'combined)
+       (let ((ranges (nitpick--visit-parent-ranges section)))
+         (and ranges (length ranges)))))
+
+(defun nitpick--visit-line-side ()
+  "Return which version the line at point belongs to.
+
+`new' for an added line, `old' for a removed one, and `both' for a context
+line, a hunk heading, or anywhere outside a hunk - everything that exists on
+either side, where the caller picks.
+
+In a combined diff, (parent . N) for the parent a line is the other side of,
+N counting from 1.  Each column says what the line is to that parent: a
+space that it has it, a `+' that it does not, a `-' that it has it and the
+result does not.  So all spaces is context, all pluses is a line only the
+result has - a conflict marker, most of the time - and a column that differs
+from the rest is the parent the line came from."
+  (let ((section (magit-diff--hunk-section)))
+    (if (null section)
+        'both
+      (let ((columns (nitpick--visit-combined-columns section))
+            (bol (line-beginning-position)))
+        (if (null columns)
+            (pcase (char-after bol)
+              (?+ 'new)
+              (?- 'old)
+              (_ 'both))
+          (let ((prefix (buffer-substring-no-properties
+                         bol (min (point-max) (+ bol columns)))))
+            (cond
+             ;; Only this parent has it, and the result does not.
+             ((string-match "-" prefix) (cons 'parent (1+ (match-beginning 0))))
+             ;; Every parent has it.
+             ((not (string-search "+" prefix)) 'both)
+             ;; The result and some of the parents: the ones that have it are
+             ;; where it came from.  A conflicted worktree holds both sides
+             ;; and the markers, so this is the usual shape there.
+             ((string-match " " prefix) (cons 'parent (1+ (match-beginning 0))))
+             ;; The result alone.
+             (t 'new))))))))
+
+(defun nitpick--visit-complement (side)
+  "Return the side `nitpick-visit-other' opens when the point is on SIDE.
+The other one, which for a combined diff's parent line is the conflicted file
+itself - the one place all of the parents are visible at once."
+  (pcase side
+    ('old 'new)
+    (`(parent . ,_) 'new)
+    (_ 'old)))
+
+(defun nitpick--visit-conflict-rev (n file)
+  "Return the version of combined parent N for FILE, or of the base for 0.
+
+A conflicted worktree keeps the three of them in the index, as stages 1 to 3,
+and those are read as the objects they are.  A merge commit names its parents
+instead, and its base is their merge base - a combined diff of either draws
+no column for it."
+  (if (length> (magit--file-index-stages file) 1)
+      (format ":%d" (1+ n))
+    (and magit-buffer-revision
+         (if (> n 0)
+             (format "%s^%d" magit-buffer-revision n)
+           (magit-git-string "merge-base"
+                             (format "%s^1" magit-buffer-revision)
+                             (format "%s^2" magit-buffer-revision))))))
+
+(defun nitpick--visit-target (side)
+  "Return (REV FILE) naming the version SIDE holds of the file at point.
+Nil when there is no such version to name.  `magit-diff-visit--sides' answers
+for the two plain sides - `nitpick-diff-visit-base-mode' is what makes it
+answer at all for a diff of a bare revision - and a combined diff's parents
+are read out of the index or off the merge commit."
+  (pcase-let* ((`(,old ,new) (magit-diff-visit--sides))
+               (section (magit-diff--hunk-section))
+               (columns (and section (nitpick--visit-combined-columns section))))
+    (pcase side
+      ((and 'old (guard columns))
+       (let ((rev (nitpick--visit-conflict-rev 0 (nth 1 new))))
+         (and rev (list rev (nth 1 new)))))
+      ('old old)
+      (`(parent . ,n)
+       (let ((rev (nitpick--visit-conflict-rev n (nth 1 new))))
+         (and rev (list rev (nth 1 new)))))
+      (_ new))))
+
+(defun nitpick--visit-exists-p (rev file)
+  "Whether FILE has a version in REV at all.
+What decides whether a side can be opened or has to fall back to the other:
+an added file has nothing in the base, a deleted one nothing on disk."
+  (and rev file
+       (cond ((equal rev "{worktree}")
+              (file-exists-p (expand-file-name file (magit-toplevel))))
+             ((equal rev "{index}")
+              (and (magit--file-index-stages file) t))
+             ((nitpick--visit-stage rev)
+              (and (nitpick--visit-stage-entry (nitpick--visit-stage rev) file) t))
+             (t (and (magit-rev-verify (concat rev ":" file)) t)))))
+
+(defun nitpick--visit-goto-first-change (section)
+  "Put point on the first changed line of SECTION, if point is above its body.
+`magit-diff-hunk-line' counts the lines the point follows, and from a heading
+it leaves the point inside the first changed line rather than at its start -
+which counts that line too, and lands the base a line past its own change.
+Nothing moves when the point is already on a line of the hunk."
+  (let ((content (nitpick--oref section 'content)))
+    (when (and content (< (point) content))
+      (goto-char content)
+      (when (re-search-forward "^[-+]" nil t)
+        (goto-char (line-beginning-position))))))
+
+(defun nitpick--visit-line (side)
+  "Return the line SIDE holds the point's line as, or nil.
+Both plain sides are counted for any line of a hunk, so a removed line maps
+to the line that now sits in its place and an added one to where it was
+inserted.  A combined diff is counted per column; its base has no column, so
+there is nothing to map and the file opens at the top."
+  (and-let* ((section (magit-diff--hunk-section)))
+    (let ((columns (nitpick--visit-combined-columns section)))
+      (save-excursion
+        (nitpick--visit-goto-first-change section)
+        (pcase side
+          ((guard (not columns)) (magit-diff-hunk-line section (eq side 'old)))
+          ;; A combined diff draws no column for the base, so there is no
+          ;; line of it to map the point to.
+          ('old nil)
+          (_ (nitpick--visit-combined-line section side)))))))
+
+(defun nitpick--visit-combined-line (section side)
+  "Return the line the point has on SIDE of combined SECTION.
+SIDE is (parent . N) for one parent's own numbering, or anything else for the
+result's.  A parent holds every line whose own column is not a `+'; the
+result holds every line with no `-' in any column.  So the offset from the
+start of that side's range is how many of its lines the point follows."
+  (save-excursion
+    (let* ((content (nitpick--oref section 'content))
+           (columns (length (nitpick--visit-parent-ranges section)))
+           (column (and (eq (car-safe side) 'parent) (1- (cdr side))))
+           (start (if column
+                      (car (nth column (nitpick--visit-parent-ranges section)))
+                    (car (nitpick--oref section 'to-range))))
+           (target (max (line-beginning-position) content))
+           (offset 0))
+      (goto-char content)
+      (while (< (point) target)
+        (let ((prefix (buffer-substring-no-properties
+                       (point) (min (point-max) (+ (point) columns)))))
+          (when (if column
+                    (not (eq (aref prefix column) ?+))
+                  (not (string-search "-" prefix)))
+            (setq offset (1+ offset))))
+        (forward-line))
+      (and start (+ start offset)))))
+
+(defun nitpick--visit-stage (rev)
+  "Return the index stage REV names, or nil when it names something else."
+  (and (stringp rev)
+       (string-match "\\`:\\([0-9]\\)\\'" rev)
+       (string-to-number (match-string 1 rev))))
+
+(defun nitpick--visit-stage-entry (stage file)
+  "Return FILE's index entry for STAGE, or nil."
+  (seq-find (lambda (entry)
+              (equal (car (split-string (nth 2 entry) "\t"))
+                     (number-to-string stage)))
+            (magit--file-index-stages file)))
+
+(defun nitpick--visit-stage-noselect (stage file)
+  "Return a read-only buffer of what index STAGE holds for FILE.
+
+Read here rather than through `magit-find-file-noselect', which answers a
+stage with an empty buffer: it takes the contents from the revision of the
+buffer it made, and a stage is not one.  Named the way magit names a blob
+buffer, so a conflict's three sides read as what they are."
+  (let* ((buffer (get-buffer-create
+                  (format "%s.~:%d~" (file-name-nondirectory file) stage)))
+         (root (magit-toplevel))
+         (text (with-temp-buffer
+                 (let ((default-directory root))
+                   (magit-git-insert "cat-file" "-p"
+                                     (format ":%d:%s" stage file)))
+                 (buffer-substring-no-properties (point-min) (point-max)))))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert text)
+        (goto-char (point-min)))
+      (setq-local default-directory root)
+      ;; The file's own mode, without visiting it: `buffer-file-name' would
+      ;; make this buffer look like the worktree file to everything that saves.
+      (let ((buffer-file-name (expand-file-name file root)))
+        (set-auto-mode))
+      (setq buffer-read-only t))
+    buffer))
+
+(defun nitpick--visit-noselect (side)
+  "Return (BUFFER POSITION) for the file at point as SIDE holds it.
+POSITION is nil when the side holds no line to go to."
+  (pcase-let* ((`(,rev ,file) (nitpick--visit-target side))
+               (stage (nitpick--visit-stage rev))
+               (buffer (if stage
+                           (nitpick--visit-stage-noselect stage file)
+                         (magit-find-file-noselect rev file)))
+               (line (nitpick--visit-line side)))
+    (list buffer
+          (and line
+               (with-current-buffer buffer
+                 (save-restriction
+                   (widen)
+                   (goto-char (point-min))
+                   (forward-line (1- line))
+                   (point)))))))
+
+(defun nitpick--visit-fallback (side)
+  "Return the side to open instead of SIDE, and say why, or nil to refuse.
+Never a dead keystroke: a side the file has no version in opens the side it
+has, because that is the only thing the key can mean."
+  (let ((other (nitpick--visit-complement side)))
+    (pcase-let ((`(,rev ,file) (nitpick--visit-target other)))
+      (and (nitpick--visit-exists-p rev file) other))))
+
+(defun nitpick--visit-note (side fallback rev)
+  "Return what to say when SIDE was asked for and FALLBACK opened instead."
+  (format "%s; showing %s"
+          (pcase side
+            ('old "not in the base")
+            (`(parent . ,n) (format "not in parent %d" n))
+            (_ "not in the worktree"))
+          (pcase fallback
+            ('old (format "it as %s had it" rev))
+            (_ "the file itself"))))
+
+(defun nitpick--visit-side (side &optional display)
+  "Visit the file at point as SIDE holds it, and return its buffer.
+DISPLAY is `magit-diff-visit-file--internal' display argument: nil for this
+window, t for another one, a function to call with the buffer."
+  (unless (derived-mode-p 'magit-diff-mode 'magit-status-mode 'magit-revision-mode)
+    (user-error "Not in a diff"))
+  (pcase-let* ((`(,rev ,file) (nitpick--visit-target side))
+               (asked side)
+               (note nil))
+    (unless (nitpick--visit-exists-p rev file)
+      (let ((fallback (nitpick--visit-fallback side)))
+        (unless fallback
+          (user-error "No version of %s to open" (or file "this file")))
+        (setq side fallback)
+        (pcase-setq `(,rev ,file) (nitpick--visit-target side))
+        (setq note (nitpick--visit-note asked side rev))))
+    (pcase-let ((`(,buffer ,pos) (nitpick--visit-noselect side)))
+      (pcase display
+        ('nil (pop-to-buffer-same-window buffer))
+        ('t (switch-to-buffer-other-window buffer))
+        (_ (funcall display buffer)))
+      (magit-diff-visit-file--setup buffer pos)
+      (when note
+        (message "%s: %s" file note))
+      buffer)))
+
+;;;###autoload
+(defun nitpick-visit (&optional arg)
+  "Visit the file at point as the version the line belongs to holds it.
+
+An added line is in the worktree, a removed line is in the base, and a
+context line is in both - where the worktree wins, since that is the file
+you edit.  In a combined diff a line marked against one parent opens that
+parent.  Outside a hunk there is no line to belong anywhere, so the worktree
+opens at the file's first change.
+
+`nitpick-visit-other' is the same keystroke for the other side, so nothing
+about the shape of a hunk can put a version out of reach.  A side the file
+has no version in - the base of a file this review added, the worktree of
+one it deleted - opens the side it has, and says so.
+
+With a prefix ARG, pick the version by name instead."
+  (interactive "P")
+  (if arg
+      (nitpick-visit-pick)
+    (nitpick--visit-side (nitpick--visit-line-side))))
+
+;;;###autoload
+(defun nitpick-visit-other (&optional arg)
+  "Visit the file at point as the version the line does not belong to holds it.
+The other side from `nitpick-visit': the base from an added or context line,
+the worktree from a removed one, and the conflicted file itself from a
+combined diff's parent line.  With a prefix ARG, pick by name."
+  (interactive "P")
+  (if arg
+      (nitpick-visit-pick)
+    (nitpick--visit-side (nitpick--visit-complement (nitpick--visit-line-side)))))
+
+(defun nitpick--visit-candidates ()
+  "Return an alist of (LABEL . SIDE) for every version the point can open."
+  (let ((section (magit-diff--hunk-section)))
+    (seq-filter
+     (lambda (candidate)
+       (pcase-let ((`(,rev ,file) (nitpick--visit-target (cdr candidate))))
+         (nitpick--visit-exists-p rev file)))
+     (append
+      (list (cons "worktree" 'new) (cons "base" 'old))
+      (and section
+           (let ((columns (nitpick--visit-combined-columns section)))
+             (and columns
+                  (seq-map (lambda (n)
+                             (cons (format "parent %d%s" n
+                                           (pcase n
+                                             (1 " (ours)")
+                                             (2 " (theirs)")
+                                             (_ "")))
+                                   (cons 'parent n)))
+                           (number-sequence 1 columns)))))))))
+
+;;;###autoload
+(defun nitpick-visit-pick ()
+  "Visit the file at point as a version picked by name.
+The way to the versions no line belongs to: the base of a conflict, or the
+parent a combined diff does not mark the line against."
+  (interactive)
+  (let* ((candidates (nitpick--visit-candidates))
+         (label (completing-read "Visit this file as: " candidates nil t)))
+    (nitpick--visit-side (cdr (assoc label candidates)))))
 
 ;;;; Visiting the base's own blob from a diff
 

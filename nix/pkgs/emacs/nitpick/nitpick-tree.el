@@ -459,42 +459,125 @@ cannot show anything but the pane and it will make room rather than reuse."
   (or (get-buffer-window buffer)
       (get-mru-window (selected-frame) nil :not-selected)))
 
-(defun nitpick-tree--visit-file (node stay)
-  "Open NODE's file, selecting its window unless STAY is non-nil.
-A deleted file is opened from the revision instead of from disk, where it is
-no longer - read-only, the way magit shows a blob."
-  (let* ((status (plist-get node :status))
-         (buffer (if (equal status "D")
-                     (let ((default-directory nitpick-tree--root))
-                       (magit-find-file-noselect
-                        (nitpick--base-revision nitpick-tree--revision)
-                        (plist-get node :file)))
-                   (find-file-noselect (plist-get node :path))))
-         (window (nitpick-tree--visit-window buffer)))
-    ;; `switch-to-buffer' in that window rather than `set-window-buffer', so
-    ;; the file lands in its history and `C-x left' works as it would have.
-    (if window
-        (with-selected-window window (switch-to-buffer buffer))
-      ;; The pane is the only window: there is nothing to reuse yet.
-      (setq window (display-buffer buffer)))
-    (when (and window (not stay))
-      (select-window window)
-      (nitpick-tree--paint-buffer)
-      (nitpick-tree--show-hunk))))
+(defun nitpick-tree--node-side (node)
+  "Return the version NODE's file belongs to.
+A deleted file is in the base and nowhere else.  Everything else - modified,
+added, untracked - is in the worktree, the same way a context line resolves
+to the file you edit."
+  (if (equal (plist-get node :status) "D") 'old 'new))
+
+(defun nitpick-tree--node-target (node side)
+  "Return (REV FILE) naming the version SIDE holds of NODE's file.
+A rename is asked for by the name the side itself used."
+  (pcase side
+    ('old (list (nitpick--base-revision nitpick-tree--revision)
+                (or (plist-get node :from) (plist-get node :file))))
+    (_ (list "{worktree}" (plist-get node :file)))))
+
+(defun nitpick-tree--base-line (node)
+  "Return the line NODE's first change starts at on the base's side, or nil.
+
+Asked of the diff the pane already holds, so opening the base runs no second
+`git diff' - and asked through `nitpick--visit-line', so the pane lands where
+`nitpick-visit-other' lands from that file's heading: on the change itself
+rather than on the first line of context above it."
+  (and (buffer-live-p nitpick-tree--diff-buffer)
+       (and-let* ((root nitpick-tree--root)
+                  (section (nitpick-tree--find-section
+                            nitpick-tree--diff-buffer node root)))
+         (with-current-buffer nitpick-tree--diff-buffer
+           (save-excursion
+             (goto-char (nitpick--oref section 'start))
+             (nitpick--visit-line 'old))))))
+
+(defun nitpick-tree--visit-node (node side)
+  "Open NODE's file as SIDE holds it, and select the window it lands in.
+A side the file has no version in opens the side it has, and says so - the
+pane's half of the rule `nitpick-visit' follows in a diff."
+  (let* ((root nitpick-tree--root)
+         (default-directory root)
+         (asked side)
+         (note nil)
+         ;; Worked out while the pane is still the current buffer: the
+         ;; revision, the root and the diff it reads are all locals of it.
+         (base-line (nitpick-tree--base-line node)))
+    (pcase-let ((`(,rev ,file) (nitpick-tree--node-target node side)))
+      (unless (nitpick--visit-exists-p rev file)
+        (setq side (nitpick--visit-complement side))
+        (pcase-setq `(,rev ,file) (nitpick-tree--node-target node side))
+        (unless (nitpick--visit-exists-p rev file)
+          (user-error "No version of %s to open" (plist-get node :file)))
+        (setq note (nitpick--visit-note asked side rev)))
+      (let* ((buffer (if (equal rev "{worktree}")
+                         (find-file-noselect (expand-file-name file root))
+                       (magit-find-file-noselect rev file)))
+             (window (nitpick-tree--visit-window buffer)))
+        ;; `switch-to-buffer' in that window rather than `set-window-buffer', so
+        ;; the file lands in its history and `C-x left' works as it would have.
+        (if window
+            (with-selected-window window (switch-to-buffer buffer))
+          ;; The pane is the only window: there is nothing to reuse yet.
+          (setq window (display-buffer buffer)))
+        (when window
+          (select-window window)
+          (if (equal rev "{worktree}")
+              (progn (nitpick-tree--paint-buffer)
+                     (nitpick-tree--show-hunk))
+            (when (and base-line nitpick-tree-visit-jumps-to-hunk)
+              (goto-char (point-min))
+              (forward-line (1- base-line)))))
+        (when note
+          (message "%s: %s" file note))
+        buffer))))
 
 (defun nitpick-tree-visit (&optional arg)
   "Open the file on the current line, or fold the directory on it.
-With a prefix ARG the file is shown but the pane keeps the focus, so a whole
-review can be opened without leaving it."
+
+The version the line belongs to: the worktree for a file this review changed
+or added, the base for one it deleted - the pane's own half of the rule
+`nitpick-visit' follows in the diff.  `nitpick-tree-visit-other' is the other
+side.
+
+With a prefix ARG, pick the version by name.  On a directory ARG is
+treemacs', which has nothing to open."
   (interactive "P")
   (let ((node (nitpick-tree--node-at-point)))
     (cond
      ((null node) nil)
-     ((not (plist-get node :dir)) (nitpick-tree--visit-file node arg))
-     ((memq (get-text-property (treemacs-node-at-point) :state)
-            treemacs--open-node-states)
-      (treemacs-collapse-extension-node arg))
-     (t (treemacs-expand-extension-node arg)))))
+     ((plist-get node :dir)
+      (if (memq (get-text-property (treemacs-node-at-point) :state)
+                treemacs--open-node-states)
+          (treemacs-collapse-extension-node arg)
+        (treemacs-expand-extension-node arg)))
+     (arg (nitpick-tree-visit-pick))
+     (t (nitpick-tree--visit-node node (nitpick-tree--node-side node))))))
+
+(defun nitpick-tree-visit-other (&optional arg)
+  "Open the file on the current line as the other version holds it.
+The base for a file the review changed or added, the worktree for one it
+deleted.  With a prefix ARG, pick the version by name."
+  (interactive "P")
+  (let ((node (nitpick-tree--node-at-point)))
+    (when (and node (not (plist-get node :dir)))
+      (if arg
+          (nitpick-tree-visit-pick)
+        (nitpick-tree--visit-node
+         node (nitpick--visit-complement (nitpick-tree--node-side node)))))))
+
+(defun nitpick-tree-visit-pick ()
+  "Open the file on the current line as a version picked by name."
+  (interactive)
+  (let* ((node (or (nitpick-tree--node-at-point) (user-error "No file here")))
+         (default-directory nitpick-tree--root)
+         (candidates
+          (seq-filter
+           (lambda (candidate)
+             (pcase-let ((`(,rev ,file) (nitpick-tree--node-target
+                                         node (cdr candidate))))
+               (nitpick--visit-exists-p rev file)))
+           (list (cons "worktree" 'new) (cons "base" 'old))))
+         (label (completing-read "Open this file as: " candidates nil t)))
+    (nitpick-tree--visit-node node (cdr (assoc label candidates)))))
 
 ;;;; The diff the pane drives
 
@@ -584,6 +667,26 @@ are children of the diffstat section, not of the root."
        (and magit-root-section
             (nitpick--oref magit-root-section 'children))))))
 
+(defvar-local nitpick-tree--untracked-file nil
+  "Absolute name of the untracked file the preview shows.")
+
+(defun nitpick-tree-untracked-visit ()
+  "Open the untracked file this buffer shows.
+Both keys do it: git holds no other version of it, so there is no other side
+for `nitpick-visit-other' to mean."
+  (interactive)
+  (let ((file nitpick-tree--untracked-file))
+    (unless file
+      (user-error "Not showing an untracked file"))
+    (pop-to-buffer-same-window (find-file-noselect file))))
+
+(defvar nitpick-tree-untracked-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "RET") #'nitpick-tree-untracked-visit)
+    (define-key map (kbd "S-<return>") #'nitpick-tree-untracked-visit)
+    map)
+  "Keymap of the untracked preview, composed over `diff-mode-map'.")
+
 (defun nitpick-tree--untracked-diff (file root)
   "Return a buffer showing untracked FILE under ROOT as added lines.
 `git diff --no-index' against `/dev/null', in `diff-mode' rather than as a
@@ -601,7 +704,10 @@ but a file a review forgot to add is the one most worth reading."
         ;; An empty file differs from /dev/null in nothing at all.
         (insert (if (string-empty-p text) (format "%s is empty\n" file) text))
         (diff-mode)
+        (use-local-map (make-composed-keymap nitpick-tree-untracked-mode-map
+                                             (current-local-map)))
         (setq-local default-directory root
+                    nitpick-tree--untracked-file (expand-file-name file root)
                     header-line-format (concat " " file "  untracked"))
         (setq buffer-read-only t)
         (goto-char (point-min))))
@@ -708,6 +814,7 @@ treemacs' prefix argument for a directory."
     ;; thing a review does not want: the diff is in the other window and
     ;; splitting it is how the old pane made reading one tiring.
     (define-key map "o" #'nitpick-tree-visit)
+    (define-key map "O" #'nitpick-tree-visit-other)
     (define-key map "f" #'nitpick-tree-toggle-follow)
     ;; `g' and `r' are `treemacs-refresh', which redraws the nodes the pane
     ;; already holds, reports "Refresh complete" and asks git nothing.  The

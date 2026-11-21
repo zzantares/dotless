@@ -1971,6 +1971,8 @@ a review has to read."
 ;; magit's buffer-locals, which the suite runs without magit to set.
 (defvar magit-buffer-diff-type nil)
 (defvar magit-buffer-diff-range nil)
+(defvar magit-buffer-revision nil)
+(defvar treemacs--open-node-states nil)
 
 (defmacro nitpick-test--in-diff (type range &rest body)
   "Run BODY as if in a magit diff buffer of TYPE showing RANGE."
@@ -2040,6 +2042,523 @@ a review has to read."
 (ert-deftest nitpick-test-visit-base-mode-is-off-until-enabled ()
   (should-not (advice-member-p #'nitpick--diff-visit-sides
                               'magit-diff-visit--sides)))
+
+;;;; Visiting: which side a line belongs to
+
+(defun nitpick-test--hunk (&rest props)
+  "Return a stand-in for a magit hunk section carrying PROPS."
+  (append props (list :type 'hunk)))
+
+(defmacro nitpick-test--on-line (text line &rest body)
+  "Run BODY with point at the start of LINE of TEXT, in a diff-like buffer.
+TEXT is a hunk body; the hunk section stands in for magit's, with `content'
+at the first line, so the counting functions walk real text."
+  (declare (indent 2))
+  `(with-temp-buffer
+     (insert ,text)
+     (goto-char (point-min))
+     (forward-line (1- ,line))
+     (let ((nitpick-test--content (point-min)))
+       (ignore nitpick-test--content)
+       ,@body)))
+
+(defvar nitpick-test--content nil)
+
+(ert-deftest nitpick-test-visit-line-side-of-a-plain-hunk ()
+  "A line's own marker says which side it is on; context is on both."
+  (let ((hunk (nitpick-test--hunk :combined nil)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk)))
+      (nitpick-test--on-line "+added\n-removed\n context\n" 1
+        (should (eq (nitpick--visit-line-side) 'new)))
+      (nitpick-test--on-line "+added\n-removed\n context\n" 2
+        (should (eq (nitpick--visit-line-side) 'old)))
+      (nitpick-test--on-line "+added\n-removed\n context\n" 3
+        (should (eq (nitpick--visit-line-side) 'both))))))
+
+(ert-deftest nitpick-test-visit-line-side-outside-a-hunk-is-both ()
+  "A file heading belongs to no line, so either side may be opened from it."
+  (nitpick-test--with-stubs
+      ((magit-diff--hunk-section (lambda () nil)))
+    (should (eq (nitpick--visit-line-side) 'both))))
+
+(ert-deftest nitpick-test-visit-line-side-of-a-hunk-heading-is-both ()
+  "`@@' is not a line of either side."
+  (let ((hunk (nitpick-test--hunk :combined nil)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk)))
+      (nitpick-test--on-line "@@ -1,2 +1,3 @@\n+added\n" 1
+        (should (eq (nitpick--visit-line-side) 'both))))))
+
+(defconst nitpick-test--conflict-body
+  (concat "  top\n"
+          "++<<<<<<< HEAD\n"
+          " +OURS\n"
+          "++|||||||\n"
+          "++shared\n"
+          "++=======\n"
+          "+ THEIRS\n"
+          "++>>>>>>>\n"
+          "  bottom\n")
+  "The body `git diff' prints for a conflicted file, column for column.")
+
+(defun nitpick-test--conflict-hunk ()
+  "Return a stand-in for the hunk of that conflict.
+Shaped the way magit builds one: the per-parent ranges in `from-range', the
+result's in `to-range', and `from-ranges' - which magit's own line counting
+reads - left empty."
+  (nitpick-test--hunk :combined t
+                      :from-range '((1 3) (1 3))
+                      :to-range '(1 9)
+                      :content 1))
+
+(ert-deftest nitpick-test-visit-line-side-of-a-combined-hunk ()
+  "Each column says what the line is to that parent; a space means it has it."
+  (let ((hunk (nitpick-test--conflict-hunk)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk)))
+      (let ((text nitpick-test--conflict-body))
+        ;; In both parents.
+        (nitpick-test--on-line text 1
+          (should (eq (nitpick--visit-line-side) 'both)))
+        ;; A marker: in the result and in neither parent.
+        (nitpick-test--on-line text 2
+          (should (eq (nitpick--visit-line-side) 'new)))
+        ;; Ours has it, theirs does not.
+        (nitpick-test--on-line text 3
+          (should (equal (nitpick--visit-line-side) '(parent . 1))))
+        (nitpick-test--on-line text 7
+          (should (equal (nitpick--visit-line-side) '(parent . 2))))
+        (nitpick-test--on-line text 9
+          (should (eq (nitpick--visit-line-side) 'both)))))))
+
+(ert-deftest nitpick-test-visit-line-side-of-a-merges-removed-line ()
+  "A `-' is the other shape: that parent has the line and the result does not."
+  (let ((hunk (nitpick-test--hunk :combined t
+                                  :from-range '((1 2) (1 2))
+                                  :to-range '(1 2)
+                                  :content 1)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk)))
+      (nitpick-test--on-line " -only theirs had it\n" 1
+        (should (equal (nitpick--visit-line-side) '(parent . 2)))))))
+
+(ert-deftest nitpick-test-visit-complement-is-the-other-side ()
+  "What the modifier means, for every side a line can be on."
+  (should (eq (nitpick--visit-complement 'old) 'new))
+  (should (eq (nitpick--visit-complement 'new) 'old))
+  (should (eq (nitpick--visit-complement 'both) 'old))
+  ;; The conflicted file is where all of the parents are visible at once.
+  (should (eq (nitpick--visit-complement '(parent . 2)) 'new)))
+
+;;;; Visiting: which version that side names
+
+(defmacro nitpick-test--with-sides (old new &rest body)
+  "Run BODY with `magit-diff-visit--sides' answering OLD and NEW."
+  (declare (indent 2))
+  `(nitpick-test--with-stubs
+       ((magit-diff-visit--sides (lambda () (list ,old ,new))))
+     ,@body))
+
+(ert-deftest nitpick-test-visit-target-takes-the-side-magit-names ()
+  (nitpick-test--with-stubs
+      ((magit-diff--hunk-section (lambda () nil)))
+    (nitpick-test--with-sides '("abc123" "old.el") '("{worktree}" "new.el")
+      (should (equal (nitpick--visit-target 'old) '("abc123" "old.el")))
+      (should (equal (nitpick--visit-target 'new) '("{worktree}" "new.el")))
+      (should (equal (nitpick--visit-target 'both) '("{worktree}" "new.el"))))))
+
+(ert-deftest nitpick-test-visit-target-of-a-conflicts-parent-is-its-stage ()
+  "Ours and theirs are stages 2 and 3 of the index.
+Read by `nitpick--visit-stage-noselect', not `magit-find-file-noselect',
+which answers a stage with an empty buffer."
+  (let ((hunk (nitpick-test--conflict-hunk)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk))
+         (magit--file-index-stages
+          (lambda (_) '(("100644" "baseoid" "1\tf.txt")
+                        ("100644" "oursoid" "2\tf.txt")
+                        ("100644" "theirsoid" "3\tf.txt")))))
+      (nitpick-test--with-sides '("{worktree}" "f.txt") '("{worktree}" "f.txt")
+        (should (equal (nitpick--visit-target '(parent . 1)) '(":2" "f.txt")))
+        (should (equal (nitpick--visit-target '(parent . 2)) '(":3" "f.txt")))
+        ;; The base has no column of its own, but it is stage 1.
+        (should (equal (nitpick--visit-target 'old) '(":1" "f.txt")))))))
+
+(ert-deftest nitpick-test-visit-target-of-a-merge-commits-parent ()
+  "No index to read, so the parents are named off the commit itself."
+  (let ((hunk (nitpick-test--conflict-hunk)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk))
+         (magit--file-index-stages (lambda (_) nil))
+         (magit-git-string (lambda (&rest args)
+                             (and (equal (car args) "merge-base") "base99"))))
+      (let ((magit-buffer-revision "merge7"))
+        (nitpick-test--with-sides '("{worktree}" "a.el") '("{worktree}" "a.el")
+          (should (equal (nitpick--visit-target '(parent . 2))
+                         '("merge7^2" "a.el")))
+          (should (equal (nitpick--visit-target 'old) '("base99" "a.el"))))))))
+
+(ert-deftest nitpick-test-visit-exists-p-asks-the-right-thing-per-rev ()
+  (nitpick-test--with-stubs
+      ((magit-toplevel (lambda (&rest _) "/tmp/wt/"))
+       (magit-rev-verify (lambda (rev) (equal rev "abc123:a.el")))
+       (magit--file-index-stages (lambda (_) '(("1"))))
+       (file-exists-p (lambda (f) (equal f "/tmp/wt/live.el"))))
+    (should (nitpick--visit-exists-p "{worktree}" "live.el"))
+    (should-not (nitpick--visit-exists-p "{worktree}" "gone.el"))
+    (should (nitpick--visit-exists-p "abc123" "a.el"))
+    (should-not (nitpick--visit-exists-p "abc123" "added.el"))
+    (should (nitpick--visit-exists-p "{index}" "a.el"))
+    (should-not (nitpick--visit-exists-p nil "a.el"))))
+
+(ert-deftest nitpick-test-visit-stage-is-read-into-its-own-buffer ()
+  "magit answers a stage with an empty buffer, so the contents are read here."
+  (let ((buffer nil))
+    (unwind-protect
+        (nitpick-test--with-stubs
+            ((magit-toplevel (lambda (&rest _) "/tmp/wt/"))
+             (magit-git-insert (lambda (&rest args)
+                                 (should (equal args '("cat-file" "-p" ":2:f.txt")))
+                                 (insert "ours\n"))))
+          (setq buffer (nitpick--visit-stage-noselect 2 "f.txt"))
+          (with-current-buffer buffer
+            (should (equal (buffer-string) "ours\n"))
+            (should buffer-read-only)
+            ;; Not visiting the worktree file: saving this must not be possible.
+            (should-not buffer-file-name)
+            (should (equal (buffer-name) "f.txt.~:2~"))))
+      (when (buffer-live-p buffer) (kill-buffer buffer)))))
+
+(ert-deftest nitpick-test-visit-stage-spec-is-recognised ()
+  (should (= (nitpick--visit-stage ":2") 2))
+  (should-not (nitpick--visit-stage "abc123"))
+  (should-not (nitpick--visit-stage "{worktree}"))
+  (should-not (nitpick--visit-stage nil)))
+
+(ert-deftest nitpick-test-visit-exists-p-of-a-stage-asks-the-index ()
+  (nitpick-test--with-stubs
+      ((magit--file-index-stages
+        (lambda (_) '(("100644" "oid1" "1\tf.txt") ("100644" "oid2" "2\tf.txt")))))
+    (should (nitpick--visit-exists-p ":1" "f.txt"))
+    (should (nitpick--visit-exists-p ":2" "f.txt"))
+    ;; A conflict where our side deleted the file has no stage 3.
+    (should-not (nitpick--visit-exists-p ":3" "f.txt"))))
+
+;;;; Visiting: which line
+
+(ert-deftest nitpick-test-visit-line-asks-magit-for-the-sides-own-count ()
+  "Both plain sides are counted for any line, which is what closes the gap."
+  (let ((hunk (nitpick-test--hunk :combined nil))
+        (asked nil))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk))
+         (magit-diff-hunk-line (lambda (_section goto-from)
+                                 (setq asked goto-from)
+                                 (if goto-from 11 22))))
+      (should (= (nitpick--visit-line 'old) 11))
+      (should asked)
+      (should (= (nitpick--visit-line 'new) 22))
+      (should-not asked)
+      (should (= (nitpick--visit-line 'both) 22)))))
+
+(ert-deftest nitpick-test-visit-line-counts-a-combined-parents-own-column ()
+  "Each side is counted in its own numbering: the parents by their column,
+the result by every line no parent is missing."
+  (let ((hunk (nitpick-test--conflict-hunk)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk)))
+      (let ((text nitpick-test--conflict-body))
+        ;; Ours is top/OURS/bottom.
+        (nitpick-test--on-line text 1
+          (should (= (nitpick--visit-line '(parent . 1)) 1)))
+        (nitpick-test--on-line text 3
+          (should (= (nitpick--visit-line '(parent . 1)) 2)))
+        (nitpick-test--on-line text 9
+          (should (= (nitpick--visit-line '(parent . 1)) 3)))
+        ;; Theirs is top/THEIRS/bottom.
+        (nitpick-test--on-line text 7
+          (should (= (nitpick--visit-line '(parent . 2)) 2)))
+        ;; The conflicted file itself holds all nine lines.
+        (nitpick-test--on-line text 3
+          (should (= (nitpick--visit-line 'new) 3)))
+        (nitpick-test--on-line text 7
+          (should (= (nitpick--visit-line 'new) 7)))))))
+
+(ert-deftest nitpick-test-visit-line-of-a-conflicts-base-is-nothing ()
+  "A combined diff draws no base column, so there is no line to map to."
+  (let ((hunk (nitpick-test--conflict-hunk)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk)))
+      (should-not (nitpick--visit-line 'old)))))
+
+(ert-deftest nitpick-test-visit-line-outside-a-hunk-is-nothing ()
+  (nitpick-test--with-stubs
+      ((magit-diff--hunk-section (lambda () nil)))
+    (should-not (nitpick--visit-line 'new))))
+
+;;;; Visiting: the missing side opens the one that exists
+
+(defmacro nitpick-test--visiting (&rest body)
+  "Run BODY with the machinery a visit needs stubbed out, recording the opens.
+`nitpick-test--opened' collects every (REV FILE) that was visited."
+  (declare (indent 0))
+  `(let ((nitpick-test--opened nil)
+         (nitpick-test--said nil))
+     (nitpick-test--with-stubs
+         ((magit-find-file-noselect
+           (lambda (rev file &rest _)
+             (push (list rev file) nitpick-test--opened)
+             (get-buffer-create " *nitpick-test-visited*")))
+          (magit-diff-visit-file--setup (lambda (&rest _) nil))
+          (pop-to-buffer-same-window (lambda (buffer &rest _) buffer))
+          (message (lambda (fmt &rest args)
+                     (setq nitpick-test--said (apply #'format fmt args))))
+          (magit-diff--hunk-section (lambda () nil))
+          (magit-toplevel (lambda (&rest _) "/tmp/wt/")))
+       ,@body)))
+
+(defvar nitpick-test--opened nil)
+(defvar nitpick-test--said nil)
+
+(ert-deftest nitpick-test-visit-opens-the-side-that-was-asked-for ()
+  (nitpick-test--visiting
+    (nitpick-test--with-stubs
+        ((derived-mode-p (lambda (&rest modes) (memq 'magit-diff-mode modes)))
+         (nitpick--visit-exists-p (lambda (&rest _) t)))
+      (nitpick-test--with-sides '("abc123" "a.el") '("{worktree}" "a.el")
+        (nitpick--visit-side 'old)
+        (should (equal (car nitpick-test--opened) '("abc123" "a.el")))
+        (nitpick--visit-side 'new)
+        (should (equal (car nitpick-test--opened) '("{worktree}" "a.el")))
+        (should-not nitpick-test--said)))))
+
+(ert-deftest nitpick-test-visit-of-an-added-file-falls-back-to-the-worktree ()
+  "Nothing in the base to open, so the key opens what there is, and says so."
+  (nitpick-test--visiting
+    (nitpick-test--with-stubs
+        ((derived-mode-p (lambda (&rest modes) (memq 'magit-diff-mode modes)))
+         (nitpick--visit-exists-p
+          (lambda (rev &rest _) (equal rev "{worktree}"))))
+      (nitpick-test--with-sides '("abc123" "new.el") '("{worktree}" "new.el")
+        (nitpick--visit-side 'old)
+        (should (equal (car nitpick-test--opened) '("{worktree}" "new.el")))
+        (should (string-match-p "not in the base" nitpick-test--said))))))
+
+(ert-deftest nitpick-test-visit-of-a-deleted-file-falls-back-to-the-base ()
+  (nitpick-test--visiting
+    (nitpick-test--with-stubs
+        ((derived-mode-p (lambda (&rest modes) (memq 'magit-diff-mode modes)))
+          (nitpick--visit-exists-p
+           (lambda (rev &rest _) (not (equal rev "{worktree}")))))
+      (nitpick-test--with-sides '("abc123" "gone.el") '("{worktree}" "gone.el")
+        (nitpick--visit-side 'new)
+        (should (equal (car nitpick-test--opened) '("abc123" "gone.el")))
+        (should (string-match-p "not in the worktree" nitpick-test--said))))))
+
+(ert-deftest nitpick-test-visit-refuses-when-neither-side-has-a-version ()
+  (nitpick-test--visiting
+    (nitpick-test--with-stubs
+        ((derived-mode-p (lambda (&rest modes) (memq 'magit-diff-mode modes)))
+         (nitpick--visit-exists-p (lambda (&rest _) nil)))
+      (nitpick-test--with-sides '("abc123" "a.el") '("{worktree}" "a.el")
+        (should-error (nitpick--visit-side 'new) :type 'user-error)
+        (should-not nitpick-test--opened)))))
+
+(ert-deftest nitpick-test-visit-refuses-outside-a-diff ()
+  (nitpick-test--with-stubs
+      ((derived-mode-p (lambda (&rest _) nil)))
+    (should-error (nitpick--visit-side 'new) :type 'user-error)))
+
+;;;; Visiting: the two commands
+
+(ert-deftest nitpick-test-visit-follows-the-line-and-its-other-follows-back ()
+  "The keystroke names the side; the line only says which one that is."
+  (let ((visited nil))
+    (nitpick-test--with-stubs
+        ((nitpick--visit-line-side (lambda () 'old))
+         (nitpick--visit-side (lambda (side &rest _) (setq visited side))))
+      (nitpick-visit)
+      (should (eq visited 'old))
+      (nitpick-visit-other)
+      (should (eq visited 'new)))))
+
+(ert-deftest nitpick-test-visit-commands-take-a-prefix-to-the-picker ()
+  (let ((picked 0))
+    (nitpick-test--with-stubs
+        ((nitpick-visit-pick (lambda () (setq picked (1+ picked))))
+         (nitpick--visit-side (lambda (&rest _) (error "should have picked"))))
+      (nitpick-visit t)
+      (nitpick-visit-other t)
+      (should (= picked 2)))))
+
+(ert-deftest nitpick-test-visit-candidates-list-only-what-exists ()
+  "The picker offers versions, not names of versions that are not there."
+  (let ((hunk (nitpick-test--conflict-hunk)))
+    (nitpick-test--with-stubs
+        ((nitpick--oref (nitpick-test--oref-stub))
+         (magit-diff--hunk-section (lambda () hunk))
+         (magit--file-index-stages
+          (lambda (_) '(("100644" "baseoid" "1\tf.txt")
+                        ("100644" "oursoid" "2\tf.txt")
+                        ("100644" "theirsoid" "3\tf.txt"))))
+         (nitpick--visit-exists-p (lambda (rev _file)
+                                    (not (equal rev ":3")))))
+      (nitpick-test--with-sides '("{worktree}" "a.el") '("{worktree}" "a.el")
+        (let ((labels (mapcar #'car (nitpick--visit-candidates))))
+          (should (member "worktree" labels))
+          (should (member "base" labels))
+          (should (member "parent 1 (ours)" labels))
+          ;; stage 3 is missing, so theirs is not offered
+          (should-not (member "parent 2 (theirs)" labels)))))))
+
+(ert-deftest nitpick-test-visit-pick-opens-what-was-named ()
+  (let ((visited nil))
+    (nitpick-test--with-stubs
+        ((nitpick--visit-candidates (lambda () '(("worktree" . new)
+                                                 ("base" . old))))
+         (completing-read (lambda (&rest _) "base"))
+         (nitpick--visit-side (lambda (side &rest _) (setq visited side))))
+      (nitpick-visit-pick)
+      (should (eq visited 'old)))))
+
+;;;; The pane's own half of the rule
+
+(ert-deftest nitpick-test-tree-node-side-is-the-one-the-file-is-in ()
+  (should (eq (nitpick-tree--node-side '(:file "a.el" :status "M")) 'new))
+  (should (eq (nitpick-tree--node-side '(:file "new.el" :status "A")) 'new))
+  (should (eq (nitpick-tree--node-side '(:file "u.el" :status "?")) 'new))
+  ;; A deleted file is in the base and nowhere else.
+  (should (eq (nitpick-tree--node-side '(:file "gone.el" :status "D")) 'old)))
+
+(ert-deftest nitpick-test-tree-node-target-names-the-side ()
+  (with-temp-buffer
+    (setq-local nitpick-tree--revision "origin/master")
+    (should (equal (nitpick-tree--node-target '(:file "a.el") 'new)
+                   '("{worktree}" "a.el")))
+    (should (equal (nitpick-tree--node-target '(:file "a.el") 'old)
+                   '("origin/master" "a.el")))
+    ;; A rename is asked for by the name the side itself used.
+    (should (equal (nitpick-tree--node-target
+                    '(:file "new.el" :from "old.el") 'old)
+                   '("origin/master" "old.el")))))
+
+(ert-deftest nitpick-test-tree-base-line-is-read-off-the-diff ()
+  "The pane already holds the diff, so opening the base runs no second one -
+and it asks the same mapper the diff keys use, from the file's heading."
+  (nitpick-test--with-windows (diff)
+    (let ((nitpick-tree--diff-buffer diff)
+          (asked nil)
+          (where nil))
+      (with-current-buffer diff (insert "diff\n"))
+      (nitpick-test--with-stubs
+          ((nitpick--oref (nitpick-test--oref-stub))
+           (nitpick-tree--find-section
+            (lambda (&rest _) (nitpick-test--section 'file "a.el" 1)))
+           (nitpick--visit-line (lambda (side)
+                                  (setq asked side
+                                        where (current-buffer))
+                                  7)))
+        (with-temp-buffer
+          (setq-local nitpick-tree--root "/tmp/wt")
+          (should (= (nitpick-tree--base-line '(:file "a.el")) 7))
+          (should (eq asked 'old))
+          (should (eq where diff)))))))
+
+(ert-deftest nitpick-test-tree-visit-reads-the-base-line-from-the-pane ()
+  "The revision, the root and the diff are pane locals, so the line has to be
+worked out before another buffer is switched to - which is where it lands."
+  (nitpick-test--with-windows (pane file)
+    (let ((asked-in nil))
+      (set-window-buffer (selected-window) pane)
+      (with-current-buffer file (insert "one\ntwo\nthree\nfour\n"))
+      (with-current-buffer pane
+        (setq-local nitpick-tree--root "/tmp/wt"
+                    nitpick-tree--revision "master")
+        (nitpick-test--with-stubs
+            ((nitpick-tree--base-line (lambda (&rest _)
+                                        (setq asked-in (current-buffer))
+                                        3))
+             (nitpick--visit-exists-p (lambda (&rest _) t))
+             (nitpick--base-revision (lambda (rev) rev))
+             (magit-find-file-noselect (lambda (&rest _) file)))
+          (nitpick-tree--visit-node '(:file "a.el" :status "D") 'old)
+          (should (eq asked-in pane))
+          (with-current-buffer file
+            (should (= (line-number-at-pos) 3))))))))
+
+(ert-deftest nitpick-test-tree-visit-opens-the-nodes-own-side ()
+  (let ((visited nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:file "a.el" :status "M")))
+         (nitpick-tree--visit-node (lambda (_node side) (setq visited side))))
+      (nitpick-tree-visit)
+      (should (eq visited 'new))
+      (nitpick-tree-visit-other)
+      (should (eq visited 'old)))))
+
+(ert-deftest nitpick-test-tree-visit-of-a-deleted-node-opens-the-base ()
+  (let ((visited nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:file "gone.el" :status "D")))
+         (nitpick-tree--visit-node (lambda (_node side) (setq visited side))))
+      (nitpick-tree-visit)
+      (should (eq visited 'old))
+      (nitpick-tree-visit-other)
+      (should (eq visited 'new)))))
+
+(ert-deftest nitpick-test-tree-visit-still-folds-a-directory ()
+  "A directory has no version to open, so the key keeps its treemacs meaning."
+  (let ((folded nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:dir t :name "src")))
+         (treemacs-node-at-point (lambda () (point)))
+         (treemacs-expand-extension-node (lambda (&rest _) (setq folded 'open)))
+         (nitpick-tree--visit-node (lambda (&rest _) (error "nothing to open"))))
+      (with-temp-buffer
+        (insert "src")
+        (nitpick-tree-visit)
+        (should (eq folded 'open))))))
+
+(ert-deftest nitpick-test-tree-visit-other-ignores-a-directory ()
+  (nitpick-test--with-stubs
+      ((nitpick-tree--node-at-point (lambda () '(:dir t :name "src")))
+       (nitpick-tree--visit-node (lambda (&rest _) (error "nothing to open"))))
+    (should-not (nitpick-tree-visit-other))))
+
+(ert-deftest nitpick-test-tree-pane-binds-the-two-visit-keys ()
+  (should (eq (lookup-key nitpick-tree-mode-map "o") #'nitpick-tree-visit))
+  (should (eq (lookup-key nitpick-tree-mode-map "O")
+              #'nitpick-tree-visit-other)))
+
+(ert-deftest nitpick-test-tree-untracked-preview-opens-the-file-either-way ()
+  "git holds no other version of it, so both keys can only mean the file."
+  (should (eq (lookup-key nitpick-tree-untracked-mode-map (kbd "RET"))
+              #'nitpick-tree-untracked-visit))
+  (should (eq (lookup-key nitpick-tree-untracked-mode-map (kbd "S-<return>"))
+              #'nitpick-tree-untracked-visit))
+  (unwind-protect
+      (let ((opened nil))
+        (nitpick-test--with-stubs
+            ((nitpick-tree--git-output (lambda (&rest _) "+added\n"))
+             (find-file-noselect (lambda (f &rest _)
+                                   (setq opened f)
+                                   (current-buffer)))
+             (pop-to-buffer-same-window (lambda (buffer &rest _) buffer)))
+          (with-current-buffer (nitpick-tree--untracked-diff "new.el" "/tmp/wt")
+            (nitpick-tree-untracked-visit)
+            (should (equal opened "/tmp/wt/new.el")))))
+    (let ((buffer (get-buffer nitpick-tree-untracked-buffer-name)))
+      (when buffer (kill-buffer buffer)))))
 
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here
