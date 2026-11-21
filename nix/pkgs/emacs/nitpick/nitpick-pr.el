@@ -295,14 +295,25 @@ The last line of it: the path is the last thing printed, and only on stdout."
   (let ((path (car (last (split-string text "\n" t)))))
     (and path (file-directory-p path) path)))
 
+(defun nitpick-pr--complaint ()
+  "Return the last thing `git pr\=' said on stderr, or nil.
+Which is why it failed - that there is no clone of the repository the URL
+names, most of the time, and not something to go looking in a buffer for."
+  (let ((buffer (get-buffer nitpick-pr--stderr-buffer)))
+    (and buffer
+         (with-current-buffer buffer
+           (car (last (split-string (buffer-string) "\n" t)))))))
+
 (defun nitpick-pr--check-out-done (label code text callback)
   "Act on what `git pr\=' said about LABEL: its exit CODE and its stdout TEXT.
 CALLBACK is handed the worktree, and only ever a real one."
   (let ((path (nitpick-pr--worktree text)))
     (cond
      ((/= code 0)
-      (message "nitpick-pr: git pr failed for %s - see %s"
-               label nitpick-pr--stderr-buffer)
+      (message "nitpick-pr: %s"
+               (or (nitpick-pr--complaint)
+                   (format "git pr failed for %s - see %s"
+                           label nitpick-pr--stderr-buffer)))
       nil)
      ((null path)
       (message "nitpick-pr: git pr printed no worktree for %s" label)
@@ -331,6 +342,10 @@ Emacs to wait on the network."
      :sentinel
      (lambda (process _event)
        (when (memq (process-status process) '(exit signal))
+         ;; The stderr pipe is a process of its own, and what it holds can
+         ;; still be in flight when this one exits.
+         (let ((pipe (get-buffer-process errors)))
+           (when pipe (accept-process-output pipe 0.2)))
          (let ((code (process-exit-status process))
                (text (with-current-buffer out (buffer-string))))
            (kill-buffer out)

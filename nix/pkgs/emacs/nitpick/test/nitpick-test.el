@@ -55,6 +55,17 @@ magit or forge does not leave definitions behind."
       (with-current-buffer destination (insert json)))
     exit))
 
+(defun nitpick-test--messaged (thunk)
+  "Return what THUNK reported through `message\=', as one string."
+  (let ((inhibit-message t))
+    (with-temp-buffer
+      (let ((standard-output (current-buffer))
+            (message-log-max nil))
+        (cl-letf (((symbol-function 'message)
+                   (lambda (fmt &rest args) (insert (apply #'format fmt args)))))
+          (funcall thunk)))
+      (buffer-string))))
+
 (defun nitpick-test--recorder (result)
   "Return a `nitpick--graphql' stub that records into a cons and returns RESULT."
   (let ((cell (cons nil nil)))
@@ -3029,6 +3040,46 @@ sections built by `nitpick-test--section' carry."
   (let ((landed nil))
     (nitpick-pr--check-out-done "o/r#7" 1 "" (lambda (root) (setq landed root)))
     (should-not landed)))
+
+(ert-deftest nitpick-test-pr-check-out-failure-says-why ()
+  "`git pr' names the reason - no clone of the repo - on its own stderr."
+  (nitpick-test--with-stubs
+      ((nitpick-pr--complaint (lambda () "git pr: no clone of github.com/o/r")))
+    (should (equal (nitpick-test--messaged
+                    (lambda ()
+                      (nitpick-pr--check-out-done "o/r#7" 1 "" #'ignore)))
+                   "nitpick-pr: git pr: no clone of github.com/o/r"))))
+
+(ert-deftest nitpick-test-pr-check-out-failure-without-a-reason ()
+  "Nothing on stderr leaves the buffer as the only place left to look."
+  (nitpick-test--with-stubs
+      ((nitpick-pr--complaint (lambda () nil)))
+    (should (string-match-p "git pr failed for o/r#7"
+                            (nitpick-test--messaged
+                             (lambda ()
+                               (nitpick-pr--check-out-done "o/r#7" 1 "" #'ignore)))))))
+
+(ert-deftest nitpick-test-pr-complaint-is-the-last-line-of-stderr ()
+  "Progress comes first; the reason it stopped is what it said last."
+  (let ((buffer (get-buffer-create nitpick-pr--stderr-buffer)))
+    (unwind-protect
+        (progn
+          (with-current-buffer buffer
+            (erase-buffer)
+            (insert "git pr: fetching refs/pull/7/head\n"
+                    "git pr: no clone of github.com/o/r under /home/x/workspace\n"))
+          (should (equal (nitpick-pr--complaint)
+                         "git pr: no clone of github.com/o/r under /home/x/workspace")))
+      (kill-buffer buffer))))
+
+(ert-deftest nitpick-test-pr-complaint-of-an-empty-buffer-is-nothing ()
+  "A failure that said nothing must not be reported as an empty line."
+  (let ((buffer (get-buffer-create nitpick-pr--stderr-buffer)))
+    (unwind-protect
+        (progn
+          (with-current-buffer buffer (erase-buffer))
+          (should-not (nitpick-pr--complaint)))
+      (kill-buffer buffer))))
 
 (ert-deftest nitpick-test-pr-check-out-passes-the-ref-to-git-pr ()
   "A URL names its own repository; a number is one of the repository at hand."

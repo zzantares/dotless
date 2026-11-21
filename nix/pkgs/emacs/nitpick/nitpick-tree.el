@@ -1257,7 +1257,12 @@ committing from is not a redraw of the pane."
                              nil nil #'string-equal)))
     (nitpick-diff-hl-set-base root revision))
   (let* ((fresh (not (nitpick-tree--window)))
-         (diff (or fresh (nitpick-tree--diff-on-screen-p)))
+         (diff (or fresh
+                   (nitpick-tree--diff-on-screen-p)
+                   ;; A pane whose diff was dropped has none to put back: the
+                   ;; hand-off from a patch, where what is on screen is the
+                   ;; patch's diff and the pane is now the checkout's.
+                   (not (buffer-live-p nitpick-tree--diff-buffer))))
          (washed (and patch (nitpick-tree--patch-diff patch)))
          (files (if patch
                     (nitpick-tree--diff-changes washed)
