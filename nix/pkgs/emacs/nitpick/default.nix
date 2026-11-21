@@ -2,6 +2,7 @@
   lib,
   trivialBuild,
   gh,
+  git-pr,
 }:
 
 # Byte-compiled without magit/forge/diff-hl in scope: those are provided by the
@@ -22,6 +23,9 @@ trivialBuild {
     substituteInPlace nitpick.el \
       --replace-fail '(defcustom nitpick-gh-executable "gh"' \
                      '(defcustom nitpick-gh-executable "${lib.getExe' gh "gh"}"'
+    substituteInPlace nitpick-pr.el \
+      --replace-fail '(defcustom nitpick-pr-git-pr-executable "git-pr"' \
+                     '(defcustom nitpick-pr-git-pr-executable "${lib.getExe' git-pr "git-pr"}"'
   '';
 
   # trivialBuild byte-compiles and installs the top-level *.el only, so the

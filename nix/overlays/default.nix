@@ -98,7 +98,10 @@ in
       efinal: eprev: {
         # `gh' is passed from the top-level set: the emacs scope has its own
         # `gh' (an elisp library), which is not the GitHub CLI we shell out to.
-        nitpick = efinal.callPackage ./../pkgs/emacs/nitpick { inherit (final) gh; };
+        nitpick = efinal.callPackage ./../pkgs/emacs/nitpick {
+          inherit (final) gh;
+          inherit (final.pr-tools) git-pr;
+        };
 
         # MELPA fetches kiwix.el from repo.or.cz, which geoblocks the UK since
         # 2025-07-25 and answers git with an HTML notice. Same commit, from the

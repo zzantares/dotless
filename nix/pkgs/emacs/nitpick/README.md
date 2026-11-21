@@ -21,6 +21,7 @@ today; the public names are backend-neutral (see dotless #99).
 | `nitpick-diff-hl-set-base` | Diff the project against a revision you pick, instead of its checkout |
 | `nitpick-diff-hl-line-mode` | Paint the changed lines, not only the fringe |
 | `nitpick-tree` | Toggle the review: the pane of changed files, and the diff beside it |
+| `nitpick-pr` | Read a pull request in that pane without checking it out |
 | `nitpick-tree-visit-diff` | Reveal the line at point in the diff (`d` in the pane) |
 | `nitpick-tree-toggle-follow` | Stop or resume the diff following the point (`f` in the pane) |
 | `nitpick-tree-toggle-narrow` | Narrow the diff to the line at point, or widen it (`N` in the pane) |
@@ -319,6 +320,52 @@ Everything that declaration calls is an ordinary byte-compiled function.
 One pane, re-rendered per project, the way treemacs shows one tree. It sits in
 slot 1 of treemacs' own side, so it sits alongside a treemacs tree rather than
 replacing it.
+
+## Reading a PR without checking it out
+
+`nitpick-pr` takes a pull request - its URL, `owner/repo#number`, or a bare
+number for the repo at hand - and opens the forge's own diff of it in the pane.
+One `gh pr diff`, nothing cloned, nothing fetched, no worktree. It is what
+`gh pr diff <url> | diffnav` is for, with Emacs' lack of a stdin answered by
+naming the PR instead of piping it.
+
+The patch becomes magit sections rather than text: `magit-diff-wash-diffs` only
+ever reads the buffer in front of it, so inserting the patch and washing it in
+place produces exactly the sections `git diff` would have, and the pane narrows
+to them as usual. Two details make that work:
+
+- magit passes `--no-prefix` to every diff it runs, while a forge serves `a/`
+  and `b/`. Left in, every file reads as a rename of itself, so the prefixes are
+  stripped from the headers first - headers only, since a patch of a patch has
+  lines inside its hunks that look like headers.
+- A patch buffer refreshes by re-washing the patch, not by running `git diff`,
+  which it has no repository for. That is a major mode of its own
+  (`nitpick-pr-patch-mode`), because `magit-refresh-buffer` derives the refresh
+  function from the mode's name.
+
+The pane's file list is read back out of those sections - status from the kept
+header, the rename source from the section, the counts by walking the hunks -
+rather than from a second parse of the patch, so the pane and the diff cannot
+disagree. The counts match `git apply --numstat` file for file.
+
+What a patch has no answer for is the files. `o` in the pane and `RET` on a
+hunk are the questions that need them, so they are what checks the PR out:
+`git pr`, which finds the clone the URL names, fetches `refs/pull/N/head` and
+leaves it in a sibling worktree - run with its stdout captured, which is what
+keeps it a path emitter instead of also building a multiplexer session and an
+editor workspace. It fetches, so it runs asynchronously.
+
+The pane is then re-read from git in that worktree and lands on the file that
+asked for it. Not handed the patch: `gh pr diff` is a three-dot diff and the
+pane resolves its own base, so re-reading is what keeps the line numbers and
+the sections consistent. From there the review is the full one - real files on
+both sides, diff-hl painting them, `nitpick-comment` able to anchor a thread.
+Until then `nitpick-comment` says so rather than failing at the forge.
+
+So reading a PR costs one HTTP request, and only a review that opens a file
+pays for a worktree. `pr-diff` and `pr-review`, the gh-dash keys, check out
+first because diffnav and octo both resolve files against the checkout they
+were started from.
 
 ## Whole-line highlighting
 

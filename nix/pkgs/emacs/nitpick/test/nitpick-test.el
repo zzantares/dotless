@@ -12,6 +12,7 @@
 (require 'cl-lib)
 (require 'nitpick)
 (require 'nitpick-tree)
+(require 'nitpick-pr)
 
 ;;;; Stub helper
 
@@ -1509,7 +1510,7 @@ run before diff-hl has defined them."
         ((nitpick-tree-close (lambda () (setq closed t)))
          (nitpick-tree--open (lambda (&rest args) (setq opened args))))
       (nitpick-tree "/tmp/wt" "master...")
-      (should (equal opened '("/tmp/wt" "master...")))
+      (should (equal opened '("/tmp/wt" "master..." nil)))
       (should-not closed))))
 
 (ert-deftest nitpick-test-tree-pane-binds-q-to-its-own-close ()
@@ -2689,6 +2690,357 @@ worked out before another buffer is switched to - which is where it lands."
             (should (equal opened "/tmp/wt/new.el")))))
     (let ((buffer (get-buffer nitpick-tree-untracked-buffer-name)))
       (when buffer (kill-buffer buffer)))))
+
+;;;; Reading the diff out of a patch
+
+(defun nitpick-test--washed (value &rest props)
+  "Return a stand-in for a washed file section holding VALUE and PROPS.
+The slots `nitpick-tree--diff-changes' reads, which are not the ones the
+sections built by `nitpick-test--section' carry."
+  (append (list :type 'file :value value) props))
+
+(defmacro nitpick-test--with-sections (sections &rest body)
+  "Run BODY with SECTIONS standing in for the washed diff's file sections."
+  (declare (indent 1))
+  `(nitpick-test--with-stubs
+       ((nitpick--oref (nitpick-test--oref-stub))
+        (nitpick-tree--file-sections (lambda (_buffer) ,sections)))
+     ,@body))
+
+(ert-deftest nitpick-test-patch-status-reads-the-header ()
+  "`new file' and `deleted file' are what the header says instead of a letter."
+  (should (equal (nitpick-tree--patch-status "diff --git a a\nnew file mode 100644\n" nil)
+                 "A"))
+  (should (equal (nitpick-tree--patch-status
+                  "diff --git a a\ndeleted file mode 100644\n" nil)
+                 "D")))
+
+(ert-deftest nitpick-test-patch-status-of-a-rename-is-its-source ()
+  "magit keeps the old name in the section rather than in the header."
+  (should (equal (nitpick-tree--patch-status "diff --git old new\n" "old.el") "R")))
+
+(ert-deftest nitpick-test-patch-status-of-everything-else-is-modified ()
+  "Which is what git's own `--name-status' answers for a mode change too."
+  (should (equal (nitpick-tree--patch-status "diff --git a a\nindex 1..2\n" nil) "M")))
+
+(ert-deftest nitpick-test-patch-counts-the-changed-lines ()
+  "The `+' and `-' lines of the section, and nothing else in it."
+  (with-temp-buffer
+    (insert "modified   a.el\n"
+            "@@ -1,3 +1,4 @@\n"
+            " context\n"
+            "-gone\n"
+            "+new\n"
+            "+more\n")
+    (should (equal (nitpick-tree--count-changed (point-min) (point-max))
+                   '(2 . 1)))))
+
+(ert-deftest nitpick-test-patch-counts-nothing-in-an-empty-range ()
+  "A binary file has no hunks at all."
+  (with-temp-buffer
+    (insert "modified   logo.png\n")
+    (should (equal (nitpick-tree--count-changed (point-min) (point-max))
+                   '(0 . 0)))))
+
+(ert-deftest nitpick-test-patch-changes-read-the-diff-back ()
+  "The pane's file list, taken out of the sections rather than out of git."
+  (with-temp-buffer
+    (insert "modified   a.el\n@@ -1 +1 @@\n-old\n+new\n")
+    (nitpick-test--with-sections
+        (list (nitpick-test--washed
+               "a.el" :source nil :binary nil :header "diff --git a.el a.el\n"
+               :start (point-min) :end (point-max)))
+      (should (equal (nitpick-tree--diff-changes (current-buffer))
+                     '((:file "a.el" :status "M" :from nil
+                        :added 1 :deleted 1 :binary nil)))))))
+
+(ert-deftest nitpick-test-patch-changes-keep-a-renames-source ()
+  "The pane lists the new name and says where it came from."
+  (with-temp-buffer
+    (nitpick-test--with-sections
+        (list (nitpick-test--washed
+               "new.el" :source "old.el" :binary nil :header "diff --git x y\n"
+               :start (point-min) :end (point-max)))
+      (let ((change (car (nitpick-tree--diff-changes (current-buffer)))))
+        (should (equal (plist-get change :status) "R"))
+        (should (equal (plist-get change :from) "old.el"))))))
+
+(ert-deftest nitpick-test-patch-changes-count-no-binary ()
+  "Counted by neither side, the way git's own numstat leaves it."
+  (with-temp-buffer
+    (nitpick-test--with-sections
+        (list (nitpick-test--washed
+               "logo.png" :source nil :binary t :header "diff --git x x\n"
+               :start (point-min) :end (point-max)))
+      (let ((change (car (nitpick-tree--diff-changes (current-buffer)))))
+        (should (plist-get change :binary))
+        (should-not (plist-get change :added))
+        (should-not (plist-get change :deleted))))))
+
+(ert-deftest nitpick-test-patch-header-names-the-patch ()
+  "And does not say `vs': what the forge diffed it against is not here."
+  (let ((header (substring-no-properties
+                 (nitpick-tree--header nil '(2 3 1) '(:label "o/r#7")))))
+    (should (string-prefix-p " o/r#7" header))
+    (should-not (string-match-p " vs " header))
+    (should (string-match-p "2 files" header))))
+
+(ert-deftest nitpick-test-patch-open-file-checks-out-first ()
+  "A patch has no files: `o' is what asks for them."
+  (let ((asked nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--check-out (lambda (node) (setq asked node)))
+         (nitpick-tree--visit-node (lambda (&rest _) (error "Visited a patch"))))
+      (let ((nitpick-tree--patch '(:label "o/r#7")))
+        (nitpick-tree--open-file '(:file "a.el") 'new)
+        (should (equal asked '(:file "a.el")))))))
+
+(ert-deftest nitpick-test-patch-open-file-visits-a-checkout ()
+  "With git as the source there is nothing to check out."
+  (let ((visited nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--visit-node (lambda (node side) (setq visited (list node side)))))
+      (let ((nitpick-tree--patch nil))
+        (nitpick-tree--open-file '(:file "a.el") 'old)
+        (should (equal visited '((:file "a.el") old)))))))
+
+(ert-deftest nitpick-test-patch-visit-pick-checks-out-too ()
+  "Both sides arrive with the checkout, so there is nothing to pick from."
+  (let ((asked nil))
+    (nitpick-test--with-stubs
+        ((nitpick-tree--node-at-point (lambda () '(:file "a.el")))
+         (nitpick-tree--check-out (lambda (node) (setq asked node)))
+         (completing-read (lambda (&rest _) (error "Asked which side"))))
+      (let ((nitpick-tree--patch '(:label "o/r#7")))
+        (nitpick-tree-visit-pick)
+        (should (equal asked '(:file "a.el")))))))
+
+(ert-deftest nitpick-test-patch-check-out-runs-what-the-patch-carries ()
+  "The patch owns how it is materialised; the pane only asks."
+  (let ((callback nil))
+    (let ((nitpick-tree--patch
+           (list :check-out (lambda (cb) (setq callback cb)))))
+      (nitpick-tree--check-out '(:file "dir/a.el"))
+      (should (functionp callback))
+      (nitpick-test--with-stubs
+          ((nitpick-tree--adopt (lambda (root file) (list root file))))
+        (should (equal (funcall callback "/tmp/wt") '("/tmp/wt" "dir/a.el")))))))
+
+(ert-deftest nitpick-test-patch-check-out-needs-a-file ()
+  "A directory, or the space between nodes, is not something to check out for."
+  (let ((nitpick-tree--patch (list :check-out #'ignore)))
+    (should-error (nitpick-tree--check-out nil) :type 'user-error)))
+
+(ert-deftest nitpick-test-patch-goto-file-finds-the-pane-line ()
+  "The pane is drawn expanded, so the line for a file is there to be found."
+  (nitpick-test--with-stubs
+      ((treemacs-node-at-point (lambda () (point))))
+    (with-temp-buffer
+      (insert (propertize "a.el\n" :nitpick-node '(:file "a.el")))
+      (insert (propertize "b.el\n" :nitpick-node '(:file "dir/b.el")))
+      (should (nitpick-tree--goto-file "dir/b.el"))
+      (should (equal (line-number-at-pos) 2))
+      (should-not (nitpick-tree--goto-file "nowhere.el")))))
+
+(ert-deftest nitpick-test-tree-goto-node-skips-the-line-above-the-first ()
+  "treemacs owns the top line, and the diff cannot follow a point with no node."
+  (nitpick-test--with-stubs
+      ((treemacs-node-at-point (lambda () (point))))
+    (with-temp-buffer
+      (insert "\n" (propertize "a.el\n" :nitpick-node '(:file "a.el")))
+      (goto-char (point-min))
+      (nitpick-tree--goto-node)
+      (should (equal (line-number-at-pos) 2)))))
+
+(ert-deftest nitpick-test-tree-goto-node-stays-where-a-node-is ()
+  "A refresh puts the point back on the line being read; it must stay there."
+  (nitpick-test--with-stubs
+      ((treemacs-node-at-point (lambda () (point))))
+    (with-temp-buffer
+      (insert (propertize "a.el\n" :nitpick-node '(:file "a.el"))
+              (propertize "b.el\n" :nitpick-node '(:file "b.el")))
+      (goto-char (point-min))
+      (forward-line 1)
+      (nitpick-tree--goto-node)
+      (should (equal (line-number-at-pos) 2)))))
+
+(ert-deftest nitpick-test-patch-adopt-re-reads-from-git ()
+  "The worktree is a checkout like any other, so the pane it gets is git's."
+  (let ((opened nil)
+        (visited nil))
+    (nitpick-test--with-stubs
+        ((nitpick-diff-hl--suggested-base (lambda (_root) "origin/master"))
+         (nitpick-tree--open (lambda (&rest args) (setq opened args)))
+         (nitpick-tree--goto-file (lambda (_file) t))
+         (nitpick-tree-visit (lambda (&rest _) (setq visited t))))
+      (let ((pane (get-buffer-create nitpick-tree-buffer-name))
+            (nitpick-tree--diff-buffer (current-buffer)))
+        (unwind-protect
+            (progn
+              (nitpick-tree--adopt "/tmp/wt" "a.el")
+              (should (equal opened '("/tmp/wt" "origin/master")))
+              (should visited)
+              ;; The patch's diff is not the checkout's: the next reveal
+              ;; reads one.
+              (should-not nitpick-tree--diff-buffer))
+          (kill-buffer pane))))))
+
+;;;; Naming a pull request
+
+(ert-deftest nitpick-test-pr-parses-a-github-url ()
+  "Handed to both tools as it stands: it names its own repository."
+  (nitpick-test--with-stubs ((magit-toplevel (lambda (&rest _) "/tmp/wt/")))
+    (let ((pr (nitpick-pr--parse "https://github.com/o/r/pull/42")))
+      (should (equal (plist-get pr :label) "o/r#42"))
+      (should (equal (plist-get pr :args) '("https://github.com/o/r/pull/42")))
+      (should (equal (plist-get pr :ref) "https://github.com/o/r/pull/42")))))
+
+(ert-deftest nitpick-test-pr-parses-a-forgejo-url ()
+  "Forgejo, Gitea and Codeberg spell the path `pulls'."
+  (nitpick-test--with-stubs ((magit-toplevel (lambda (&rest _) "/tmp/wt/")))
+    (should (equal (plist-get (nitpick-pr--parse "https://codeberg.org/o/r/pulls/7")
+                              :label)
+                   "o/r#7"))))
+
+(ert-deftest nitpick-test-pr-parses-the-gh-dash-spelling ()
+  "owner/repo#number, which is what the review keys are given."
+  (nitpick-test--with-stubs ((magit-toplevel (lambda (&rest _) "/tmp/wt/")))
+    (let ((pr (nitpick-pr--parse "dlvhdr/gh-dash#447")))
+      (should (equal (plist-get pr :args) '("--repo" "dlvhdr/gh-dash" "447")))
+      (should (equal (plist-get pr :ref)
+                     "https://github.com/dlvhdr/gh-dash/pull/447")))))
+
+(ert-deftest nitpick-test-pr-parses-a-bare-number-against-the-repo-at-hand ()
+  "The only spelling that needs one, so it is the only one that asks."
+  (nitpick-test--with-stubs
+      ((magit-toplevel (lambda (&rest _) "/tmp/wt/")))
+    (let ((pr (nitpick-pr--parse "#42")))
+      (should (equal (plist-get pr :label) "#42"))
+      (should (equal (plist-get pr :args) '("42")))
+      (should (equal (plist-get pr :ref) "42"))
+      (should (equal (plist-get pr :dir) "/tmp/wt/")))))
+
+(ert-deftest nitpick-test-pr-bare-number-needs-a-repository ()
+  "Nothing resolves `#42' on its own."
+  (nitpick-test--with-stubs
+      ((magit-toplevel (lambda (&rest _) nil)))
+    (should-error (nitpick-pr--parse "42") :type 'user-error)))
+
+(ert-deftest nitpick-test-pr-refuses-what-is-not-a-pull-request ()
+  "A branch name is not one, and must not be read as a number either."
+  (should-error (nitpick-pr--parse "origin/master") :type 'user-error))
+
+(ert-deftest nitpick-test-pr-patch-file-is-named-after-the-label ()
+  "One file per pull request, and nothing in the name that needs quoting."
+  (let ((nitpick-pr-directory "/tmp/nitpick-test"))
+    (should (equal (file-name-nondirectory
+                    (nitpick-pr--patch-file '(:label "o/r#42")))
+                   "o-r-42.diff"))))
+
+;;;; The patch as magit's own sections
+
+(defun nitpick-test--stripped (patch)
+  "Return PATCH with the a/ and b/ prefixes taken out of its headers."
+  (with-temp-buffer
+    (insert patch)
+    (nitpick-pr--strip-prefixes)
+    (buffer-string)))
+
+(ert-deftest nitpick-test-pr-strips-the-path-prefixes ()
+  "magit's washer reads what `--no-prefix' writes; a forge serves prefixes."
+  (should (equal (nitpick-test--stripped
+                  "diff --git a/src/a.el b/src/a.el\nindex 1..2 100644\n--- a/src/a.el\n+++ b/src/a.el\n@@ -1 +1 @@\n-old\n+new\n")
+                 "diff --git src/a.el src/a.el\nindex 1..2 100644\n--- src/a.el\n+++ src/a.el\n@@ -1 +1 @@\n-old\n+new\n")))
+
+(ert-deftest nitpick-test-pr-strips-a-path-with-a-space-in-it ()
+  "git quotes the unusual characters but not a space, so the names are equal."
+  (should (equal (nitpick-test--stripped "diff --git a/with space.el b/with space.el\n")
+                 "diff --git with space.el with space.el\n")))
+
+(ert-deftest nitpick-test-pr-keeps-dev-null ()
+  "The side an added or deleted file does not have is not a path."
+  (should (equal (nitpick-test--stripped
+                  "diff --git a/new.el b/new.el\nnew file mode 100644\n--- /dev/null\n+++ b/new.el\n")
+                 "diff --git new.el new.el\nnew file mode 100644\n--- /dev/null\n+++ new.el\n")))
+
+(ert-deftest nitpick-test-pr-keeps-both-names-of-a-rename ()
+  "The two names differ, so only the ones git writes unprefixed stand."
+  (should (equal (nitpick-test--stripped
+                  "diff --git a/old.el b/new.el\nrename from old.el\nrename to new.el\n--- a/old.el\n+++ b/new.el\n")
+                 "diff --git a/old.el b/new.el\nrename from old.el\nrename to new.el\n--- old.el\n+++ new.el\n")))
+
+(ert-deftest nitpick-test-pr-strips-a-binary-header ()
+  "A binary file has no `---' lines, so this header is the only name magit gets."
+  (should (equal (nitpick-test--stripped
+                  "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n")
+                 "diff --git logo.png logo.png\nindex 1..2 100644\nBinary files logo.png and logo.png differ\n")))
+
+(ert-deftest nitpick-test-pr-leaves-a-patch-of-a-patch-alone ()
+  "Inside a hunk, a line that looks like a header is content."
+  (let ((patch (concat "diff --git a/p.diff b/p.diff\n"
+                       "--- a/p.diff\n"
+                       "+++ b/p.diff\n"
+                       "@@ -1,2 +1,2 @@\n"
+                       "-diff --git a/x b/x\n"
+                       "+--- a/y\n")))
+    (should (equal (nitpick-test--stripped patch)
+                   (concat "diff --git p.diff p.diff\n"
+                           "--- p.diff\n"
+                           "+++ p.diff\n"
+                           "@@ -1,2 +1,2 @@\n"
+                           "-diff --git a/x b/x\n"
+                           "+--- a/y\n")))))
+
+(ert-deftest nitpick-test-pr-patch-buffer-remaps-the-visit-keys ()
+  "RET on a hunk is bound in magit's section maps, which outrank a mode map."
+  (should (eq (lookup-key nitpick-pr-patch-mode-map [remap nitpick-visit])
+              #'nitpick-pr-visit))
+  (should (eq (lookup-key nitpick-pr-patch-mode-map [remap nitpick-visit-other])
+              #'nitpick-pr-visit))
+  (should (eq (lookup-key nitpick-pr-patch-mode-map [remap nitpick-comment])
+              #'nitpick-pr-comment)))
+
+;;;; Checking a pull request out
+
+(ert-deftest nitpick-test-pr-reads-the-worktree-off-the-last-line ()
+  "`git pr' prints the path last, and only on stdout."
+  (nitpick-test--with-stubs
+      ((file-directory-p (lambda (_path) t)))
+    (should (equal (nitpick-pr--worktree "reusing session\n/tmp/wt/PROJ-1-feat\n")
+                   "/tmp/wt/PROJ-1-feat"))))
+
+(ert-deftest nitpick-test-pr-worktree-must-be-a-directory ()
+  "Anything else printed is progress, not a path."
+  (nitpick-test--with-stubs
+      ((file-directory-p (lambda (_path) nil)))
+    (should-not (nitpick-pr--worktree "git pr: reusing session\n"))))
+
+(ert-deftest nitpick-test-pr-check-out-calls-back-with-the-worktree ()
+  "Which is what the pane re-reads itself from."
+  (nitpick-test--with-stubs
+      ((file-directory-p (lambda (_path) t)))
+    (let ((landed nil))
+      (nitpick-pr--check-out-done "o/r#7" 0 "/tmp/wt\n"
+                                  (lambda (root) (setq landed root)))
+      (should (equal landed "/tmp/wt")))))
+
+(ert-deftest nitpick-test-pr-check-out-failure-opens-nothing ()
+  "A fetch that failed must not send the pane at a worktree that is not there."
+  (let ((landed nil))
+    (nitpick-pr--check-out-done "o/r#7" 1 "" (lambda (root) (setq landed root)))
+    (should-not landed)))
+
+(ert-deftest nitpick-test-pr-check-out-passes-the-ref-to-git-pr ()
+  "A URL names its own repository; a number is one of the repository at hand."
+  (let ((command nil))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--git-pr (lambda () "/bin/git-pr"))
+         (make-process (lambda (&rest args) (setq command (plist-get args :command)))))
+      (nitpick-pr--check-out '(:label "o/r#7" :ref "https://github.com/o/r/pull/7"
+                               :dir "/tmp")
+                             #'ignore)
+      (should (equal command '("/bin/git-pr" "https://github.com/o/r/pull/7"))))))
+
 
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

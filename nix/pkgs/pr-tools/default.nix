@@ -87,6 +87,12 @@ symlinkJoin {
     ])
   ];
 
+  # The individual front ends, so a consumer that shells out to one of them can
+  # pin it without pulling the others' runtime inputs into its closure.
+  passthru = {
+    inherit git-main-branch git-pr git-wt;
+  };
+
   meta = {
     description = "Start, check out, read and review branches and pull requests in sibling worktrees";
     platforms = lib.platforms.unix;

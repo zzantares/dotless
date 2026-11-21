@@ -30,6 +30,12 @@
 ;; and runs delta over it again.  Widened, the same buffer reads continuously:
 ;; the file before and the file after are a scroll away.
 ;;
+;; The pane can also be driven by a patch rather than by a revision, which is
+;; what `nitpick-pr' opens a pull request with: same sections, same keys, no
+;; checkout.  A patch has no files, so the first `o' hands over - the patch
+;; carries what to run to materialise one - and the pane is re-read from git
+;; there.
+;;
 ;; treemacs is required at run time only.  Its node-type definitions are macros,
 ;; so they are evaluated once treemacs loads rather than compiled in here, the
 ;; same way nitpick waits for diff-hl before advising it.  Everything the
@@ -68,7 +74,8 @@
 
 ;; Defined by `nitpick-tree--definitions', which treemacs' macros can only
 ;; expand once treemacs itself is loaded.
-(declare-function nitpick-tree--render "nitpick-tree" (root revision items stats))
+(declare-function nitpick-tree--render "nitpick-tree"
+                  (root revision items stats &optional patch))
 
 ;;;; Options
 
@@ -194,6 +201,12 @@ Given back by `nitpick-tree-close'.")
 (defvar-local nitpick-tree--items nil
   "The pane's top-level nodes, as built by `nitpick-tree--build'.")
 
+(defvar-local nitpick-tree--patch nil
+  "The patch the pane was rendered from, or nil when git is its source.
+A plist: `:label' for the header line, `:root' the absolute prefix its paths
+are keyed by, `:diff' a function returning the washed diff buffer, and
+`:check-out' one that materialises a worktree and calls back with its path.")
+
 (defvar-local nitpick-tree--followed nil
   "Key of the node the diff was last scrolled to.
 So that the several commands a keystroke runs reveal it once, and so that a
@@ -293,6 +306,56 @@ included, so the pane and diff-hl always agree on what is being compared."
             (and nitpick-tree-show-untracked
                  (mapcar (lambda (path) (list :file path :status "?"))
                          (nitpick-tree--untracked))))))
+
+;;;; Reading the diff out of a patch
+
+(defun nitpick-tree--patch-status (header source)
+  "Return git's status letter for a file section with HEADER and SOURCE.
+HEADER is the raw diff header magit kept, SOURCE the name a rename came from."
+  (cond ((and header (string-match-p "^new file" header)) "A")
+        ((and header (string-match-p "^deleted file" header)) "D")
+        (source "R")
+        (t "M")))
+
+(defun nitpick-tree--count-changed (beg end)
+  "Return (ADDED . DELETED), counting the changed lines between BEG and END.
+The headers are not in the buffer - magit keeps them in the section - so
+every `+' and `-' line between the two is a changed line."
+  (let ((added 0)
+        (deleted 0))
+    (save-excursion
+      (goto-char beg)
+      (while (< (point) end)
+        (pcase (char-after)
+          (?+ (setq added (1+ added)))
+          (?- (setq deleted (1+ deleted))))
+        (forward-line 1)))
+    (cons added deleted)))
+
+(defun nitpick-tree--diff-changes (buffer)
+  "Return a plist per file in BUFFER's washed diff.
+What `nitpick-tree--changes' returns for a revision, read back out of the
+diff instead: a patch has no revision to ask git about, and the pane and the
+diff cannot then disagree about what it holds."
+  (with-current-buffer buffer
+    (save-restriction
+      (widen)
+      (mapcar
+       (lambda (section)
+         (let* ((source (nitpick--oref section 'source))
+                (binary (nitpick--oref section 'binary))
+                (counts (and (not binary)
+                             (nitpick-tree--count-changed
+                              (nitpick--oref section 'start)
+                              (nitpick--oref section 'end)))))
+           (list :file (nitpick--oref section 'value)
+                 :status (nitpick-tree--patch-status
+                          (nitpick--oref section 'header) source)
+                 :from source
+                 :added (car counts)
+                 :deleted (cdr counts)
+                 :binary (and binary t))))
+       (nitpick-tree--file-sections buffer)))))
 
 ;;;; Folding the paths into a tree
 
@@ -404,10 +467,15 @@ a letter."
         (apply #'+ (delq nil (mapcar (lambda (f) (plist-get f :added)) files)))
         (apply #'+ (delq nil (mapcar (lambda (f) (plist-get f :deleted)) files)))))
 
-(defun nitpick-tree--header (revision totals)
-  "Return the pane's header line for REVISION and TOTALS."
+(defun nitpick-tree--header (revision totals &optional patch)
+  "Return the pane's header line for REVISION and TOTALS.
+A pane read from PATCH names the patch instead, and does not say `vs': what
+the forge diffed it against is not something git here can resolve."
   (let ((count (nth 0 totals)))
-    (concat " vs " (propertize revision 'face 'nitpick-tree-revision)
+    (concat (if patch
+                (concat " " (propertize (plist-get patch :label)
+                                        'face 'nitpick-tree-revision))
+              (concat " vs " (propertize revision 'face 'nitpick-tree-revision)))
             (format "  %d file%s" count (if (= count 1) "" "s"))
             (propertize (format " +%d" (nth 1 totals)) 'face 'nitpick-tree-insertions)
             (propertize (format " -%d" (nth 2 totals)) 'face 'nitpick-tree-deletions))))
@@ -547,6 +615,62 @@ pane's half of the rule `nitpick-visit' follows in a diff."
           (message "%s: %s" file note))
         buffer))))
 
+(defun nitpick-tree--goto-file (file)
+  "Put point on the pane's line for FILE, and return it, or nil.
+The pane is drawn fully expanded, so the line is there to be found."
+  (goto-char (point-min))
+  (let (found)
+    (while (and (not found) (not (eobp)))
+      (let ((node (nitpick-tree--node-at-point)))
+        (if (equal (and node (plist-get node :file)) file)
+            (setq found (point))
+          (forward-line 1))))
+    found))
+
+(defun nitpick-tree--goto-node ()
+  "Put point on the pane's first node, unless it is on one already.
+treemacs draws a line above the first node that no node owns, and the point
+starts there - where the diff has nothing to follow until a key is pressed."
+  (unless (nitpick-tree--node-at-point)
+    (goto-char (point-min))
+    (while (and (not (nitpick-tree--node-at-point)) (not (eobp)))
+      (forward-line 1))))
+
+(defun nitpick-tree--adopt (root file)
+  "Re-read the pane from git in ROOT, and open FILE from it.
+Where a patch's `:check-out' lands: the worktree it made is a checkout like
+any other, so the pane it gets is the git one - real files on both sides,
+diff-hl painting them, `nitpick-comment' able to anchor a thread - and the
+file the hand-off started from is the one it ends on."
+  (setq nitpick-tree--diff-buffer nil)
+  (let ((revision (let ((default-directory root))
+                    (or (nitpick-diff-hl--suggested-base root)
+                        (user-error "Cannot work out what to diff %s against" root)))))
+    (nitpick-tree--open root revision)
+    (let ((buffer (get-buffer nitpick-tree-buffer-name)))
+      (when (buffer-live-p buffer)
+        (with-current-buffer buffer
+          (if (nitpick-tree--goto-file file)
+              (nitpick-tree-visit)
+            (message "%s is not in the diff of %s" file revision)))))))
+
+(defun nitpick-tree--check-out (node)
+  "Have the patch checked out, and open NODE's file once it is.
+A pane read from a patch has no files to open; `:check-out' is what fetches
+them, and it runs asynchronously, so the pane stays usable until it lands."
+  (let ((patch nitpick-tree--patch)
+        (file (or (and node (plist-get node :file))
+                  (user-error "No file here"))))
+    (funcall (or (plist-get patch :check-out)
+                 (user-error "This patch cannot be checked out"))
+             (lambda (root) (nitpick-tree--adopt root file)))))
+
+(defun nitpick-tree--open-file (node side)
+  "Open NODE's file as SIDE holds it, checking the patch out first if need be."
+  (if nitpick-tree--patch
+      (nitpick-tree--check-out node)
+    (nitpick-tree--visit-node node side)))
+
 (defun nitpick-tree-visit (&optional arg)
   "Open the file on the current line, or fold the directory on it.
 
@@ -567,7 +691,7 @@ treemacs', which has nothing to open."
           (treemacs-collapse-extension-node arg)
         (treemacs-expand-extension-node arg)))
      (arg (nitpick-tree-visit-pick))
-     (t (nitpick-tree--visit-node node (nitpick-tree--node-side node))))))
+     (t (nitpick-tree--open-file node (nitpick-tree--node-side node))))))
 
 (defun nitpick-tree-visit-other (&optional arg)
   "Open the file on the current line as the other version holds it.
@@ -578,23 +702,27 @@ deleted.  With a prefix ARG, pick the version by name."
     (when (and node (not (plist-get node :dir)))
       (if arg
           (nitpick-tree-visit-pick)
-        (nitpick-tree--visit-node
+        (nitpick-tree--open-file
          node (nitpick--visit-complement (nitpick-tree--node-side node)))))))
 
 (defun nitpick-tree-visit-pick ()
-  "Open the file on the current line as a version picked by name."
+  "Open the file on the current line as a version picked by name.
+Nothing to pick from a patch: both sides arrive with the checkout, so that is
+what this asks for there."
   (interactive)
-  (let* ((node (or (nitpick-tree--node-at-point) (user-error "No file here")))
-         (default-directory nitpick-tree--root)
-         (candidates
-          (seq-filter
-           (lambda (candidate)
-             (pcase-let ((`(,rev ,file) (nitpick-tree--node-target
-                                         node (cdr candidate))))
-               (nitpick--visit-exists-p rev file)))
-           (list (cons "worktree" 'new) (cons "base" 'old))))
-         (label (completing-read "Open this file as: " candidates nil t)))
-    (nitpick-tree--visit-node node (cdr (assoc label candidates)))))
+  (let ((node (or (nitpick-tree--node-at-point) (user-error "No file here"))))
+    (if nitpick-tree--patch
+        (nitpick-tree--check-out node)
+      (let* ((default-directory nitpick-tree--root)
+             (candidates
+              (seq-filter
+               (lambda (candidate)
+                 (pcase-let ((`(,rev ,file) (nitpick-tree--node-target
+                                             node (cdr candidate))))
+                   (nitpick--visit-exists-p rev file)))
+               (list (cons "worktree" 'new) (cons "base" 'old))))
+             (label (completing-read "Open this file as: " candidates nil t)))
+        (nitpick-tree--visit-node node (cdr (assoc label candidates)))))))
 
 ;;;; The diff the pane drives
 
@@ -639,11 +767,16 @@ the point stays in the pane."
       (error "Magit returned no diff buffer for %s" base))
     (setq nitpick-tree--diff-buffer buffer)))
 
+(defun nitpick-tree--patch-diff (patch)
+  "Return the diff buffer PATCH is washed into, remembered as the pane's.
+Built, not displayed: where the diff goes is the pane's business."
+  (setq nitpick-tree--diff-buffer (funcall (plist-get patch :diff))))
+
 (defun nitpick-tree--ensure-diff (root revision)
   "Return the pane's diff buffer, reading it first if it is not there."
-  (if (buffer-live-p nitpick-tree--diff-buffer)
-      nitpick-tree--diff-buffer
-    (nitpick-tree--build-diff root revision)))
+  (cond ((buffer-live-p nitpick-tree--diff-buffer) nitpick-tree--diff-buffer)
+        (nitpick-tree--patch (nitpick-tree--patch-diff nitpick-tree--patch))
+        (t (nitpick-tree--build-diff root revision))))
 
 (defun nitpick-tree--diff-on-screen-p ()
   "Whether the pane's diff is in a window on this frame."
@@ -944,18 +1077,21 @@ letter to `undefined'."
        :children nitpick-tree--items
        :child-type 'nitpick-tree-node)
 
-     (defun nitpick-tree--render (root revision items stats)
+     (defun nitpick-tree--render (root revision items stats &optional patch)
        "Render ITEMS in the current buffer as the pane for ROOT and REVISION.
-STATS is what `nitpick-tree--totals' returned, for the header line."
+STATS is what `nitpick-tree--totals' returned, for the header line.  PATCH is
+the patch the pane was read from, or nil when git was."
        (treemacs-initialize nitpick-tree-root
          :with-expand-depth 'all
          :and-do (progn
                    (setq-local nitpick-tree--root root
                                nitpick-tree--revision revision
                                nitpick-tree--items items
+                               nitpick-tree--patch patch
                                nitpick-tree--followed nil
                                treemacs-space-between-root-nodes nil
-                               header-line-format (nitpick-tree--header revision stats))
+                               header-line-format
+                               (nitpick-tree--header revision stats patch))
                    ;; Buffer-local, and re-added on every render: the locals
                    ;; and the hooks both go when `treemacs-mode' restarts.
                    (add-hook 'post-command-hook #'nitpick-tree--follow nil t)
@@ -1047,7 +1183,7 @@ replacing it."
      (dedicated . t))))
 
 ;;;###autoload
-(defun nitpick-tree (root revision)
+(defun nitpick-tree (root revision &optional patch)
   "Review what REVISION and ROOT's worktree differ by, file by file.
 
 A side pane listing only those files, nested by directory, with each one's
@@ -1074,6 +1210,10 @@ changes the pane lists.  A base already picked is left alone.  And unless
 `nitpick-tree-paint-lines' says otherwise, those changes are painted as whole
 lines rather than fringe marks alone.
 
+PATCH is for a pane with no worktree behind it - what `nitpick-pr' opens a
+pull request with - and replaces REVISION as the source of both the file list
+and the diff.
+
 Called with the pane already open it closes it again, undoing the painting it
 turned on.  A prefix argument always opens, so it is also how an open pane is
 pointed somewhere new.  `r' in the pane re-reads the diff, as does
@@ -1095,12 +1235,14 @@ committing, staging or unstaging."
                (if (or current-prefix-arg (not suggested))
                    (magit-read-branch-or-commit "Tree of changes vs" suggested)
                  suggested))))))
-  (if (and (null root) (null revision))
+  (if (and (null root) (null revision) (null patch))
       (nitpick-tree-close)
-    (nitpick-tree--open root revision)))
+    (nitpick-tree--open root revision patch)))
 
-(defun nitpick-tree--open (root revision)
+(defun nitpick-tree--open (root revision &optional patch)
   "Render ROOT's differences from REVISION in the pane, and select it.
+From PATCH instead, when there is one: its diff is washed first, because the
+file list is read back out of it.
 The diff beside it is read on a fresh opening, and re-read by a refresh that
 finds it on screen.  Not by one that does not: a refresh runs on every commit
 and every staging, and pushing a diff in front of the magit buffer the user is
@@ -1109,13 +1251,17 @@ committing from is not a redraw of the pane."
   (nitpick-tree--paint)
   ;; Before reading the diff: this also caches the revision, which is what
   ;; stops a second opening from setting it again over an answer since given.
-  (when (and nitpick-tree-set-base
+  (when (and (not patch)
+             nitpick-tree-set-base
              (not (alist-get (nitpick-diff-hl--root root) nitpick-diff-hl--bases
                              nil nil #'string-equal)))
     (nitpick-diff-hl-set-base root revision))
   (let* ((fresh (not (nitpick-tree--window)))
          (diff (or fresh (nitpick-tree--diff-on-screen-p)))
-         (files (nitpick-tree--changes root revision))
+         (washed (and patch (nitpick-tree--patch-diff patch)))
+         (files (if patch
+                    (nitpick-tree--diff-changes washed)
+                  (nitpick-tree--changes root revision)))
          (items (nitpick-tree--build files root))
          (stats (nitpick-tree--totals files))
          (existing (get-buffer nitpick-tree-buffer-name))
@@ -1125,37 +1271,43 @@ committing from is not a redraw of the pane."
          (buffer (or existing (get-buffer-create nitpick-tree-buffer-name))))
     (nitpick-tree--take-frame)
     (with-current-buffer buffer
-      (nitpick-tree--render root revision items stats))
+      (nitpick-tree--render root revision items stats patch))
     (let ((window (nitpick-tree--display buffer)))
       ;; The diff after the pane: the pane's side window is the one window
       ;; `nitpick-tree--main-window' has to pass over.
       (when diff
-        (nitpick-tree--build-diff root revision))
+        (if patch
+            (nitpick-tree--display-diff washed)
+          (nitpick-tree--build-diff root revision)))
       (when window
         (select-window window)
         (when line
           (goto-char (point-min))
           (forward-line (1- line)))
+        (nitpick-tree--goto-node)
         ;; Explicitly, rather than waiting for the hook: a refresh driven by
         ;; a magit hook ends with the point somewhere else entirely.  And only
         ;; where the diff was re-read, for the same reason it was not.
         (when diff
           (nitpick-tree--follow))))
     (when (called-interactively-p 'interactive)
-      (message "%s" (nitpick-tree--header revision stats)))))
+      (message "%s" (nitpick-tree--header revision stats patch)))))
 
 (defun nitpick-tree-refresh ()
   "Re-render the pane, if it is on screen, from what git says now.
+A pane read from a patch re-washes the patch file: refreshing is not a reason
+to ask the forge again.
 On screen, not merely alive: re-rendering displays the pane, and a commit is
 no reason to re-open one that was closed."
   (interactive)
   (let ((buffer (get-buffer nitpick-tree-buffer-name)))
     (when (and (buffer-live-p buffer) (get-buffer-window buffer t))
       (let ((root (buffer-local-value 'nitpick-tree--root buffer))
-            (revision (buffer-local-value 'nitpick-tree--revision buffer)))
-        (when (and root revision)
+            (revision (buffer-local-value 'nitpick-tree--revision buffer))
+            (patch (buffer-local-value 'nitpick-tree--patch buffer)))
+        (when (or patch (and root revision))
           (save-selected-window
-            (nitpick-tree root revision)))))))
+            (nitpick-tree root revision patch)))))))
 
 ;; The pane is a snapshot of a diff, so it goes stale exactly when the diff
 ;; does.  Same events treemacs-magit watches for the same reason: git's own

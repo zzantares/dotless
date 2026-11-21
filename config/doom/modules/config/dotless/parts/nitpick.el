@@ -22,6 +22,8 @@
 
   ;; the changed-file pane; a second feature, and nix ships no autoloads
   (when (require 'nitpick-tree nil t)
+    ;; `nitpick-pr' opens a PR in that pane without checking it out
+    (require 'nitpick-pr nil t)
     ;; `nitpick-tree-mode-map' alone never sees `d': treemacs' evil state
     ;; enables motion state, which suppresses plain letters. An auxiliary map
     ;; on the minor mode is what evil consults first.

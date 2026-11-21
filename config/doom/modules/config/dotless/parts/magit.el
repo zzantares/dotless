@@ -75,6 +75,8 @@
   (map! :leader :prefix "g"
         (:prefix ("V" . "review")
          :desc "Tree of changed files"     :m "t" #'nitpick-tree
+         ;; Reads a PR with no checkout; the first `o' in the pane makes one.
+         :desc "Review a PR by URL"        :m "p" #'nitpick-pr
          ;; The pane's `d' for the file being visited. diff-hl's
          ;; `diff-hl-diff-reference-goto-hunk' compares the same two things but
          ;; renders a vc-diff buffer, not a magit one.
