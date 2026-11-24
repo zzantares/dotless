@@ -23,6 +23,11 @@ in
     # so the rule set is not duplicated into a separate rules/ tree.
     context = knowledge.agentsMd;
 
+    # Codex writes its own keys back to config.toml (project trust_level,
+    # migration prompts). An immutable store symlink makes that fail, so merge
+    # declared settings into a real file at activation. Declared values win.
+    mutableSettings = true;
+
     # config.toml. Native OpenAI: Codex uses its built-in `openai` provider and
     # reads OPENAI_API_KEY (exported from sops in the devstation preset). The model
     # is intentionally left unpinned so Codex tracks its own current default; pin it
