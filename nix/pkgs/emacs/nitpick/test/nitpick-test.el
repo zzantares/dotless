@@ -2911,7 +2911,9 @@ sections built by `nitpick-test--section' carry."
   "The patch owns how it is materialised; the pane only asks."
   (let ((callback nil))
     (let ((nitpick-tree--patch
-           (list :check-out (lambda (cb) (setq callback cb)))))
+           (list :check-out (lambda (file cb)
+                              (should (equal file "dir/a.el"))
+                              (setq callback cb)))))
       (nitpick-tree--check-out '(:file "dir/a.el"))
       (should (functionp callback))
       (nitpick-test--with-stubs
@@ -2920,7 +2922,7 @@ sections built by `nitpick-test--section' carry."
 
 (ert-deftest nitpick-test-patch-check-out-needs-a-file ()
   "A directory, or the space between nodes, is not something to check out for."
-  (let ((nitpick-tree--patch (list :check-out #'ignore)))
+  (let ((nitpick-tree--patch (list :check-out (lambda (&rest _) nil))))
     (should-error (nitpick-tree--check-out nil) :type 'user-error)))
 
 (ert-deftest nitpick-test-patch-goto-file-finds-the-pane-line ()
@@ -3094,6 +3096,26 @@ sections built by `nitpick-test--section' carry."
 
 ;;;; Checking a pull request out
 
+(defmacro nitpick-test--with-errors (text &rest body)
+  "Run BODY with `buffer' bound to a stderr buffer holding TEXT."
+  (declare (indent 1))
+  `(let ((buffer (generate-new-buffer " *nitpick-test-errors*")))
+     (unwind-protect
+         (progn (with-current-buffer buffer (insert ,text)) ,@body)
+       (kill-buffer buffer))))
+
+(defun nitpick-test--job (&rest props)
+  "Return a job plist with a live-looking process and PROPS."
+  (append props (list :process 'live)))
+
+(defmacro nitpick-test--with-jobs (jobs &rest body)
+  "Run BODY with JOBS registered and every registered process alive."
+  (declare (indent 1))
+  `(nitpick-test--with-stubs
+       ((process-live-p (lambda (process) (eq process 'live))))
+     (let ((nitpick-pr--jobs ,jobs))
+       ,@body)))
+
 (ert-deftest nitpick-test-pr-reads-the-worktree-off-the-last-line ()
   "`git pr' prints the path last, and only on stdout."
   (nitpick-test--with-stubs
@@ -3107,72 +3129,188 @@ sections built by `nitpick-test--section' carry."
       ((file-directory-p (lambda (_path) nil)))
     (should-not (nitpick-pr--worktree "git pr: reusing session\n"))))
 
-(ert-deftest nitpick-test-pr-check-out-calls-back-with-the-worktree ()
-  "Which is what the pane re-reads itself from."
-  (nitpick-test--with-stubs
-      ((file-directory-p (lambda (_path) t)))
-    (let ((landed nil))
-      (nitpick-pr--check-out-done "o/r#7" 0 "/tmp/wt\n"
-                                  (lambda (root) (setq landed root)))
-      (should (equal landed "/tmp/wt")))))
-
-(ert-deftest nitpick-test-pr-check-out-failure-opens-nothing ()
-  "A fetch that failed must not send the pane at a worktree that is not there."
-  (let ((landed nil))
-    (nitpick-pr--check-out-done "o/r#7" 1 "" (lambda (root) (setq landed root)))
-    (should-not landed)))
-
-(ert-deftest nitpick-test-pr-check-out-failure-says-why ()
-  "`git pr' names the reason - no clone of the repo - on its own stderr."
-  (nitpick-test--with-stubs
-      ((nitpick-pr--complaint (lambda () "git pr: no clone of github.com/o/r")))
-    (should (equal (nitpick-test--messaged
-                    (lambda ()
-                      (nitpick-pr--check-out-done "o/r#7" 1 "" #'ignore)))
-                   "nitpick-pr: git pr: no clone of github.com/o/r"))))
-
-(ert-deftest nitpick-test-pr-check-out-failure-without-a-reason ()
-  "Nothing on stderr leaves the buffer as the only place left to look."
-  (nitpick-test--with-stubs
-      ((nitpick-pr--complaint (lambda () nil)))
-    (should (string-match-p "git pr failed for o/r#7"
-                            (nitpick-test--messaged
-                             (lambda ()
-                               (nitpick-pr--check-out-done "o/r#7" 1 "" #'ignore)))))))
-
-(ert-deftest nitpick-test-pr-complaint-is-the-last-line-of-stderr ()
+(ert-deftest nitpick-test-pr-complaint-is-the-last-line ()
   "Progress comes first; the reason it stopped is what it said last."
-  (let ((buffer (get-buffer-create nitpick-pr--stderr-buffer)))
-    (unwind-protect
-        (progn
-          (with-current-buffer buffer
-            (erase-buffer)
-            (insert "git pr: fetching refs/pull/7/head\n"
-                    "git pr: no clone of github.com/o/r under /home/x/workspace\n"))
-          (should (equal (nitpick-pr--complaint)
-                         "git pr: no clone of github.com/o/r under /home/x/workspace")))
-      (kill-buffer buffer))))
+  (nitpick-test--with-errors
+      "git pr: fetching refs/pull/7/head\ngit pr: no clone of github.com/o/r\n"
+    (should (equal (nitpick-pr--complaint buffer)
+                   "git pr: no clone of github.com/o/r"))))
 
 (ert-deftest nitpick-test-pr-complaint-of-an-empty-buffer-is-nothing ()
   "A failure that said nothing must not be reported as an empty line."
-  (let ((buffer (get-buffer-create nitpick-pr--stderr-buffer)))
-    (unwind-protect
-        (progn
-          (with-current-buffer buffer (erase-buffer))
-          (should-not (nitpick-pr--complaint)))
-      (kill-buffer buffer))))
+  (nitpick-test--with-errors ""
+    (should-not (nitpick-pr--complaint buffer))))
 
-(ert-deftest nitpick-test-pr-check-out-passes-the-ref-to-git-pr ()
-  "A URL names its own repository; a number is one of the repository at hand."
-  (let ((command nil))
+(ert-deftest nitpick-test-pr-progress-is-the-last-return-chunk ()
+  "Git overwrites one line with `\\r', so the percent is not on a line of its own."
+  (nitpick-test--with-errors
+      "Cloning into bare repository\nReceiving objects:   1% (1/7540)\rReceiving objects:  43% (3243/7540)\r"
+    (should (equal (nitpick-pr--progress buffer)
+                   "Receiving objects:  43% (3243/7540)"))))
+
+(ert-deftest nitpick-test-pr-cloned-p-reads-what-git-pr-said ()
+  "Nothing is cloned when the repository was already there, and saying so would lie."
+  (nitpick-test--with-errors "git pr: cloning github.com/o/r into /cache/o/r\n"
+    (should (nitpick-pr--cloned-p buffer)))
+  (nitpick-test--with-errors "git pr: reusing existing worktree at /wt/pr-7\n"
+    (should-not (nitpick-pr--cloned-p buffer))))
+
+(ert-deftest nitpick-test-pr-clone-flags-per-phase ()
+  "A clone job stops at the clone; a checkout job may make one on the way."
+  (should (equal (nitpick-pr--flags 'clone) '("--clone-only")))
+  (let ((nitpick-pr-clone 'prefetch))
+    (should (equal (nitpick-pr--flags 'checkout) '("--clone"))))
+  (let ((nitpick-pr-clone 'on-demand))
+    (should (equal (nitpick-pr--flags 'checkout) '("--clone"))))
+  (let ((nitpick-pr-clone nil))
+    (should-not (nitpick-pr--flags 'checkout))))
+
+(ert-deftest nitpick-test-pr-clone-directory-reaches-the-process ()
+  "And is absent when unset, so the default stays `git pr's to pick."
+  (let ((nitpick-pr-clone-directory "/data/clones"))
+    (should (member "GIT_PR_CLONE_ROOT=/data/clones" (nitpick-pr--environment))))
+  (let ((nitpick-pr-clone-directory nil))
+    (should-not (seq-find (lambda (entry)
+                            (string-prefix-p "GIT_PR_CLONE_ROOT=" entry))
+                          (nitpick-pr--environment)))))
+
+(ert-deftest nitpick-test-pr-land-opens-what-the-checkout-made ()
+  "Which is what the pane re-reads itself from."
+  (let ((landed nil))
     (nitpick-test--with-stubs
-        ((nitpick-pr--git-pr (lambda () "/bin/git-pr"))
-         (make-process (lambda (&rest args) (setq command (plist-get args :command)))))
-      (nitpick-pr--check-out '(:label "o/r#7" :ref "https://github.com/o/r/pull/7"
-                               :dir "/tmp")
-                             #'ignore)
-      (should (equal command '("/bin/git-pr" "https://github.com/o/r/pull/7"))))))
+        ((file-directory-p (lambda (_path) t)))
+      (nitpick-test--with-jobs
+          (list (cons "o/r#7"
+                      (nitpick-test--job
+                       :phase 'checkout :file "a.el"
+                       :pending (lambda (root) (setq landed root)))))
+        (nitpick-pr--land '(:label "o/r#7") 0 "/tmp/wt\n")
+        (should (equal landed "/tmp/wt"))
+        ;; And the job is forgotten, so the next `o' starts a new one.
+        (should-not nitpick-pr--jobs)))))
 
+(ert-deftest nitpick-test-pr-land-failure-opens-nothing-and-says-why ()
+  "A fetch that failed must not send the pane at a worktree that is not there."
+  (let ((landed nil))
+    (nitpick-test--with-errors "fatal: could not read Username\n"
+      (nitpick-test--with-jobs
+          (list (cons "o/r#7"
+                      (nitpick-test--job
+                       :phase 'checkout :errors buffer
+                       :pending (lambda (root) (setq landed root)))))
+        (should (equal (nitpick-test--messaged
+                        (lambda () (nitpick-pr--land '(:label "o/r#7") 1 "")))
+                       "nitpick-pr: fatal: could not read Username"))
+        (should-not landed)))))
+
+(ert-deftest nitpick-test-pr-land-failure-without-a-reason-names-the-buffer ()
+  "Nothing on stderr leaves the buffer as the only place left to look."
+  (nitpick-test--with-errors ""
+    (nitpick-test--with-jobs
+        (list (cons "o/r#7" (nitpick-test--job :phase 'checkout :errors buffer)))
+      (should (string-match-p "git pr failed for o/r#7"
+                              (nitpick-test--messaged
+                               (lambda ()
+                                 (nitpick-pr--land '(:label "o/r#7") 1 ""))))))))
+
+(ert-deftest nitpick-test-pr-land-of-a-clone-starts-what-waited-for-it ()
+  "The visit that asked for the files carries on where it left off."
+  (let ((started nil)
+        (pending (lambda (_root) nil)))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--start (lambda (_pr phase &optional file callback)
+                              (setq started (list phase file callback)))))
+      (nitpick-test--with-errors "git pr: cloning github.com/o/r into /cache/o/r\n"
+        (nitpick-test--with-jobs
+            (list (cons "o/r#7"
+                        (nitpick-test--job :phase 'clone :errors buffer
+                                           :file "a.el" :pending pending)))
+          (nitpick-pr--land '(:label "o/r#7") 0 "/cache/o/r\n")
+          (should (equal started (list 'checkout "a.el" pending))))))))
+
+(ert-deftest nitpick-test-pr-land-of-a-prefetch-waits-for-nothing ()
+  "A clone nobody asked to visit yet is the end of it."
+  (let ((started nil))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--start (lambda (&rest args) (setq started args))))
+      (nitpick-test--with-errors "git pr: cloning github.com/o/r into /cache/o/r\n"
+        (nitpick-test--with-jobs
+            (list (cons "o/r#7" (nitpick-test--job :phase 'clone :errors buffer)))
+          (nitpick-pr--land '(:label "o/r#7") 0 "/cache/o/r\n")
+          (should-not started))))))
+
+(ert-deftest nitpick-test-pr-check-out-joins-the-job-in-flight ()
+  "Two `o's are one `git pr': the second waits on the clone the first started."
+  (let ((started nil)
+        (callback (lambda (_root) nil)))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--start (lambda (&rest args) (setq started args))))
+      (nitpick-test--with-errors "Receiving objects:  43% (3243/7540)\r"
+        (let ((job (nitpick-test--job :phase 'clone :errors buffer)))
+          (nitpick-test--with-jobs (list (cons "o/r#7" job))
+            (should (string-match-p
+                     "cloning o/r#7 - Receiving objects:  43% (3243/7540) - will open a\\.el"
+                     (nitpick-test--messaged
+                      (lambda ()
+                        (nitpick-pr--check-out '(:label "o/r#7") "a.el" callback)))))
+            (should-not started)
+            (should (eq (plist-get job :pending) callback))
+            (should (equal (plist-get job :file) "a.el"))))))))
+
+(ert-deftest nitpick-test-pr-check-out-starts-one-when-nothing-runs ()
+  "The ordinary case, and the only one under `nitpick-pr-clone' nil."
+  (let ((started nil)
+        (callback (lambda (_root) nil)))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--start (lambda (_pr phase &optional file cb)
+                              (setq started (list phase file cb)))))
+      (nitpick-test--with-jobs nil
+        (nitpick-pr--check-out '(:label "o/r#7") "a.el" callback)
+        (should (equal started (list 'checkout "a.el" callback)))))))
+
+(ert-deftest nitpick-test-pr-prefetch-only-when-asked ()
+  "`prefetch' starts the clone as the pane opens; the other two do not."
+  (let ((started nil))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--start (lambda (_pr phase &rest _) (push phase started))))
+      (nitpick-test--with-jobs nil
+        (let ((nitpick-pr-clone 'prefetch))
+          (nitpick-pr--prefetch '(:label "o/r#7")))
+        (let ((nitpick-pr-clone 'on-demand))
+          (nitpick-pr--prefetch '(:label "o/r#7")))
+        (let ((nitpick-pr-clone nil))
+          (nitpick-pr--prefetch '(:label "o/r#7")))
+        (should (equal started '(clone)))))))
+
+(ert-deftest nitpick-test-pr-prefetch-does-not-double-a-job ()
+  "Reading the same pull request again joins what is already running."
+  (let ((started nil)
+        (nitpick-pr-clone 'prefetch))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--start (lambda (&rest args) (setq started args))))
+      (nitpick-test--with-jobs
+          (list (cons "o/r#7" (nitpick-test--job :phase 'clone)))
+        (nitpick-pr--prefetch '(:label "o/r#7"))
+        (should-not started)))))
+
+(ert-deftest nitpick-test-pr-prefetch-survives-a-missing-git-pr ()
+  "A tool that is not installed must not stop a pull request from opening."
+  (let ((nitpick-pr-clone 'prefetch))
+    (nitpick-test--with-stubs
+        ((nitpick-pr--git-pr (lambda () (user-error "`git pr' is not available"))))
+      (nitpick-test--with-jobs nil
+        (should (string-match-p "not prefetching o/r#7"
+                                (nitpick-test--messaged
+                                 (lambda ()
+                                   (nitpick-pr--prefetch '(:label "o/r#7"))))))))))
+
+(ert-deftest nitpick-test-pr-job-forgets-a-process-that-stopped ()
+  "Otherwise a job that failed would swallow every `o' after it."
+  (nitpick-test--with-stubs
+      ((process-live-p (lambda (_process) nil)))
+    (let ((nitpick-pr--jobs (list (cons "o/r#7" (list :process 'dead)))))
+      (should-not (nitpick-pr--job "o/r#7"))
+      (should-not nitpick-pr--jobs))))
 
 (provide 'nitpick-test)
 ;;; nitpick-test.el ends here

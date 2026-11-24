@@ -3,7 +3,7 @@
 # git-pr — work with forge pull requests locally.
 #
 # Usage:
-#   git pr <number|pr-url> [remote] [--prefix <text>]
+#   git pr <number|pr-url> [remote] [--prefix <text>] [--clone[-only]]
 #
 # Fetches refs/pull/<number>/head from <remote> (default: origin) and checks the
 # PR out in a sibling worktree. The local branch is named after the PR's upstream
@@ -17,7 +17,18 @@
 # and failing that by scanning each root for a clone whose remotes match. Roots
 # come from GIT_PR_REPO_ROOTS (colon-separated, default ~/workspace), scanned
 # GIT_PR_SCAN_DEPTH deep (default 4). The remote that matched becomes the
-# default remote. Forge-agnostic: /pull/<n> (GitHub) and /pulls/<n> (Forgejo,
+# default remote.
+#
+# --clone makes that clone when there is none, under GIT_PR_CLONE_ROOT (default
+# ${XDG_CACHE_HOME:-~/.cache}/git-pr/clones, overridable per run with
+# --clone-root), as <root>/<owner>/<repo>/.git - bare, with worktrees beside it,
+# the layout above. That root is searched too, so a repo is cloned once. Not
+# /tmp: systemd-tmpfiles deletes files inside it by age, which hollows a clone
+# out rather than removing it. --clone-only stops there and prints the clone,
+# building no worktree and no session - what a reader prefetches with. A public
+# repo is cloned over https, which is the faster of the two; a private one, or
+# one whose forge cannot be asked, over ssh, which is the only authentication a
+# background clone has. GIT_PR_CLONE_PROTOCOL=https|ssh forces it. Forge-agnostic: /pull/<n> (GitHub) and /pulls/<n> (Forgejo,
 # Gitea, Codeberg) both parse, and all of them serve refs/pull/<n>/head.
 #
 # The worktree directory, session and editor workspace are named
@@ -52,7 +63,7 @@
 
 usage() {
 	cat >&2 <<'EOF'
-usage: git pr <number|pr-url> [remote] [--prefix <text>]
+usage: git pr <number|pr-url> [remote] [--prefix <text>] [--clone[-only]]
 
 Fetch a pull request and check it out in a sibling worktree, on a local branch
 matching the PR's upstream branch name (falling back to pr/<number>). Prints the
@@ -61,6 +72,13 @@ worktree path on stdout. Remote defaults to origin.
 A number means a PR of the current repo. A PR URL (.../pull/<n> or .../pulls/<n>)
 names its own: tried at <root>/<owner>/<repo> first, then found by scanning the
 GIT_PR_REPO_ROOTS roots. Either way it works from anywhere.
+
+--clone clones the repo a URL names when there is no clone of it, under
+GIT_PR_CLONE_ROOT (default ${XDG_CACHE_HOME:-~/.cache}/git-pr/clones, or
+--clone-root <dir>), which is searched like any other root. --clone-only stops
+once the clone is there and prints it: no PR fetch, no worktree, no session.
+Cloning is over https for a public repo and ssh for a private one;
+GIT_PR_CLONE_PROTOCOL=https|ssh forces one.
 
 The worktree directory is named <ticket>-<branch> - the PR's Linear or Jira key,
 else pr-<number>. The branch keeps its own name. --prefix replaces <ticket>.
@@ -76,6 +94,11 @@ EOF
 # this works without that module.
 # shellcheck source=/dev/null
 source "$DOTLESS_SH_LIB/all.sh"
+
+die() {
+	echo "git pr: $*" >&2
+	exit 1
+}
 
 case "${1:-}" in
 	-h | --help | help)
@@ -96,6 +119,7 @@ esac
 
 repo_roots="${GIT_PR_REPO_ROOTS:-$HOME/workspace}"
 scan_depth="${GIT_PR_SCAN_DEPTH:-4}"
+clone_root="${GIT_PR_CLONE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/git-pr/clones}"
 linear_key_file="${LINEAR_API_KEY_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/sops-nix/secrets/linear_api_key}"
 
 # host/owner/repo for a remote or web URL, lowercased, in any of git's
@@ -126,6 +150,77 @@ parse_pr_url() {
 # <root>/<owner>/<repo>, or nothing. Its remotes are still checked, so a
 # same-named repo on another forge parked at that path is not mistaken for this
 # one - the scan then gets its turn.
+# Which protocol to clone <host/owner/repo> with, when nothing says.
+#
+# https for a public repository: measurably faster (GitHub's ssh front end hands
+# out about half the bandwidth of its http one on identical packs, plus a second
+# of handshake) and it needs no key. ssh for a private one, because that is the
+# only authentication a clone running in the background has - https would want a
+# username typed, and a credential helper is not a given.
+#
+# The forge is asked, which only GitHub can answer here. Anything else - another
+# forge, no gh, no network - is cloned over ssh: slower, and right either way.
+clone_protocol() {
+	local slug="$1" host="${1%%/*}" path="${1#*/}" private=""
+	[[ -n "${GIT_PR_CLONE_PROTOCOL:-}" ]] && {
+		echo "$GIT_PR_CLONE_PROTOCOL"
+		return 0
+	}
+	if [[ "$host" == github.com ]] && have gh; then
+		private="$(gh api "repos/$path" --jq '.private' 2>/dev/null || true)"
+	fi
+	[[ "$private" == "false" ]] && {
+		echo https
+		return 0
+	}
+	echo ssh
+}
+
+# The URL to clone <host/owner/repo> from, over PROTOCOL.
+clone_url() {
+	local slug="$1" host="${1%%/*}" path="${1#*/}"
+	case "$2" in
+		https) echo "https://$slug.git" ;;
+		ssh) echo "git@$host:$path.git" ;;
+		*) die "GIT_PR_CLONE_PROTOCOL must be https or ssh, not '$2'" ;;
+	esac
+}
+
+# Clone <host/owner/repo> under clone_root and echo "<dir> origin", the way
+# find_clone answers. Bare at <dir>/.git with worktrees beside it: the layout
+# probe_clone looks for, so the next run finds this instead of cloning again.
+clone_repo() {
+	local slug="$1" dir url protocol
+	dir="$clone_root/${slug#*/}" # drop the host, keep owner/repo
+	protocol="$(clone_protocol "$slug")"
+	url="$(clone_url "$slug" "$protocol")" || exit 1
+	[[ -e "$dir" ]] && die "'$dir' exists and is no clone of $slug - remove it or pass --clone-root"
+	mkdir -p "$dir" || die "cannot make $dir"
+	echo "git pr: cloning $url into $dir" >&2
+	# Fail rather than hang: this runs in the background as often as not, so a
+	# username prompt, a locked key or a host nobody has confirmed yet has to
+	# come back as an error instead of waiting for an answer.
+	GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" \
+		git clone --bare --no-tags --progress "$url" "$dir/.git" >&2 || {
+		# Leave nothing half-made to be mistaken for a clone next time, and
+		# nothing of our own after git's "fatal:" line: that line is the reason,
+		# and a reader shows the last one. The "cloning" line above is the
+		# context, and it has already been printed.
+		# Not rmdir: git leaves a partial .git behind, and a directory that
+		# looks like a clone and is not would be found by the next run. Only
+		# ever the directory made three lines up.
+		rm -rf "$dir"
+		rmdir "$(dirname "$dir")" 2>/dev/null || true
+		exit 1
+	}
+	# A bare clone sets no fetch refspec, so refs/remotes/origin/* would never
+	# exist - and resolve_base, nitpick's suggested base and octo all read
+	# origin/<branch>.
+	git -C "$dir/.git" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+	git -C "$dir/.git" fetch origin >&2 || die "cloned $slug but could not fetch its branches"
+	echo "$dir origin"
+}
+
 probe_clone() {
 	local want="$1" root dir hit
 	local -a roots
@@ -271,6 +366,8 @@ ticket_for() {
 }
 
 prefix=""
+do_clone=0
+clone_only=0
 positional=()
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -284,6 +381,24 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--prefix=*)
 			prefix="${1#--prefix=}"
+			shift
+			;;
+		--clone)
+			do_clone=1
+			shift
+			;;
+		--clone-only)
+			do_clone=1
+			clone_only=1
+			shift
+			;;
+		--clone-root)
+			[[ $# -ge 2 ]] || die "--clone-root needs a value"
+			clone_root="$2"
+			shift 2
+			;;
+		--clone-root=*)
+			clone_root="${1#--clone-root=}"
 			shift
 			;;
 		-*)
@@ -300,13 +415,22 @@ done
 pr="${positional[0]:-}"
 remote="${positional[1]:-}"
 
+# Cloned repos are looked for too, so one is only ever cloned once - by a
+# prefetch, by a later review of the same repo, or from the terminal.
+repo_roots="$repo_roots:$clone_root"
+
 # A URL carries its own repo, so resolve it to a clone and work from there.
 pr_slug=""
 if parsed="$(parse_pr_url "$pr")" && [[ -n "$parsed" ]]; then
 	read -r pr_slug pr <<<"$parsed"
 	if ! clone="$(find_clone "$pr_slug")"; then
-		echo "git pr: no clone of $pr_slug under ${repo_roots//:/, } (or \$PWD)" >&2
-		exit 1
+		if [[ "$do_clone" -eq 1 ]]; then
+			clone="$(clone_repo "$pr_slug")" || exit 1
+		else
+			# One line, hint included: a reader shows the last line of
+			# this and would otherwise show the hint without the reason.
+			die "no clone of $pr_slug under ${repo_roots//:/, } (or \$PWD); --clone would make one in $clone_root"
+		fi
 	fi
 	read -r dir matched <<<"$clone"
 	cd "$dir"
@@ -323,6 +447,14 @@ fi
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
 	echo "git pr: not inside a git repository" >&2
 	exit 1
+fi
+
+# --clone-only asked for the clone and nothing else: no PR fetch, no worktree,
+# no session. The directory the bare repo sits in is what it prints, which is
+# the one a later run looks for - and for a bare number, where we already are.
+if [[ "$clone_only" -eq 1 ]]; then
+	wt_worktree_root
+	exit 0
 fi
 
 pr_ref="refs/pull/$pr/head"

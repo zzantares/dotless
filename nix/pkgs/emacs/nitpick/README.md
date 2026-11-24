@@ -364,7 +364,74 @@ both sides, diff-hl painting them, `nitpick-comment` able to anchor a thread.
 Until then `nitpick-comment` says so rather than failing at the forge.
 
 So reading a PR costs one HTTP request, and only a review that opens a file
-pays for a worktree. `pr-diff` and `pr-review`, the gh-dash keys, check out
+pays for a worktree.
+
+### A repository you do not have
+
+`git pr` adds a worktree to a clone you already have, so a PR of a repository
+that is not on disk used to fail at that first `o`. `nitpick-pr-clone` decides
+when to make the clone instead:
+
+| Value | When the clone is made |
+| --- | --- |
+| `prefetch` (default) | As the pane opens, in the background, at the same time as the patch is fetched |
+| `on-demand` | At the first `o` |
+| `nil` | Never - `o` reports that there is no clone |
+
+Prefetching is what buys the time: on a 58 MB repository the pane is up in
+1.2 s and the bare clone takes about 7.5 s over ssh (3 s over https), so the
+clone is usually well under way, and often done, by the time a file is asked
+for. Ask sooner and nothing blocks and nothing fails - the visit joins the
+clone already running, says how far it has got, and opens the file when it
+lands:
+
+```
+nitpick-pr: cloning dlvhdr/gh-dash#447 - Receiving objects:  10% (754/7540) - will open ui/components/reposection/commands.go when it lands
+```
+
+One job per pull request, so a second `o` joins the first rather than starting
+a second `git pr`. The progress is read out of the job's stderr buffer when
+asked for - the last `\r`-separated chunk of it, which is how git writes a
+percentage - so there is no filter and no state to keep.
+
+`nitpick-pr-clone-directory` says where clones go, as
+`<directory>/<owner>/<repo>` with the bare repository at `<repo>/.git` - the
+layout `git pr` looks in, so a repository is cloned once however the next
+review reaches it. Worktrees land beside it, so point this at somewhere you
+keep work if you mean to contribute to what you review. Unset, `git pr` keeps
+them under `$XDG_CACHE_HOME/git-pr/clones`: disposable, `rm -rf` is the
+cleanup, and nothing prunes them for you.
+
+Not `/tmp`, deliberately: `systemd-tmpfiles` deletes files *inside* it by age,
+which does not remove a stale clone but hollows one out - and the next run
+finds something that looks like a clone and is broken.
+
+The clone is a full one (`--bare --no-tags`), not a partial one, so the review
+works offline afterwards and no visit waits on a blob fetch.
+
+The protocol follows what the repository is, because the two differ in both
+directions:
+
+| Repository | Cloned over | Why |
+| --- | --- | --- |
+| Public | `https` | Faster: GitHub's ssh front end hands out about half the bandwidth of its http one on identical packs (14-16 vs 23-34 MiB/s measured), plus a second of handshake |
+| Private | `ssh` | The only authentication a background clone has - `https` wants a username typed, and a credential helper is not a given |
+| Forge that cannot be asked | `ssh` | Right either way, at the cost of speed |
+
+GitHub is asked through `gh api repos/<owner>/<repo> --jq .private`, one call
+and only when something is actually being cloned. Any other forge, no `gh`, no
+answer - ssh. `GIT_PR_CLONE_PROTOCOL=https|ssh` forces one, whatever the
+repository is.
+
+Either way the clone cannot sit waiting for an answer: it runs with
+`GIT_TERMINAL_PROMPT=0` and ssh's `BatchMode=yes`, so a locked key or a host
+nobody has confirmed yet comes back as an error instead of a hang. A clone that
+fails leaves nothing behind - git's partial `.git` included, which would
+otherwise be found by the next run and mistaken for a clone.
+
+The same flags are there in the terminal: `git pr --clone <url>` clones when
+there is no clone, `git pr --clone-only <url>` stops once there is one and
+prints it, and `--clone-root <dir>` / `GIT_PR_CLONE_ROOT` moves them. `pr-diff` and `pr-review`, the gh-dash keys, check out
 first because diffnav and octo both resolve files against the checkout they
 were started from.
 

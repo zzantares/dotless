@@ -211,7 +211,8 @@ Given back by `nitpick-tree-close'.")
   "The patch the pane was rendered from, or nil when git is its source.
 A plist: `:label' for the header line, `:root' the absolute prefix its paths
 are keyed by, `:diff' a function returning the washed diff buffer, and
-`:check-out' one that materialises a worktree and calls back with its path.")
+`:check-out' one that materialises a worktree, called with the file being
+opened and a callback handed that worktree's path.")
 
 (defvar-local nitpick-tree--followed nil
   "Key of the node the diff was last scrolled to.
@@ -674,12 +675,15 @@ file the hand-off started from is the one it ends on."
 (defun nitpick-tree--check-out (node)
   "Have the patch checked out, and open NODE's file once it is.
 A pane read from a patch has no files to open; `:check-out' is what fetches
-them, and it runs asynchronously, so the pane stays usable until it lands."
+them, and it runs asynchronously, so the pane stays usable until it lands.
+The file goes with the callback: what is being waited for is worth saying
+while the waiting happens."
   (let ((patch nitpick-tree--patch)
         (file (or (and node (plist-get node :file))
                   (user-error "No file here"))))
     (funcall (or (plist-get patch :check-out)
                  (user-error "This patch cannot be checked out"))
+             file
              (lambda (root) (nitpick-tree--adopt root file)))))
 
 (defun nitpick-tree--checks-out-p ()
