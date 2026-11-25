@@ -257,6 +257,7 @@ in
         "clojure"
         "emmet"
         "vterm"
+        "ghostel"
         "gptel"
         "claude-code-ide"
         "linear"

@@ -37,6 +37,12 @@ in
         vterm
         multi-vterm
 
+        # Terminal backend for claude-code-ide only; Doom's :term keeps vterm.
+        # nixpkgs builds ghostel-module.so with zig, so nothing is fetched at
+        # runtime, which ghostel otherwise does on first use.
+        ghostel
+        evil-ghostel
+
         # Doom's :tools pdf otherwise compiles epdfinfo on first use; the
         # nixpkgs build ships it prebuilt against poppler.
         pdf-tools

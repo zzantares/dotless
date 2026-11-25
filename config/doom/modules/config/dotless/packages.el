@@ -15,6 +15,8 @@
 (package! claude-code-ide
   :recipe (:host github :repo "manzaltu/claude-code-ide.el"))
 (package! vterm :built-in t)            ; made available by Nix
+(package! ghostel :built-in t)          ; made available by Nix
+(package! evil-ghostel :built-in t)     ; made available by Nix
 (package! kiwix :built-in t)            ; made available by Nix
 (package! vterm-anti-flicker-filter
   :recipe (:host github :repo "martinbaillie/vterm-anti-flicker-filter"))
