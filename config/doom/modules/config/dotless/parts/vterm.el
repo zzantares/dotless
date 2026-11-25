@@ -4,6 +4,8 @@
 (after! vterm
   (when (file-exists-p "~/.nix-profile/bin/zsh")
     (setopt vterm-shell (expand-file-name "~/.nix-profile/bin/zsh")))
+  ;; 1000 lines is a few minutes of build output. Ceiling is SB_MAX, 100000.
+  (setopt vterm-max-scrollback 50000)
   (defun zz-vterm-reset-cursor-point-insert ()
     (interactive)
     (let ((prompt-line (save-excursion
