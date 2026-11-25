@@ -20,9 +20,38 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mux.sh"
 # Root where sibling worktrees live: the dir containing the git common dir.
 wt_worktree_root() { dirname "$(cd "$(git rev-parse --git-common-dir)" && pwd)"; }
 
-# origin/<main> when that ref exists, else the bare local <main>.
+# The remote to resolve <main> against: origin when there is one, else the
+# first remote that carries it. A clone whose upstream is named something else -
+# upstream, github - then resolves like any other. Empty when none does.
+wt_remote_for() {
+	local main="$1" remote
+	local -a remotes
+	git config --get remote.origin.url >/dev/null 2>&1 && {
+		echo origin
+		return 0
+	}
+	mapfile -t remotes < <(git remote)
+	for remote in "${remotes[@]}"; do
+		git show-ref -q --verify "refs/remotes/$remote/$main" && {
+			echo "$remote"
+			return 0
+		}
+	done
+	return 1
+}
+
+# <remote>/<main> when that ref exists, else the bare local <main>.
 wt_resolve_base() {
-	if git show-ref -q --verify "refs/remotes/origin/$1"; then echo "origin/$1"; else echo "$1"; fi
+	local main="$1" remote
+	remote="$(wt_remote_for "$main")" || {
+		echo "$main"
+		return 0
+	}
+	if git show-ref -q --verify "refs/remotes/$remote/$main"; then
+		echo "$remote/$main"
+	else
+		echo "$main"
+	fi
 }
 
 # Path of the worktree checked out on <branch>, or empty.

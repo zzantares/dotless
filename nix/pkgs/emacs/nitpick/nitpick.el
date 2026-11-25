@@ -1321,9 +1321,12 @@ anything, so there is nothing to infer and the caller falls back."
 (defun nitpick-diff-hl--suggested-base (root)
   "Return the revision to preselect when asking what to diff ROOT against.
 In order: this worktree's last answer; the open PR's base, as the remote has
-it, which is the forge's own view; the nearest ancestor branch, worked out
-from the commit graph by `nitpick--nearest-base'; else ROOT's default branch
-as the remote has it.
+it, with `...' appended - the forge's own \"Files changed\", which is the diff
+against where the branch left that base rather than against where it has got
+to since; the nearest ancestor branch, worked out from the commit graph by
+`nitpick--nearest-base'; else ROOT's default branch as the remote has it,
+without `...': nothing was inferred there, and what the default branch has
+gained is then the only thing left to show.
 
 The forge comes before the graph because it knows the answer while the graph
 only has evidence for it.  The graph comes before the remote's default branch
@@ -1335,7 +1338,8 @@ suggests nothing."
   (or (alist-get (nitpick-diff-hl--root root) nitpick-diff-hl--bases nil nil #'string-equal)
       (let ((branch (ignore-errors (alist-get 'base (nitpick--pr-ctx root)))))
         (and branch (let ((default-directory root))
-                      (concat (nitpick--remote) "/" branch))))
+                      (concat (nitpick--remote) "/" branch
+                              nitpick--merge-base-suffix))))
       (nitpick--nearest-base root)
       (let ((branch (nitpick-diff-hl--default-base root)))
         (and branch (let ((default-directory root))
@@ -1363,7 +1367,8 @@ changed while LSP and jump-to-definition keep working on the real files."
   (let* ((slot 'base-ref)
          (default-directory worktree-path))
     (nitpick-diff-hl-set-base
-     worktree-path (concat (nitpick--remote) "/" (eieio-oref pullreq slot)))))
+     worktree-path (concat (nitpick--remote) "/" (eieio-oref pullreq slot)
+                           nitpick--merge-base-suffix))))
 
 ;;;; Forge integration
 

@@ -1001,7 +1001,17 @@ remote has it - the forge diffs against the remote's copy, not a local branch."
         ((nitpick--pr-ctx (lambda (&rest _) '((base . "feature/parent"))))
          (magit-main-branch (lambda () "master")))
       (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt")
-                     "origin/feature/parent")))))
+                     "origin/feature/parent...")))))
+
+(ert-deftest nitpick-test-suggested-base-of-a-pr-is-the-merge-base ()
+  "`...\=', so the pane shows what the branch changed since it left its base -
+the forge's own \"Files changed\" - and not what the base gained since."
+  (let ((nitpick-diff-hl--bases nil))
+    (nitpick-test--with-stubs
+        ((nitpick--pr-ctx (lambda (&rest _) '((base . "main"))))
+         (magit-main-branch (lambda () "main")))
+      (should (string-suffix-p nitpick--merge-base-suffix
+                               (nitpick-diff-hl--suggested-base "/tmp/wt"))))))
 
 (ert-deftest nitpick-test-suggested-base-falls-back-to-the-default-branch ()
   "No open PR is not an error: the repository's default branch answers."
@@ -1381,7 +1391,7 @@ MERGED is the branches `git branch --merged' would list."
          (nitpick--nearest-base (lambda (&rest _) "guessed..."))
          (magit-main-branch (lambda () "master")))
       (should (equal (nitpick-diff-hl--suggested-base "/tmp/wt")
-                     "origin/feature/parent")))))
+                     "origin/feature/parent...")))))
 
 (ert-deftest nitpick-test-suggested-base-prefers-the-graph-over-the-remote-head ()
   "A remote-tracking ref is only as current as the last fetch."

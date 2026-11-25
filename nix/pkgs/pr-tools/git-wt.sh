@@ -70,27 +70,35 @@ fi
 # Bounded twice: ConnectTimeout for a host that never answers, timeout(1)
 # for a transfer that stalls once open. A failure warns, never hangs.
 # Returns non-zero on failure so callers can distrust origin/*.
-fetch_origin() {
-	local out
-	local -a cmd=(git fetch origin --quiet)
+fetch_remote() {
+	local remote="$1" out
+	local -a cmd=(git fetch "$remote" --quiet)
 	if [[ -n "$FETCH_TIMEOUT" ]]; then
 		cmd=("$FETCH_TIMEOUT" 20 "${cmd[@]}")
 	fi
 	out="$(GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o ConnectTimeout=5" "${cmd[@]}" 2>&1)" || {
-		echo "git wt: fetch origin failed, using local refs: ${out:-timed out}" >&2
+		echo "git wt: fetch $remote failed, using local refs: ${out:-timed out}" >&2
 		return 1
 	}
 }
 
-# Base ref for branching and merge checks. wt_resolve_base prefers
-# origin/<main>, which is right only when the fetch landed; a stale one can be
-# months behind. On failure use the local branch, the one master's worktree is on.
+# Base ref for branching and merge checks. wt_resolve_base prefers the remote's
+# <main>, which is right only when the fetch landed; a stale one can be months
+# behind. On failure use the local branch, the one master's worktree is on.
+#
+# The remote is whichever carries <main> - origin for most clones, upstream or
+# github for one made from a fork - and is fetched by that name.
 resolve_base() {
-	local main=$1
+	local main=$1 remote
 	local fetched=1
-	fetch_origin || fetched=0
+	remote="$(wt_remote_for "$main")" || remote=""
+	if [[ -n "$remote" ]]; then
+		fetch_remote "$remote" || fetched=0
+	else
+		fetched=0
+	fi
 	if [[ "$fetched" -eq 0 ]] && git show-ref -q --verify "refs/heads/$main"; then
-		echo "git wt: origin is stale, using local $main" >&2
+		echo "git wt: ${remote:-no remote} is stale, using local $main" >&2
 		echo "$main"
 	else
 		wt_resolve_base "$main"
