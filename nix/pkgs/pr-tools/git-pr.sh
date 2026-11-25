@@ -186,9 +186,18 @@ clone_url() {
 	esac
 }
 
+# Undo a clone that did not finish: an initialised .git with no refs looks
+# enough like one for the next run to find it. Nothing of ours is printed after
+# git's own "fatal:" line - that line is the reason, and a reader shows the last.
+clone_failed() {
+	rm -rf "$1"
+	rmdir "$(dirname "$1")" 2>/dev/null || true
+	exit 1
+}
+
 # Clone <host/owner/repo> under clone_root and echo "<dir> origin", the way
-# find_clone answers. Bare at <dir>/.git with worktrees beside it: the layout
-# probe_clone looks for, so the next run finds this instead of cloning again.
+# find_clone answers. Bare at <dir>/.git, worktrees beside it - the layout
+# probe_clone looks for, so the next run finds it.
 clone_repo() {
 	local slug="$1" dir url protocol
 	dir="$clone_root/${slug#*/}" # drop the host, keep owner/repo
@@ -197,27 +206,22 @@ clone_repo() {
 	[[ -e "$dir" ]] && die "'$dir' exists and is no clone of $slug - remove it or pass --clone-root"
 	mkdir -p "$dir" || die "cannot make $dir"
 	echo "git pr: cloning $url into $dir" >&2
+	# Fetched into an empty repository, not cloned: `clone --bare' writes the
+	# forge's branches into refs/heads, where fetch never updates them, and then
+	# `git pr' finds that frozen copy and checks out the clone-time commit
+	# instead of the PR head.
+	git init -q --bare "$dir/.git" >&2 || clone_failed "$dir"
+	git -C "$dir/.git" remote add origin "$url" || clone_failed "$dir"
+	# Without it a fetch writes FETCH_HEAD and no refs at all: no origin/*, which
+	# resolve_base, nitpick's suggested base and octo all read.
+	git -C "$dir/.git" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
 	# Fail rather than hang: this runs in the background as often as not, so a
 	# username prompt, a locked key or a host nobody has confirmed yet has to
 	# come back as an error instead of waiting for an answer.
 	GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" \
-		git clone --bare --no-tags --progress "$url" "$dir/.git" >&2 || {
-		# Leave nothing half-made to be mistaken for a clone next time, and
-		# nothing of our own after git's "fatal:" line: that line is the reason,
-		# and a reader shows the last one. The "cloning" line above is the
-		# context, and it has already been printed.
-		# Not rmdir: git leaves a partial .git behind, and a directory that
-		# looks like a clone and is not would be found by the next run. Only
-		# ever the directory made three lines up.
-		rm -rf "$dir"
-		rmdir "$(dirname "$dir")" 2>/dev/null || true
-		exit 1
-	}
-	# A bare clone sets no fetch refspec, so refs/remotes/origin/* would never
-	# exist - and resolve_base, nitpick's suggested base and octo all read
-	# origin/<branch>.
-	git -C "$dir/.git" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
-	git -C "$dir/.git" fetch origin >&2 || die "cloned $slug but could not fetch its branches"
+		git -C "$dir/.git" fetch --no-tags --progress origin >&2 || clone_failed "$dir"
+	# `clone' writes origin/HEAD and `fetch' does not; default_base reads it.
+	git -C "$dir/.git" remote set-head origin --auto >/dev/null 2>&1 || true
 	echo "$dir origin"
 }
 
@@ -345,7 +349,7 @@ jira_ticket() {
 	[[ -n "${JIRA_BASE_URL:-}" && -n "${JIRA_EMAIL:-}" && -n "${JIRA_API_TOKEN:-}" ]] || return 0
 
 	candidate="$(gh pr view "$pr" -R "$repo" --json title,headRefName -q '.title + " " + .headRefName' 2>/dev/null |
-		grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1)"
+		grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | awk 'NR == 1')"
 	[[ -n "$candidate" ]] || return 0
 
 	curl -sS --max-time 10 -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -461,7 +465,7 @@ pr_ref="refs/pull/$pr/head"
 
 # Resolve the PR head SHA up front: fail early with a clear message, and use it
 # below to recover the source branch name.
-pr_sha="$(git ls-remote "$remote" "$pr_ref" | awk '{ print $1; exit }')"
+pr_sha="$(git ls-remote "$remote" "$pr_ref" | awk 'NR == 1 { print $1 }')"
 if [[ -z "$pr_sha" ]]; then
 	echo "git pr: no $pr_ref on '$remote' (is PR #$pr open there?)" >&2
 	exit 1
@@ -469,8 +473,12 @@ fi
 
 # Recover the PR's source branch by matching its head commit against the remote's
 # branches. No match (fork/closed PR) → fall back to pr/<number>.
+#
+# The awk reads to the end rather than exiting on the match: a repo with a few
+# hundred branches is still writing when an early match would have closed the
+# pipe, and SIGPIPE under `set -o pipefail' aborts the whole script silently.
 branch="$(git ls-remote "$remote" 'refs/heads/*' |
-	awk -v sha="$pr_sha" '$1 == sha { sub(/^refs\/heads\//, "", $2); print $2; exit }')"
+	awk -v sha="$pr_sha" '$1 == sha && !found { sub(/^refs\/heads\//, "", $2); print $2; found = 1 }')"
 if [[ -z "$branch" ]]; then
 	branch="pr/$pr"
 fi

@@ -334,8 +334,11 @@ not something to go looking in a buffer for."
   (nitpick-pr--tail buffer "\n"))
 
 (defun nitpick-pr--progress (buffer)
-  "Return how far BUFFER says `git pr\=' has got, or nil."
-  (nitpick-pr--tail buffer "[\r\n]"))
+  "Return how far BUFFER says `git pr\=' has got, or nil.
+Only git's own counting, which is the part with a percentage in it: before
+that there is nothing to report but what we already said we were doing."
+  (let ((chunk (nitpick-pr--tail buffer "[\r\n]")))
+    (and chunk (string-match-p "[0-9]+%" chunk) chunk)))
 
 (defun nitpick-pr--cloned-p (buffer)
   "Whether BUFFER says a clone was made rather than one found.

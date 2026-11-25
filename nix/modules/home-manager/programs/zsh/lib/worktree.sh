@@ -26,10 +26,12 @@ wt_resolve_base() {
 }
 
 # Path of the worktree checked out on <branch>, or empty.
+# The awk reads to the end rather than exiting on the match: closing the pipe
+# early can SIGPIPE git, which `set -o pipefail' turns into a silent abort.
 wt_for_branch() {
 	git worktree list --porcelain | awk -v ref="refs/heads/$1" '
 		/^worktree / { wt = substr($0, 10) }
-		$1 == "branch" && $2 == ref { print wt; exit }'
+		$1 == "branch" && $2 == ref && !found { print wt; found = 1 }'
 }
 
 # Whether <branch> has merged into <base>: tip is an ancestor (merge commit /

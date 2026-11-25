@@ -3141,6 +3141,11 @@ sections built by `nitpick-test--section' carry."
   (nitpick-test--with-errors ""
     (should-not (nitpick-pr--complaint buffer))))
 
+(ert-deftest nitpick-test-pr-progress-ignores-what-is-not-progress ()
+  "Before git starts counting there is nothing to report but our own line."
+  (nitpick-test--with-errors "git pr: cloning git@github.com:o/r.git into /cache/o/r\n"
+    (should-not (nitpick-pr--progress buffer))))
+
 (ert-deftest nitpick-test-pr-progress-is-the-last-return-chunk ()
   "Git overwrites one line with `\\r', so the percent is not on a line of its own."
   (nitpick-test--with-errors
