@@ -23,7 +23,9 @@ let
   haskellOverrides = hself: hsuper: {
     c-expr-runtime = hself.callHackage "c-expr-runtime" "0.2.0.0" { };
     c-expr-dsl = hself.callHackage "c-expr-dsl" "0.2.0.0" { };
-    doxygen-parser = hself.callHackage "doxygen-parser" "0.1.2" { };
+    # Test-suite bound is QuickCheck <2.16; nixpkgs now ships 2.16.0.0.
+    # Tests pass against it. Drop when upstream relaxes the bound.
+    doxygen-parser = hsLib.doJailbreak (hself.callHackage "doxygen-parser" "0.1.2" { });
     hs-bindgen-runtime = hself.callHackage "hs-bindgen-runtime" "1.0.0.0" { };
 
     # Its test suite needs optics, whose own tests fail on ghc912 in
@@ -44,6 +46,12 @@ let
     # Unrelated to the above: a timing-sensitive concurrency suite that
     # fails at random, on 9.10 too, taking the batteries closure with it.
     threads = hsLib.dontCheck hsuper.threads;
+
+    # Same QuickCheck <2.16 test bound as doxygen-parser, but these two come
+    # from nixpkgs itself, which has not jailbroken them yet. They reach the
+    # batteries closure through debruijn and vec.
+    fin = hsLib.doJailbreak hsuper.fin;
+    skew-list = hsLib.doJailbreak hsuper.skew-list;
   };
 in
 
